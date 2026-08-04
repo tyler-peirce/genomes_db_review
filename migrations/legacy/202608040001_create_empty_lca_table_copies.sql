@@ -11,7 +11,9 @@
 -- Verification: \d each new table and confirm 0 rows; confirm the 4 original tables and
 --   dependent views (lca_pivot_view, lca_results_view, filtered_lca_view, etc.) are unaffected.
 --
--- Status: Draft. Naming: swap-in of these tables to replace the live ones, and archiving of
+-- Status: Archived. Superseded by the Sqitch change "create_empty_lca_table_copies"
+--   (see deploy/, revert/, verify/); kept here for history only, do not run directly.
+-- Note: swap-in of these tables to replace the live ones, and archiving of
 --   the current tables, is deliberately out of scope here and will be a separate migration.
 
 CREATE TABLE public.lca_new (

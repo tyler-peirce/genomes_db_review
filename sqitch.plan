@@ -1,0 +1,6 @@
+%syntax-version=1.0.0
+%project=genomes_db
+
+add_core_lookup_indexes 2026-08-04T07:17:59Z Tyler Peirce <tyler.peirce@gmail.com> # Add supporting indexes for core FK and og_id lookup columns (ported from migrations/202607070001_add_core_lookup_indexes.sql).
+create_empty_lca_table_copies 2026-08-04T07:19:48Z Tyler Peirce <tyler.peirce@gmail.com> # Create empty structural copies of lca, lca_validation, lca_raw_results, and blast_filtered_lca ahead of re-running the LCA/BLAST pipeline (ported from migrations/202608040001_create_empty_lca_table_copies.sql).
+create_v2_lab_tables 2026-08-04T08:02:14Z Tyler Peirce <tyler.peirce@gmail.com> # Create empty v2_-prefixed structural copies of the 12 lab workflow tables import_data.py writes to, with new spreadsheet columns added, so a concurrent schema can be built and validated before the live tables are decommissioned.

@@ -4,7 +4,8 @@
 -- Rollback notes: Drop indexes by name if a duplicate or unused index is discovered.
 -- Verification: Compare EXPLAIN output for summary/GoaT queries and common sample workflow joins before and after.
 --
--- Status: Draft. Run only after the live schema baseline is captured and existing indexes are checked.
+-- Status: Archived. Superseded by the Sqitch change "add_core_lookup_indexes"
+--   (see deploy/, revert/, verify/); kept here for history only, do not run directly.
 -- Note: CREATE INDEX CONCURRENTLY cannot run inside a transaction block.
 
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tissue_og_id

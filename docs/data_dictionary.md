@@ -12,6 +12,10 @@ These files are generated from the live PostgreSQL database and should be refres
 - `docs/live_column_inventory.md`: column-level types, nullability, defaults, PK/FK/index signals, and comments.
 - `docs/live_relationship_index_review.md`: foreign keys, missing child-side FK index candidates, and existing indexes.
 
+See also `docs/spreadsheet_column_gap_analysis.md` for a review of spreadsheet columns the
+nightly `import_data.py` import currently drops on the floor — including the likely root
+cause of the `status_overwrite` backlog item below.
+
 
 ## Object Inventory
 
