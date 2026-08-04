@@ -19,6 +19,10 @@ The Ocean Genomes database is functional and contains a largely coherent central
 
 The most important recommendation is to first establish a schema baseline and data dictionary before making structural changes. Once the current state is documented, improvement work should proceed in phases: clean existing data, add indexes and constraints safely, normalize status/reference data, then redesign the sequencing and reporting areas.
 
+Related design notes:
+
+- `docs/lab_key_strategy.md`: recommendation for replacing concatenated lab-side primary keys with stable internal keys, unique human-readable identifiers, and browse-friendly views.
+
 ## 2. Review Goals
 
 The goal of this review is to identify design and data-quality areas that can be improved so the database becomes:
