@@ -1,6 +1,9 @@
 # Migration Convention
 
-Status: Adopted — Sqitch.
+Status: Adopted — Sqitch. **Not deployed.** The migrations actually applied to
+the live database are the numbered files in [`../sql/`](../sql/), tracked in the
+`schema_migrations` table; the Sqitch plan below is declared but has never been
+run. Which convention should win is still open — see `sql/README.md`.
 
 Schema changes are managed with [Sqitch](https://sqitch.org/) from the repo root (`sqitch.conf` / `sqitch.plan` / `deploy/` / `revert/` / `verify/`). This replaced the Phase 0 draft convention of hand-numbered files in this folder; the two files created under that convention are preserved for history in `migrations/legacy/` and have been ported into Sqitch changes of the same name (`add_core_lookup_indexes`, `create_empty_lca_table_copies`).
 
