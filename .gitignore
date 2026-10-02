@@ -19,3 +19,7 @@ venv/
 # Local scratch
 *.tmp
 out.*.txt
+
+# Source workbooks. Large binaries that git would store in full forever, and
+# they are inputs to the analysis rather than part of it. Keep them on disk.
+*.xlsx
