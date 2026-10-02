@@ -1105,34 +1105,40 @@ Unchanged, with two additions:
 
 Phases 0 and 1 were started and not finished. Phases 2–4 are now cheaper than estimated in July, because the August LCA rebuild did most of Phase 2's cleanup as a side effect.
 
+**Progress as of 2026-10-02: Phase A complete; Phase B three of five.** What remains in B — choosing one migration system, and writing catch-up migrations for the 58 objects no migration describes — is the critical path for everything after it, because each later phase adds objects or constraints that should be captured by whichever system wins.
+
 ### Phase A: Stop the bleeding (days, not weeks)
 
 These four items are small, independently deployable, and currently causing wrong answers or measurable slowness.
 
 1. ~~Repoint `summary`, `embargo_assignment_view`, and `mitogenome_submission_view` at the live tables (Finding 11).~~ **Done 2026-10-02, migration `027`.**
 2. ~~Deploy the already-written index migration with `CREATE INDEX CONCURRENTLY` (Finding 4).~~ **Done 2026-10-02, migration `030`** — ported out of Sqitch, extended to all 24 columns. `summary` fell from 7.6 s to 2.0 s.
-3. ~~`chmod 600 /home/tyler/.env.db` (Finding 14).~~ **Done 2026-10-02.** The remaining Finding 14 items (`.pgpass`, a non-superuser pipeline role, credentials in `create_database.py`) are not done.
-4. ~~Ledger the `026` migration and add transaction control to it (Finding 10).~~ **Done 2026-10-02.** The rest of Finding 10 — one migration system, a drift check — is not done.
+3. ~~`chmod 600 /home/tyler/.env.db` (Finding 14).~~ **Done 2026-10-02.** Credentials were also centralised into `~/postgresql_details/oceanomics.cfg` (one file, mode `600`, read by a new `OceanOmics-Database/db_config.py`), which supersedes the `.pgpass` recommendation — it serves the same purpose and matches the convention the ref-genomes repo already uses. **Not done: rotating the password**, and the non-superuser pipeline role.
+4. ~~Ledger the `026` migration and add transaction control to it (Finding 10).~~ **Done 2026-10-02.** The apply/ledger script and drift check that stop it recurring are also done — see Phase B.
 
 Phase A is complete.
 
 ### Phase B: Re-establish one source of truth
 
-1. Choose one migration tool; document the decision and retire the others.
-2. Re-baseline `schema/` from the live database.
-3. Write catch-up migrations for the 22 unmanaged tables and 6 unmanaged views.
-4. Add a drift check (live inventory vs baseline) to CI or cron.
-5. Remove credentials from `create_database.py`.
+Three of five done 2026-10-02. The remaining two are the substantive ones.
+
+1. **Choose one migration tool; document the decision and retire the others.** Still open, and now the critical path for this phase. One change was retired in the numbered set's favour (`add_core_lookup_indexes` → `030`, with the Sqitch copy marked SUPERSEDED), but that is one change, not a decision. See open question 8.
+2. ~~Re-baseline `schema/` from the live database.~~ **Done 2026-10-02** — it was three months stale. `scripts/export_schema_baseline.sh` already existed and was reused unchanged.
+3. **Write catch-up migrations for the unmanaged objects.** Still open, and now precisely scoped rather than estimated: `bin/check_drift.py --coverage` reports **12 of 70 live objects are created by a migration; the other 58 exist only as a `pg_dump` snapshot** with no change history or rationale. That list is the worklist. The 19 with no coverage at all before the re-baseline were the eight `data_package_*` tables, `project_delivery_contact`, `ncbi_genome_assemblies`, `master_species_genome`, the five `SS260818` snapshots, three snapshot views, and `schema_migrations` itself.
+4. ~~Add a drift check (live inventory vs baseline).~~ **Done 2026-10-02** — `bin/check_drift.py` compares live objects against `schema/object_inventory.tsv` (70 objects) and exits non-zero on any difference. Verified by canary. **Remaining: wire it into cron or CI** — it is written and working but not yet scheduled.
+5. ~~Remove credentials from `create_database.py`.~~ **Superseded 2026-10-02.** The two scripts that actually reach the live database (`import_data.py`, `import_v2.py`) no longer contain credentials at all. `create_database.py` was moved to `SS/` — it targets the decommissioned host and the retired `oceanomics` database, so its literal is dead. Its credential, and those in the other 18 `SS/` files, are left in place deliberately and scrubbed at rotation.
 
 ### Phase C: Add the constraints the data already satisfies
 
-1. Add the seven zero-orphan FKs from Finding 3, with pipeline owners' sign-off.
+1. Add the seven zero-orphan FKs from Finding 3, with pipeline owners' sign-off. **Unblocked 2026-10-02** — migration `030` added the child-side indexes these need.
 2. Add PKs to `ncbi_genome_assemblies` and `rna_qc_kinnex`; add `rna_qc_kinnex` → `rna_library_kinx` FK (Finding 13).
 3. Add `rna_library_kinx.rna_id` → `rna_extraction` FK (still outstanding from revision 1).
 4. Add the `NOT VALID` "exactly one library link" check on `sequencing` (Finding 5).
 5. Fix the 7 remaining orphans in `raw_qc` and `ref_genomes`, then FK those too.
 
 ### Phase D: Fix `summary`
+
+Less urgent since `030`: `summary` fell from 7.6 s to 2.0 s on indexing alone. The remaining 2.0 s is the view's own structure, which is what this phase addresses.
 
 1. Strip `status_overwrite` references (dead logic, Finding 6).
 2. Rebuild with pre-aggregated CTEs, or materialise and refresh after the nightly import.
@@ -1176,12 +1182,14 @@ All four are done. The follow-ons each item left behind are listed with their pa
 
 ### Highest priority
 
-1. Rotate the `postgres` password (Finding 14) — the only item here with a live exposure window behind it. The plumbing is now in place: credentials live in one file (`~/postgresql_details/oceanomics.cfg`) and `OceanOmics-Database/ROTATION.md` is the runbook.
-2. ~~Add an apply/ledger script and a drift check.~~ **Done 2026-10-02** — `bin/apply_migrations.py` and `bin/check_drift.py`; `schema/` re-baselined. **Still open: choose one migration system and write the decision down.** The drift check quantifies it — 58 of 70 live objects have no migration behind them.
-3. Add the seven zero-orphan FKs to `sample` — unblocked now that the child-side indexes exist.
-4. Add import-time species validation on `sample.nominal_species_id`.
-5. Capture the `data_package_*` subsystem in a migration and the data dictionary.
-6. Strip dead `status_overwrite` logic from `summary` and rebuild or materialise it — less acute after `030`, but 2.0 s is still structural.
+1. **Rotate the `postgres` password** (Finding 14) — the only item here with a live exposure window behind it. The plumbing is done: credentials live in one file (`~/postgresql_details/oceanomics.cfg`) and `OceanOmics-Database/ROTATION.md` is the runbook, so the change itself is one line. The work is the propagation — chiefly the DBeaver users connecting as superuser from external IPs.
+2. **Choose one migration system and write the decision down** (Finding 10, Phase B.1). The only Phase B item with nothing done against it, and it gates the catch-up migrations below.
+3. **Write catch-up migrations for the 58 objects no migration describes** (Phase B.3). Scope is now exact rather than estimated — run `bin/check_drift.py --coverage` for the list.
+4. ~~Add an apply/ledger script and a drift check.~~ **Done 2026-10-02** — `bin/apply_migrations.py` and `bin/check_drift.py`; `schema/` re-baselined. Remaining: schedule the drift check in cron or CI.
+5. Add the seven zero-orphan FKs to `sample` — **unblocked**, `030` added the indexes they need.
+6. Add import-time species validation on `sample.nominal_species_id`.
+7. Capture the `data_package_*` subsystem in a migration and the data dictionary — the largest single block of the 58 uncovered objects.
+8. Strip dead `status_overwrite` logic from `summary` and rebuild or materialise it — less acute after `030`, but 2.0 s is still structural.
 
 ### Medium priority
 
@@ -1224,7 +1232,7 @@ Still open:
 
 New:
 
-8. Which migration system is the intended one — `sql/` + `schema_migrations`, or Sqitch? Is the `v2` redesign still the plan, or superseded?
+8. Which migration system is the intended one — `sql/` + `schema_migrations`, or Sqitch? Is the `v2` redesign still the plan, or superseded? **Still open and now the critical path for Phase B.** Evidence has accumulated toward `sql/`: it has the ledger, the deployed history, and now an apply script and drift check, while Sqitch has never run against this database and one of its changes was retired into `sql/` as `030`. That is not a decision until it is written down.
 9. Who owns the `data_package_*` subsystem, and where does its code live?
 10. Were the three snapshot-reading views intended to read snapshots, or is that a leftover from the August rebuild?
 11. Should the `SS260818` tables be archived, dropped, or retained as a rollback point?
@@ -1265,22 +1273,24 @@ Unchanged in principle, re-ordered in practice: the August rebuild already did m
 
 ## 13. Proposed Success Criteria
 
-Unchanged, with four additions:
+Unchanged, with four additions. Status marked as of 2026-10-02 — three met, four partly met.
 
-- The schema can be recreated from source-controlled migrations.
-- Every active table has an owner and documented purpose.
-- Every active column is documented or intentionally self-evident.
-- There is one canonical species source.
-- Sample species links are valid and constrained.
-- Core child tables have indexed FK columns.
-- Major `og_id`-based tables either have FKs or documented reasons not to.
-- Workflow statuses use canonical values.
-- Heavy views have acceptable query plans.
-- Deprecated tables/columns are clearly marked and eventually removed.
-- **There is exactly one migration system, and the live inventory matches the baseline.**
-- **No reporting view reads a frozen snapshot unless its name says so.**
-- **`summary` returns in under one second.**
-- **Database credentials are not readable by other users on the host, and pipelines do not connect as superuser.**
+| Criterion | Status |
+|---|---|
+| The schema can be recreated from source-controlled migrations | **No.** 12 of 70 objects are created by a migration; 58 exist only as a dump snapshot. |
+| Every active table has an owner and documented purpose | No. |
+| Every active column is documented or intentionally self-evident | No. |
+| There is one canonical species source | No. |
+| Sample species links are valid and constrained | No. |
+| Core child tables have indexed FK columns | **Met** — migration `030`, all 24 columns. |
+| Major `og_id`-based tables either have FKs or documented reasons not to | No, but unblocked by `030`. |
+| Workflow statuses use canonical values | No. |
+| Heavy views have acceptable query plans | **Partly.** `summary` 7.6 s → 2.0 s; `goat_species_v1` unchanged. |
+| Deprecated tables/columns are clearly marked and eventually removed | No. |
+| There is exactly one migration system, and the live inventory matches the baseline | **Partly.** The inventory now matches, and drift is checked automatically (`bin/check_drift.py`). Still more than one migration system. |
+| No reporting view reads a frozen snapshot unless its name says so | **Met** — migration `027`. |
+| `summary` returns in under one second | **No** — 2.0 s, down from 7.6 s. Phase D is what closes the gap. |
+| Database credentials are not readable by other users on the host, and pipelines do not connect as superuser | **Partly.** Credentials are in one `600` file and out of the live scripts. Everything still connects as `postgres`, and the password has not been rotated. |
 
 ## Appendix A: Key Evidence Summary
 
@@ -1387,6 +1397,6 @@ Capture the eight `data_package_*` tables in a migration and the data dictionary
 | 2.3 | 2026-10-02 | Applied `029_mitogenome_submission_view_join_base_table.sql`, retracting `028`'s incorrect latent-duplication rationale. `ena_validation_attempts` is upsert-overwrite by design (`attempt_count` reaches 6); the `DISTINCT ON` guard was unnecessary and hid rows rather than revealing them. Output unchanged. |
 | 2.4 | 2026-10-02 | Moved the 29 deployed numbered migrations and their three revert scripts from `/home/tyler/sql` into `sql/` in this repo, byte-identical so the `schema_migrations` SHA-256 ledger stays valid, and deleted the untracked original. Path references in this document updated accordingly; no finding, count, or conclusion changed. The migration-tool question (open question 8) remains open. |
 | 2.5 | 2026-10-02 | Completed Phase A. Applied `030_core_lookup_indexes.sql` (Finding 4) — the July Sqitch change `add_core_lookup_indexes`, ported into the numbered-SQL convention rather than deployed through Sqitch, and extended from 19 to all 24 index candidates; 24 indexes created, 0 invalid, `summary` 7.6 s → 2.0 s. Added `BEGIN`/`COMMIT` to `026`, replayed it as a no-op, and wrote its missing ledger row (Finding 10). `chmod 600 /home/tyler/.env.db` (Finding 14). Findings 4, 10 and 14 updated with resolution notes; the open remainders — password rotation, one migration system, a drift check, an apply/ledger script — are called out in each. |
-| 2.6 | 2026-10-02 | Closed the Finding 10 mechanism and the Finding 14 plumbing. Added `bin/apply_migrations.py` (applies and ledgers in one step; aborts on hash drift; auto-detects `CONCURRENTLY`; guards the `005`/`019` replay hazard) and `bin/check_drift.py` (object inventory vs `schema/object_inventory.tsv`, plus a source-coverage report). Re-baselined `schema/`, three months stale. Separately, in `OceanOmics-Database`: the password was removed from the two live scripts into `~/postgresql_details/oceanomics.cfg` via a new `db_config.py`, `SS/` was documented as the superseded directory, and `ROTATION.md` was written. **The password value is unchanged** — this is plumbing, so rotation is now a one-line edit. |
+| 2.6 | 2026-10-02 | Closed the Finding 10 mechanism and the Finding 14 plumbing. Added `bin/apply_migrations.py` (applies and ledgers in one step; aborts on hash drift; auto-detects `CONCURRENTLY`; guards the `005`/`019` replay hazard) and `bin/check_drift.py` (object inventory vs `schema/object_inventory.tsv`, plus a source-coverage report). Re-baselined `schema/`, three months stale. Separately, in `OceanOmics-Database`: the password was removed from the two live scripts into `~/postgresql_details/oceanomics.cfg` via a new `db_config.py`, `SS/` was documented as the superseded directory, and `ROTATION.md` was written. **The password value is unchanged** — this is plumbing, so rotation is now a one-line edit. Sections 9, 10 and 13 updated to reflect progress: Phase A complete, Phase B three of five, and the success criteria marked three met / four partly met. |
 
 The previous revision is preserved at `/tmp/database_review.prev.md` at the time of writing; the authoritative history is in git.
