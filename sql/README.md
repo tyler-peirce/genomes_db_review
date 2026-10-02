@@ -1,14 +1,18 @@
 # Numbered SQL Migrations (deployed)
 
-Status: **applied to the live database.** These 29 files are the deployed system
+Status: **applied to the live database.** These 30 files are the deployed system
 of record for the mitogenome/ENA schema work. The Sqitch project at the repo root
 (`sqitch.plan` / `deploy/` / `revert/` / `verify/`) is **declared but has never
 been deployed** — do not read `migrations/README.md`'s "Status: Adopted — Sqitch"
 as a description of what is running.
 
 Which of the two systems should be canonical is **undecided**. See open question
-8 in `database_review.md`. This directory exists to put the deployed migrations
-under version control, not to settle that question.
+8 in `database_review.md`. One Sqitch change has since been resolved in this
+directory's favour: `add_core_lookup_indexes` was ported to
+`030_core_lookup_indexes.sql` and deployed from here, so the Sqitch copy in
+`deploy/` is superseded and must not also be deployed. That precedent settles one
+change, not the question. This directory exists to put the deployed migrations
+under version control.
 
 ## Do not reformat an applied file
 
@@ -32,18 +36,51 @@ carry design rationale that is not recoverable from the schema itself.
 Migrations are idempotent and guarded with `to_regclass()` so they replay safely
 against a partial schema.
 
+Every file is wrapped in `BEGIN`/`COMMIT` **except**
+`030_core_lookup_indexes.sql`, which is `CREATE INDEX CONCURRENTLY` throughout
+and therefore cannot run inside a transaction block. That file says so in its
+header. Do not "fix" it by adding transaction control, and apply it in
+autocommit.
+
 ## Known gaps
 
-- **The ledger is populated out of band.** No migration file inserts its own
-  `schema_migrations` row; the row is added separately after the apply. That is
-  why `026_mitogenome_data_annotation_integrity.sql` is applied — all 16 of its
-  columns are live — but has no ledger row. The ledger is what makes this
-  approach trustworthy, so an unrecorded apply is a real defect, not a cosmetic
-  one. There is no apply/ledger script in the repo yet.
-- **Reverts are partial.** `revert/` covers `027`–`029` only. `001`–`026` have no
+- ~~**The ledger is populated out of band.**~~ **Closed 2026-10-02.** Apply
+  migrations with `bin/apply_migrations.py`, which runs the file and writes its
+  `schema_migrations` row in one invocation, so the two can no longer come
+  apart. It also refuses to do anything if an already-applied file's hash no
+  longer matches the tree. Applying by hand still works and still risks the
+  `026` failure mode — use the script.
+- **Reverts are partial.** `revert/` covers `027`–`030` only. `001`–`026` have no
   rollback scripts.
+
+## Applying a migration
+
+```bash
+bin/apply_migrations.py --dry-run    # what is pending, plus a drift report
+bin/apply_migrations.py              # apply and ledger everything pending
+bin/apply_migrations.py --verify     # hash-check applied files; exit 1 on drift
+```
+
+The script picks up `-- no-transaction` files automatically — it also detects
+`CREATE INDEX CONCURRENTLY` directly, so `030` is handled correctly despite not
+carrying the marker.
+
+Drift in the object inventory (as opposed to the migration files) is a separate
+check:
+
+```bash
+bin/check_drift.py              # live objects vs schema/object_inventory.tsv
+bin/check_drift.py --coverage   # which objects no migration describes
+bin/check_drift.py --update     # accept the current live state as baseline
+```
+
+Both exit non-zero on a problem, so either can go in cron or CI.
 
 ## Connecting to a target
 
-No credentials are committed. Standard libpq environment variables, or a local
-`.env.db` outside the repo.
+No credentials are committed. The tooling resolves, in order: `$DATABASE_URL`,
+then `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD`, then
+`~/postgresql_details/oceanomics.cfg` — the same file
+`OceanOmics-Database/db_config.py` reads, so there is one credentials file for
+both repos. Keep it mode `600`. See Finding 14 and
+`OceanOmics-Database/ROTATION.md`.

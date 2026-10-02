@@ -52,6 +52,101 @@ CREATE OR REPLACE VIEW public.embargo_assignment_view AS
            FROM lca_validation lv
           WHERE lv.og_id = s.og_id) lv1 ON true;;
 
+-- View: public.ena_submission_status
+CREATE OR REPLACE VIEW public.ena_submission_status AS
+ WITH latest AS (
+         SELECT DISTINCT ON (ena_validation_attempts.full_seqid) ena_validation_attempts.id,
+            ena_validation_attempts.full_seqid,
+            ena_validation_attempts.og_id,
+            ena_validation_attempts.tech,
+            ena_validation_attempts.seq_date,
+            ena_validation_attempts.code,
+            ena_validation_attempts.annotation,
+            ena_validation_attempts.ena_study,
+            ena_validation_attempts.validation_mode,
+            ena_validation_attempts.validation_attempt,
+            ena_validation_attempts.table2asn_status,
+            ena_validation_attempts.reject_count,
+            ena_validation_attempts.error_count,
+            ena_validation_attempts.warning_count,
+            ena_validation_attempts.info_count,
+            ena_validation_attempts.fatal_discrepancy_count,
+            ena_validation_attempts.nostop_count,
+            ena_validation_attempts.blocking_codes,
+            ena_validation_attempts.warning_codes,
+            ena_validation_attempts.conversion_status,
+            ena_validation_attempts.conversion_reason,
+            ena_validation_attempts.conversion_exit,
+            ena_validation_attempts.preflight_status,
+            ena_validation_attempts.preflight_reason,
+            ena_validation_attempts.preflight_exit,
+            ena_validation_attempts.webin_status,
+            ena_validation_attempts.webin_reason,
+            ena_validation_attempts.webin_exit,
+            ena_validation_attempts.submission_ready,
+            ena_validation_attempts.recorded_at,
+            ena_validation_attempts.attempt_count
+           FROM ena_validation_attempts
+          ORDER BY ena_validation_attempts.full_seqid, ena_validation_attempts.recorded_at DESC, ena_validation_attempts.id DESC
+        )
+ SELECT v.full_seqid,
+    v.og_id,
+    v.tech,
+    v.seq_date,
+    v.code,
+    v.annotation,
+    v.ena_study,
+    v.webin_status,
+    v.submission_ready,
+    v.recorded_at AS validated_at,
+    COALESCE(s.submission_status, 'NOT_SUBMITTED'::text) AS submission_status,
+    s.ena_analysis_accession,
+    s.ena_assembly_accession,
+    s.ena_sequence_accession,
+    s.biosample_accession,
+    s.locus_tag_prefix,
+    s.submitted_at,
+    s.receipt_path
+   FROM latest v
+     LEFT JOIN ena_submissions s ON s.full_seqid = v.full_seqid AND s.webin_mode = 'production'::text;;
+
+-- View: public.ena_validation_latest
+CREATE OR REPLACE VIEW public.ena_validation_latest AS
+ SELECT DISTINCT ON (ena_validation_attempts.full_seqid) ena_validation_attempts.id,
+    ena_validation_attempts.og_num,
+    ena_validation_attempts.full_seqid,
+    ena_validation_attempts.og_id,
+    ena_validation_attempts.tech,
+    ena_validation_attempts.seq_date,
+    ena_validation_attempts.code,
+    ena_validation_attempts.annotation,
+    ena_validation_attempts.ena_study,
+    ena_validation_attempts.validation_mode,
+    ena_validation_attempts.validation_attempt,
+    ena_validation_attempts.table2asn_status,
+    ena_validation_attempts.reject_count,
+    ena_validation_attempts.error_count,
+    ena_validation_attempts.warning_count,
+    ena_validation_attempts.info_count,
+    ena_validation_attempts.fatal_discrepancy_count,
+    ena_validation_attempts.nostop_count,
+    ena_validation_attempts.blocking_codes,
+    ena_validation_attempts.warning_codes,
+    ena_validation_attempts.conversion_status,
+    ena_validation_attempts.conversion_reason,
+    ena_validation_attempts.conversion_exit,
+    ena_validation_attempts.preflight_status,
+    ena_validation_attempts.preflight_reason,
+    ena_validation_attempts.preflight_exit,
+    ena_validation_attempts.webin_status,
+    ena_validation_attempts.webin_reason,
+    ena_validation_attempts.webin_exit,
+    ena_validation_attempts.submission_ready,
+    ena_validation_attempts.recorded_at,
+    ena_validation_attempts.attempt_count
+   FROM ena_validation_attempts
+  ORDER BY ena_validation_attempts.full_seqid, ena_validation_attempts.recorded_at DESC, ena_validation_attempts.id DESC;;
+
 -- View: public.filtered_lca_view
 CREATE OR REPLACE VIEW public.filtered_lca_view AS
  SELECT b.og_id AS og_id_flv,
@@ -151,6 +246,20 @@ CREATE OR REPLACE VIEW public.lca_pivot_view AS
    FROM lca
   GROUP BY lca.og_id, lca.tech, lca.seq_date, lca.code, lca.annotation;;
 
+-- View: public."lca_pivot_view_SS260818"
+CREATE OR REPLACE VIEW public."lca_pivot_view_SS260818" AS
+ SELECT regexp_replace("lca_SS260818".og_id, 'OG'::text, ''::text, 'g'::text)::integer AS og_num,
+    "lca_SS260818".og_id AS og_id_lp,
+    "lca_SS260818".tech,
+    "lca_SS260818".seq_date,
+    "lca_SS260818".code,
+    "lca_SS260818".annotation,
+    max("lca_SS260818".species_in_lca) FILTER (WHERE "lca_SS260818".region = '12s'::text) AS s12_lca,
+    max("lca_SS260818".species_in_lca) FILTER (WHERE "lca_SS260818".region = '16s'::text) AS s16_lca,
+    max("lca_SS260818".species_in_lca) FILTER (WHERE "lca_SS260818".region = 'CO1'::text) AS co1_lca
+   FROM "lca_SS260818"
+  GROUP BY "lca_SS260818".og_id, "lca_SS260818".tech, "lca_SS260818".seq_date, "lca_SS260818".code, "lca_SS260818".annotation;;
+
 -- View: public.lca_results_view
 CREATE OR REPLACE VIEW public.lca_results_view AS
  SELECT lp.og_id_lp AS og_id_lr,
@@ -168,6 +277,25 @@ CREATE OR REPLACE VIEW public.lca_results_view AS
             ELSE 'INVESTIGATE'::text
         END AS validation_status
    FROM lca_pivot_view lp
+     JOIN sample s ON lp.og_id_lp = s.og_id;;
+
+-- View: public."lca_results_view_SS260818"
+CREATE OR REPLACE VIEW public."lca_results_view_SS260818" AS
+ SELECT lp.og_id_lp AS og_id_lr,
+    lp.tech,
+    lp.seq_date,
+    lp.code,
+    lp.annotation,
+    s.nominal_species_id,
+    lp.s12_lca,
+    lp.s16_lca,
+    lp.co1_lca,
+        CASE
+            WHEN s.nominal_species_id IS NULL THEN 'MISSING NOMINAL ID'::text
+            WHEN s.nominal_species_id = lp.s12_lca OR s.nominal_species_id = lp.s16_lca OR s.nominal_species_id = lp.co1_lca THEN s.nominal_species_id
+            ELSE 'INVESTIGATE'::text
+        END AS validation_status
+   FROM "lca_pivot_view_SS260818" lp
      JOIN sample s ON lp.og_id_lp = s.og_id;;
 
 -- View: public.lca_validation_report_view
@@ -222,6 +350,89 @@ CREATE OR REPLACE VIEW public.lca_validation_report_view AS
            FROM lca
           GROUP BY lca.og_id, lca.tech, lca.seq_date, lca.code, lca.annotation) lca_tax ON lca_tax.og_id = lv.og_id AND lca_tax.tech = lv.tech AND lca_tax.seq_date = lv.seq_date AND lca_tax.code = lv.code::text AND lca_tax.annotation = lv.annotation::text
      LEFT JOIN sample_view sv ON lv.og_id = sv.og_id_sv;;
+
+-- View: public."lca_validation_report_view_SS260818"
+CREATE OR REPLACE VIEW public."lca_validation_report_view_SS260818" AS
+ SELECT regexp_replace(lv.og_id, 'OG'::text, ''::text, 'g'::text)::integer AS og_num,
+    sv.proj_id,
+    lv.og_id,
+    lv.tech,
+    lv.seq_date,
+    lv.code,
+    lv.annotation,
+    lp.s12_lca,
+    lp.s16_lca,
+    lp.co1_lca,
+    lr.validation_status,
+    sv.nom_id,
+    lv.validated_species_name,
+    lv.validator,
+    lv.validator_2,
+    lca_tax.lca_taxon_ranks,
+    lca_tax.lca_orders,
+    lca_tax.lca_families,
+    lca_tax.lca_genera,
+    lca_tax.lca_specific_epiphets,
+        CASE
+            WHEN flv.filtered_12s IS NOT NULL OR flv.filtered_16s IS NOT NULL OR flv.filtered_co1 IS NOT NULL THEN 'YES'::text
+            ELSE NULL::text
+        END AS nom_id_in_results,
+    lv.nominal_species_id_lca_comment AS comment,
+    lv.data_release,
+    flv.filtered_12s,
+    flv.filtered_16s,
+    flv.filtered_co1,
+    sv.photo_id_sv,
+    sv.photo_vouch_sv,
+    sv.specimen_vouch_sv,
+    sv.vouch_id_sv
+   FROM "lca_validation_SS260818" lv
+     LEFT JOIN "lca_pivot_view_SS260818" lp ON lp.og_id_lp = lv.og_id AND lp.tech = lv.tech AND lp.seq_date = lv.seq_date AND lp.code = lv.code::text AND lp.annotation = lv.annotation::text
+     LEFT JOIN "lca_results_view_SS260818" lr ON lr.og_id_lr = lv.og_id AND lr.tech = lv.tech AND lr.seq_date = lv.seq_date AND lr.code = lv.code::text AND lr.annotation = lv.annotation::text
+     LEFT JOIN filtered_lca_view flv ON flv.og_id_flv = lv.og_id AND flv.tech = lv.tech AND flv.seq_date = lv.seq_date AND flv.code = lv.code::text AND flv.annotation = lv.annotation::text
+     LEFT JOIN ( SELECT "lca_SS260818".og_id,
+            "lca_SS260818".tech,
+            "lca_SS260818".seq_date,
+            "lca_SS260818".code,
+            "lca_SS260818".annotation,
+            string_agg(DISTINCT "lca_SS260818".taxon_rank, ', '::text ORDER BY "lca_SS260818".taxon_rank) AS lca_taxon_ranks,
+            string_agg(DISTINCT "lca_SS260818"."order", ', '::text ORDER BY "lca_SS260818"."order") AS lca_orders,
+            string_agg(DISTINCT "lca_SS260818".family, ', '::text ORDER BY "lca_SS260818".family) AS lca_families,
+            string_agg(DISTINCT "lca_SS260818".genus, ', '::text ORDER BY "lca_SS260818".genus) AS lca_genera,
+            string_agg(DISTINCT "lca_SS260818".specific_epiphet, ', '::text ORDER BY "lca_SS260818".specific_epiphet) AS lca_specific_epiphets
+           FROM "lca_SS260818"
+          GROUP BY "lca_SS260818".og_id, "lca_SS260818".tech, "lca_SS260818".seq_date, "lca_SS260818".code, "lca_SS260818".annotation) lca_tax ON lca_tax.og_id = lv.og_id AND lca_tax.tech = lv.tech AND lca_tax.seq_date = lv.seq_date AND lca_tax.code = lv.code::text AND lca_tax.annotation = lv.annotation::text
+     LEFT JOIN sample_view sv ON lv.og_id = sv.og_id_sv;;
+
+-- View: public.mitogenome_submission_view
+CREATE OR REPLACE VIEW public.mitogenome_submission_view AS
+ SELECT m.og_num,
+    m.og_id,
+    m.tech,
+    m.seq_date,
+    m.code,
+    m.annotation,
+    m.stats,
+    m.length,
+    m.length_emma,
+    m.cds_no,
+    m.trna_no,
+    m.rrna_no,
+    m.avg_coverage,
+    m.avg_base_coverage,
+    m.extra_genes,
+    m.missing_genes,
+    m.order_correct,
+    e.table2asn_status,
+    e.warning_codes,
+    e.webin_status,
+    e.webin_reason,
+    e.submission_ready,
+    l.validated_species_name,
+    l.validator
+   FROM mitogenome_data m
+     LEFT JOIN ena_validation_attempts e ON e.og_id = m.og_id AND e.tech = m.tech AND e.seq_date = m.seq_date AND e.code = m.code AND e.annotation = m.annotation::text
+     LEFT JOIN lca_validation l ON l.og_id = m.og_id AND l.tech = m.tech AND l.seq_date = m.seq_date AND l.code::text = m.code AND l.annotation::text = m.annotation::text;;
 
 -- View: public.sample_view
 CREATE OR REPLACE VIEW public.sample_view AS

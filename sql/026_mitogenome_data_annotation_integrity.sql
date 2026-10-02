@@ -10,6 +10,15 @@
 -- here means "produced before this migration" rather than "clean". The uploader
 -- refreshes all of them together whenever a complete row arrives, so a rerun that
 -- fixes an annotation cannot leave a stale issue string behind.
+--
+-- Transaction control added 2026-10-02 (database_review.md Finding 10). This file
+-- was originally applied by hand, out of band, and left no schema_migrations row --
+-- partly because it was the only migration in the set without an explicit
+-- BEGIN/COMMIT, which invited hand-application. Wrapping it brings it into line
+-- with the rest of 001-029. Safe to re-run: every statement is
+-- ADD COLUMN IF NOT EXISTS or COMMENT ON, so a replay is a no-op.
+
+BEGIN;
 
 ALTER TABLE mitogenome_data
     -- Graded gene order. order_correct (yes/no/NA) and order_deviation (migration
@@ -54,3 +63,5 @@ COMMENT ON COLUMN mitogenome_data.order_status IS
     'reference | trna_displacement | rearranged_block | rearranged_major | not_evaluated.';
 COMMENT ON COLUMN mitogenome_data.mtmuts IS
     'Octocoral mitochondrial mismatch-repair gene (INSDC /gene=mtMutS). Expected in Malacalcyonacea/Scleralcyonacea, absent in Hexacorallia.';
+
+COMMIT;

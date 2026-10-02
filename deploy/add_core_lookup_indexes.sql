@@ -1,5 +1,14 @@
 -- Deploy genomes_db:add_core_lookup_indexes to pg
 -- no-transaction
+--
+-- SUPERSEDED 2026-10-02. DO NOT DEPLOY.
+-- This change was ported to sql/030_core_lookup_indexes.sql and deployed from
+-- there, against the numbered-SQL ledger that is actually in use. 030 also adds
+-- the five columns this file omits (sequencing's four library tube columns and
+-- ref_genomes_sra_uploads.og_id). Deploying this file would be a no-op on the
+-- indexes -- IF NOT EXISTS throughout -- but it would create a Sqitch registry
+-- schema on a database that has never had one, standing up a second migration
+-- system to record a change the first one already owns. Kept for history only.
 
 -- Purpose: Add supporting indexes for core FK and og_id lookup columns identified in the database review.
 -- Review source: database_review.md Finding 4.
