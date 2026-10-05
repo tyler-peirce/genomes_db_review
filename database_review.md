@@ -402,8 +402,8 @@ Recommendation:
 
 Unchanged in direction, more urgent in timing:
 
-- Make `species` canonical.
-- Redefine `master_species` as a view over `species`, and re-point `master_species_genome`'s FK at `species`. Do this before `master_species_genome` acquires more dependants.
+- Make `species` canonical for everything this project owns.
+- ~~Redefine `master_species` as a view over `species`, and re-point `master_species_genome`'s FK at `species`.~~ **Out of scope as of 2026-10-05.** `master_species` and `master_species_genome` are a colleague's separate piece of work. The analysis above still stands — three competing authorities is still the problem, and these two are still two of them — but the fix for that half is not this project's to implement. Coordinate rather than change them, and do not pick this recommendation up from here: Phase E.1 has been reduced to match.
 - Add a validating check or FK on `sample.nominal_species_id` at import time. 892 bad rows is still tractable; at the current rate it will not stay that way.
 - Use `lca_validation.validated_rank` to classify the 892: a non-binomial family-level label is a different problem from a typo.
 
@@ -749,7 +749,7 @@ One Sqitch change was also retired into the numbered set (`add_core_lookup_index
 
 Verified by test: a tampered applied file aborts the run; a deliberately broken migration leaves neither a partial schema nor a ledger row; `030` replays cleanly through the no-transaction path; and a canary table and view are both detected as drift.
 
-Still open: recommendation 2 — choose one migration system and write the decision down. The coverage report now quantifies the cost of not having done so: of 70 live objects, **12 are created by a migration and 58 exist only as a dump snapshot**, with no change history or rationale behind them. That list is the Phase B catch-up worklist.
+Still open: recommendation 2 — choose one migration system and write the decision down. The coverage report quantifies the cost of not having done so: of 61 live objects, **12 are created by a migration and 49 exist only as a dump snapshot**, with no change history or rationale behind them (was 12 of 70 before the 2026-10-05 drops). Phase B.3 routes those 49 into the phases that rework them; **17 of them are waiting specifically on this decision**, because the `v2` scaffold already has reviewed, constraint-tested DDL for them and writing `public` catch-up migrations would duplicate it.
 
 ### Finding 11: Three production views read frozen August snapshots
 
@@ -1132,11 +1132,29 @@ Three of five done 2026-10-02. The remaining two are the substantive ones.
 
 1. **Choose one migration tool; document the decision and retire the others.** Still open, and now the critical path for this phase. One change was retired in the numbered set's favour (`add_core_lookup_indexes` → `030`, with the Sqitch copy marked SUPERSEDED), but that is one change, not a decision. See open question 8.
 2. ~~Re-baseline `schema/` from the live database.~~ **Done 2026-10-02** — it was three months stale. `scripts/export_schema_baseline.sh` already existed and was reused unchanged.
-3. **Write catch-up migrations for the unmanaged objects.** Still open, but smaller: `bin/check_drift.py --coverage` now reports **12 of 61 live objects are created by a migration; the other 49 exist only as a `pg_dump` snapshot**. That list is the worklist. It was 58 of 70 — the nine dropped on 2026-10-05 (`031`, `032`) came off it, which is the cheapest way to shorten this list: remove what shouldn't be there before writing migrations to describe it.
+3. **Write catch-up migrations for the unmanaged objects.** `bin/check_drift.py --coverage` reports **12 of 61 live objects are created by a migration; the other 49 exist only as a `pg_dump` snapshot**. It was 58 of 70 — the nine dropped on 2026-10-05 (`031`, `032`) came off it, which is the cheapest way to shorten this list: remove what shouldn't be there before writing migrations to describe it.
+
+   **This is not one job, and most of it does not belong in Phase B.** The guiding principle: *a catch-up migration should be written as the first step of the change that reworks the object, not as a separate job beforehand.* Writing a migration that describes the status quo and then a second that changes it produces two migrations where one would do — and the first carries no rationale, because there is none to record. It describes what is, not why. The 49 route as follows.
+
+   | Group | Count | Where the work belongs |
+   |---|---:|---|
+   | `SS260818` snapshots — 5 tables + 3 views | 8 | **Phase F.** No migration at all; they are being deleted. |
+   | Covered by the `v2` scaffold | 17 | **v2 cutover.** Blocked on open questions 8 and 10. |
+   | QC, raw data, ref/draft genome | 10 | **Phase C**, which already adds their PKs and FKs. |
+   | Species / NCBI | 2 | **Phase E**, which already restructures them. |
+   | `master_species`, `master_species_genome` | 2 | **Out of scope** — a colleague's separate work. |
+   | Nothing else touches these | 10 | **Stays here.** The only true Phase B catch-up work. |
+
+   - **Phase C (10):** `rna_qc_kinnex` and `ncbi_genome_assemblies` (C.2 adds their PKs); `raw_qc` and `ref_genomes` (C.5 fixes their 7 orphans then FKs them); `hifi_reads_qc`, `hic_reads_qc`, `raw_data`, `draft_genomes` (C.1, the zero-orphan FKs from Finding 3); plus `ref_genomes_sra_uploads` and `ref_genomes_assembly_uploads`, same `og_id`-bearing family, indexed by `030`.
+   - **v2-covered (17):** the 12 lab tables, the four live LCA tables (`lca`, `lca_raw_results`, `lca_validation`, `blast_filtered_lca`), and `goat_species_v1`. All have DDL in `deploy/create_v2_lab_tables.sql` and `deploy/create_v2_lca_tables.sql` that is already written, reviewed and constraint-tested. Writing catch-up migrations for the `public` versions duplicates that work and is wasted if cutover proceeds.
+   - **Phase E (2):** `species` and `species_ncbi_assembly`. `ncbi_genome_assemblies` is touched by both C and E — its CREATE goes with C, the earlier touch, and E reworks it.
+   - **Remaining Phase B work (10):** the 8 cutover-neutral views (`coverage_summary`, `filtered_lca_view`, `goat_project_metadata_v1`, `lca_pivot_view`, `lca_results_view`, `lca_validation_report_view`, `sample_view`, `v_genome_size_comparison`), `design_description` (2 rows, 3 columns), and `schema_migrations` itself. Mechanical: view DDL comes straight from `pg_get_viewdef`, and `schema_migrations` needs a bootstrap file, since a migration cannot record its own creation in a table that does not yet exist. Nothing else in the plan rewrites any of these, so capturing them now is not wasted.
 4. ~~Add a drift check (live inventory vs baseline).~~ **Done 2026-10-02** — `bin/check_drift.py` compares live objects against `schema/object_inventory.tsv` (70 objects) and exits non-zero on any difference. Verified by canary. **Remaining: wire it into cron or CI** — it is written and working but not yet scheduled.
 5. ~~Remove credentials from `create_database.py`.~~ **Superseded 2026-10-02.** The two scripts that actually reach the live database (`import_data.py`, `import_v2.py`) no longer contain credentials at all. `create_database.py` was moved to `SS/` — it targets the decommissioned host and the retired `oceanomics` database, so its literal is dead. Its credential, and those in the other 18 `SS/` files, are left in place deliberately and scrubbed at rotation.
 
 ### Phase C: Add the constraints the data already satisfies
+
+0. **Capture these ten tables in a catch-up migration first, as step one of the constraint work** (routed here from Phase B.3): `rna_qc_kinnex`, `ncbi_genome_assemblies`, `raw_qc`, `ref_genomes`, `hifi_reads_qc`, `hic_reads_qc`, `raw_data`, `draft_genomes`, `ref_genomes_sra_uploads`, `ref_genomes_assembly_uploads`. None of them is created by any migration today. Writing the `CREATE TABLE` and the constraint it is about to gain in one change means the migration explains itself; written separately beforehand, the first one would just restate the catalog. Note `draft_genomes` has 118 columns and `ref_genomes` 58 — those two are the bulk of the effort here.
 
 1. Add the seven zero-orphan FKs from Finding 3, with pipeline owners' sign-off. **Unblocked 2026-10-02** — migration `030` added the child-side indexes these need.
 2. Add PKs to `ncbi_genome_assemblies` and `rna_qc_kinnex`; add `rna_qc_kinnex` → `rna_library_kinx` FK (Finding 13).
@@ -1154,14 +1172,19 @@ Less urgent since `030`: `summary` fell from 7.6 s to 2.0 s on indexing alone. T
 
 ### Phase E: Species consolidation
 
-1. Make `species` canonical; redefine `master_species` as a view; re-point `master_species_genome`'s FK.
+**Scope reduced 2026-10-05.** `master_species` and `master_species_genome` are a colleague's separate piece of work and **must not be touched by this phase.** The original step 1 proposed redefining `master_species` as a view and re-pointing `master_species_genome`'s FK; that is now out of scope here and is struck below. What remains is the `species` side only.
+
+0. **Capture `species` and `species_ncbi_assembly` in a catch-up migration as step one of the restructure** (routed here from Phase B.3) — neither is created by any migration today, and step 4 rewrites them anyway, so the `CREATE` and the change belong in the same migration.
+1. ~~Make `species` canonical; redefine `master_species` as a view; re-point `master_species_genome`'s FK.~~ **Reduced:** make `species` canonical for everything this project owns. The `master_species` / `master_species_genome` half is a colleague's work — coordinate, do not implement. See Finding 2.
 2. Add import-time validation on `sample.nominal_species_id`.
 3. Classify the 892 invalid values using `lca_validation.validated_rank`.
-4. Consolidate `species_ncbi_assembly` and `ncbi_genome_assemblies`.
+4. Consolidate `species_ncbi_assembly` and `ncbi_genome_assemblies`. (`ncbi_genome_assemblies` gets its catch-up `CREATE` in Phase C.0, the earlier touch; this phase reworks it.)
 
 ### Phase F: Resolve the snapshots
 
 **Unblocked 2026-10-05.** Item 1 is done and items 2–4 are now a single operation.
+
+These eight objects (five tables, three views) account for 8 of Phase B.3's 49 uncovered objects and **need no catch-up migration at all** — they are being deleted, not brought under management. Dropping them is the cheapest way to shorten that list.
 
 1. ~~Decide `lca_old`'s fate (blocking — it FKs to a snapshot).~~ **Done, migration `032`** — archived to CSV and dropped. Its FK was the only one into `mitogenome_data_SS260818` from outside the snapshot set.
 2. Drop the five `SS260818` tables. They are now a self-contained group — their three remaining FKs are all internal. Four of the five are archived in `archive/snapshots_SS260818/`; **export `blast_filtered_lca_SS260818` first**, it was deliberately left out.
@@ -1206,7 +1229,7 @@ All four are done. The follow-ons each item left behind are listed with their pa
 ### Medium priority
 
 1. ~~Resolve `lca_old`~~ **(done, `032`)**, then drop the `SS260818` snapshots — now unblocked and a single operation. Export `blast_filtered_lca_SS260818` first.
-2. Consolidate the three species tables.
+2. Consolidate the species tables — **`species` and `species_ncbi_assembly` only.** `master_species` and `master_species_genome` are a colleague's separate work and are out of scope; coordinate rather than change them (Finding 2, Phase E).
 3. Consolidate the two NCBI assembly tables.
 4. Normalise `sample.ilrna_status`, then the other status fields.
 5. Add missing PKs and the `rna_qc_kinnex` / `rna_library_kinx` FKs.
@@ -1238,18 +1261,27 @@ Still open:
 
 1. Which table is the authoritative species source — and does `master_species_genome` change the answer?
 2. Are sample-level workflow status columns user-entered, imported, or derived?
-3. Is `lca_old` still used by any report or user? (Now blocking the snapshot cleanup.)
 4. Are QC records conceptually linked to samples, libraries, sequencing runs, lanes, or files?
 5. Does each `sequencing` row represent a run, a library on a run, a lane, or an output file?
 6. What are the required public contracts for GoaT API output?
-7. Which downstream users or scripts query the database directly outside these repos?
+7. Which downstream users or scripts query the database directly outside these repos? **This is the single blocker on the `v2` cutover** — `docs/v2_cutover_dependencies.md` names it as the only one, and refers to it as "open question 10" (its numbering, not this document's). Cutover is a `search_path` swap, so the risk is a client with hardcoded `public.` prefixes, or one that silently follows the swap.
+
+   **Partial answer, 2026-10-05.** `pg_stat_activity` shows live sessions from `130.95.40.88` (UWA) and `120.23.172.134`, across four DBeaver versions, **all connecting as the `postgres` superuser**. So there are at least two human consumers outside both repos, using a GUI client where saved queries may well carry explicit `public.` prefixes. That is evidence, not an answer: it catches whoever happened to be connected, not scheduled jobs, notebooks or dashboards.
+
+   To close it properly, run `pg_stat_statements` or `log_statement = 'mod'` for a fortnight and inventory the real clients. That is a live `postgresql.conf` change and has deliberately not been made.
 
 New:
 
 8. Which migration system is the intended one — `sql/` + `schema_migrations`, or Sqitch? Is the `v2` redesign still the plan, or superseded? **Still open and now the critical path for Phase B.** Evidence has accumulated toward `sql/`: it has the ledger, the deployed history, and now an apply script and drift check, while Sqitch has never run against this database and one of its changes was retired into `sql/` as `030`. That is not a decision until it is written down.
-9. Who owns the `data_package_*` subsystem, and where does its code live?
-10. Were the three snapshot-reading views intended to read snapshots, or is that a leftover from the August rebuild?
-11. Should the `SS260818` tables be archived, dropped, or retained as a rollback point?
+
+   The two halves of this question are not equally open. **The tool question looks settled in practice**; the `v2` question is live and now has a measurable cost: **17 of Phase B.3's 49 uncovered objects are waiting on it.** Writing `public` catch-up migrations for them duplicates DDL that `docs/v2_scaffold_design_review.md` records as already built, deployed and reverted against a throwaway cluster, constraint-tested with rejecting data, and exercised by `import_v2.py` end to end on the real workbook (20,881 rows loaded, 1,004 quarantined). Deciding against `v2` would mean writing those 17 by hand; deciding for it makes them moot. Either way the 17 stay stuck until someone answers.
+
+   Two gaps in the `v2` scaffold, found 2026-10-05 and worth knowing before deciding:
+
+   - **The five `v2` LCA tables have DDL but no backfill.** `scripts/backfill_v2.sql` covers the twelve lab tables only. A cutover today would land an empty `v2.lca`, `v2.lca_raw_results`, `v2.lca_validation`, `v2.blast_filtered_lca` and `v2.mitogenome_data`.
+   - **`v2.summary` reads `public.lca_validation`** (`deploy/create_v2_summary_view.sql`, lines ~128–138) even though `v2.lca_validation` exists. That looks like an oversight rather than a deliberate out-of-scope qualification — `master_species` and `ref_genomes` are schema-qualified on purpose and documented as such at the top of the same file; `lca_validation` is not.
+10. ~~Were the three snapshot-reading views intended to read snapshots, or is that a leftover from the August rebuild?~~ **Answered:** a leftover. Migration `027` repointed them (Finding 11).
+11. ~~Should the `SS260818` tables be archived, dropped, or retained as a rollback point?~~ **Answered 2026-10-05: archived, then dropped.** Four of the five plus `lca_old` are in `archive/snapshots_SS260818/` as verified gzipped CSV; `blast_filtered_lca_SS260818` was excluded at 4.7 MB and must be exported before its table goes. Removal is unblocked — see Phase F.
 12. Is `ena_sequence_accession` expected to stay empty, and why is `ena_sample_accession` missing on 172 of 539 submissions?
 13. `ont_library` and `hic_library` took zero new rows in three months, and `raw_data` took zero — expected, or a stalled import?
 14. Should `ena_specimen_accessions` remain a separate specimen registry, or become a view over `sample`?
@@ -1291,7 +1323,7 @@ Unchanged, with four additions. Status marked as of 2026-10-02 — three met, fo
 
 | Criterion | Status |
 |---|---|
-| The schema can be recreated from source-controlled migrations | **No**, but closer. 12 of 61 objects are created by a migration; 49 exist only as a dump snapshot. Was 12 of 70. |
+| The schema can be recreated from source-controlled migrations | **No**, but the gap is now routed rather than undifferentiated. 12 of 61 objects have a migration; of the other 49, 8 are being deleted (Phase F), 17 wait on the `v2` decision, 12 are folded into Phases C and E, 2 are a colleague's, and 10 are genuine Phase B work. Was 12 of 70. |
 | Every active table has an owner and documented purpose | No. |
 | Every active column is documented or intentionally self-evident | No. |
 | There is one canonical species source | No. |
@@ -1413,5 +1445,6 @@ Capture the eight `data_package_*` tables in a migration and the data dictionary
 | 2.5 | 2026-10-02 | Completed Phase A. Applied `030_core_lookup_indexes.sql` (Finding 4) — the July Sqitch change `add_core_lookup_indexes`, ported into the numbered-SQL convention rather than deployed through Sqitch, and extended from 19 to all 24 index candidates; 24 indexes created, 0 invalid, `summary` 7.6 s → 2.0 s. Added `BEGIN`/`COMMIT` to `026`, replayed it as a no-op, and wrote its missing ledger row (Finding 10). `chmod 600 /home/tyler/.env.db` (Finding 14). Findings 4, 10 and 14 updated with resolution notes; the open remainders — password rotation, one migration system, a drift check, an apply/ledger script — are called out in each. |
 | 2.6 | 2026-10-02 | Closed the Finding 10 mechanism and the Finding 14 plumbing. Added `bin/apply_migrations.py` (applies and ledgers in one step; aborts on hash drift; auto-detects `CONCURRENTLY`; guards the `005`/`019` replay hazard) and `bin/check_drift.py` (object inventory vs `schema/object_inventory.tsv`, plus a source-coverage report). Re-baselined `schema/`, three months stale. Separately, in `OceanOmics-Database`: the password was removed from the two live scripts into `~/postgresql_details/oceanomics.cfg` via a new `db_config.py`, `SS/` was documented as the superseded directory, and `ROTATION.md` was written. **The password value is unchanged** — this is plumbing, so rotation is now a one-line edit. Sections 9, 10 and 13 updated to reflect progress: Phase A complete, Phase B three of five, and the success criteria marked three met / four partly met. |
 | 2.7 | 2026-10-05 | Removed nine objects rather than writing migrations to describe them. `031` dropped the abandoned `data_package_*` subsystem and `project_delivery_contact` (eight tables, 124 stale rows, no inbound FKs, no code references). `032` dropped `lca_old` — investigated and found to hold 468 keys absent from live `lca` plus three columns the live schema lacks, but all of it superseded by a full LCA re-run, so archived and removed. Both reverts are structure-only and were proven by a drop/revert round trip on a scratch database (211 structural facts identical). Four snapshot tables plus `lca_old` archived as gzipped CSV in `archive/snapshots_SS260818/` (2.2 MB, verified to reload `EXCEPT`-identical); `blast_filtered_lca_SS260818` deliberately excluded at 4.7 MB. Live objects 70 → 61; catch-up worklist 58 → 49. Phase F item 1 closed and the snapshot removal unblocked. |
+| 2.8 | 2026-10-05 | Documentation only — no schema change. Broke Phase B.3's "49 uncovered objects" into a routing table and pushed the work into the phases that already rework each object, on the principle that a catch-up migration belongs as the first step of the change that alters the object, not as a separate job beforehand. 8 go to Phase F (deleted, no migration), 17 to the `v2` cutover, 10 to Phase C.0, 2 to Phase E.0, 10 stay in Phase B. Corrected an earlier undercount: `v2` covers **17**, not 12 — it includes the four live LCA tables and `goat_species_v1`. Recorded two `v2` gaps under open question 8 (no backfill for the five `v2` LCA tables; `v2.summary` reads `public.lca_validation` despite `v2.lca_validation` existing), and attached the DBeaver evidence from `pg_stat_activity` to question 7, the sole `v2` cutover blocker. **Scope reduction:** `master_species` and `master_species_genome` are a colleague's separate work — struck from Phase E.1, Finding 2's recommendation and the backlog so the intent is not re-derived from any of them. |
 
 The previous revision is preserved at `/tmp/database_review.prev.md` at the time of writing; the authoritative history is in git.
