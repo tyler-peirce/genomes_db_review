@@ -343,5 +343,5 @@ Noted so these aren't re-flagged in a future pass:
    time-sensitive).
 2. Fix the three broken mappings in `name_convert.py`/`queries.py` (`OceanOmics-Database`
    repo).
-3. Once the `v2_` table scaffold (see `deploy/create_v2_lab_tables.sql`) is agreed, update the
+3. Once the `v2_` table scaffold (see `design/v2/deploy/create_v2_lab_tables.sql`) is agreed, update the
    importer to write into the `v2_` tables, backfill history, and only then plan cutover.

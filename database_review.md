@@ -72,7 +72,7 @@ The `data_package_*` subsystem is the largest single piece of undocumented schem
 
 | # | Finding (rev 1) | Status now |
 |---|---|---|
-| 1 | Repository is not the schema source of truth | **Worse.** Baseline covers 31 of 53 tables; three parallel migration systems. |
+| 1 | Repository is not the schema source of truth | **Worse at review; much improved 2026-10-05.** One declared migration system, re-baselined, drift checked daily. Coverage 22 of 64 and routed. |
 | 2 | Species data has two competing authorities | **Worse.** Now three species tables and a fourth `og_id` authority; sample species drift grew. |
 | 3 | Logical relationships not enforced | **Much improved.** `blast_filtered_lca` orphans 334 → 0; FKs are now actually addable. |
 | 4 | FK columns not indexed | **Unchanged.** All 24 candidates still missing. |
@@ -81,7 +81,7 @@ The `data_package_*` subsystem is the largest single piece of undocumented schem
 | 7 | Dates/numbers/statuses stored as text | **Mixed.** New tables are properly typed; legacy unchanged; status cardinality worsened. |
 | 8 | Reporting views hide logic and carry performance risk | **Worse, and now measured.** `summary` takes 7.6 s. |
 | 9 | Documentation coverage minimal | **Improved.** 0 → 3 object comments, 12 → 60 column comments. |
-| 10 | — | **New.** Three migration systems, one ledger gap. |
+| 10 | — | **New at review; resolved 2026-10-05.** One system declared, ledger gap closed, drift check scheduled. |
 | 11 | — | **New. RESOLVED 2026-10-02** by migration `027`. Production views read frozen August snapshots. |
 | 12 | — | **New.** Snapshot tables have become permanent fixtures. |
 | 13 | — | **New.** Nine tables have no primary key. |
@@ -102,7 +102,7 @@ What improved:
 
 What got worse:
 
-- There are now **three** migration systems: `sql/` + `schema_migrations` (deployed), `genomes_db_review/sqitch.plan` (declared, never deployed), and direct DDL against production (eight `data_package_*` tables, two reference tables, five snapshot tables, six views). The schema baseline in `schema/current_schema.sql` describes 31 tables; the database has 53.
+- There are now **three** migration systems: `sql/` + `schema_migrations` (deployed), `genomes_db_review/sqitch.plan` (declared, never deployed), and direct DDL against production (eight `data_package_*` tables, two reference tables, five snapshot tables, six views). The schema baseline in `schema/current_schema.sql` describes 31 tables; the database has 53. **Resolved 2026-10-05:** one system, declared in `docs/migration_system_decision.md`; Sqitch retired and deleted. Direct DDL has not stopped — see Finding 10's final note and open question 16.
 - `summary` now takes **7.6 seconds** to execute. In July this was a projected risk; it is now a measured one.
 - `summary`, `embargo_assignment_view`, and `mitogenome_submission_view` read the frozen `*_SS260818` snapshot tables rather than the live ones. 61 samples that have live LCA validation are invisible to the Summary report, and 39 samples in the report carry validation that the live pipeline no longer holds.
 - Species fragmentation increased: `species` (22,724), `master_species` (19,817), and now `master_species_genome` (19,817). Samples whose `nominal_species_id` is absent from `species` grew from 645 to 892.
@@ -339,9 +339,9 @@ The list got longer, but — and this is the real change since July — most of 
 
 ### Finding 1: The repository is not the schema source of truth
 
-Severity: High  
+Severity: High → **Medium** (2026-10-05)  
 Theme: Maintainability, safety  
-Status since revision 1: **worse**
+Status since revision 1: **worse at review time; substantially improved 2026-10-05** — one declared migration system, daily drift detection, coverage 12 → 22 of 64. See the resolution note at the end of this finding.
 
 Revision 1's recommendation was to create a baseline and move to migration-based management. The baseline was created (`schema/current_schema.sql`, 31 tables) and Sqitch was adopted (`sqitch.plan`, 8 changes). Neither took hold:
 
@@ -362,6 +362,20 @@ Recommendation:
 2. Re-baseline from the live database into `schema/`, including the `data_package_*` and snapshot layers.
 3. Write catch-up migration files for the 22 unmanaged tables and 6 unmanaged views — even if they only assert what already exists, so a rebuild reproduces them.
 4. Either deploy the Sqitch index change or port it into the surviving system. It is the cheapest unrealised win in the project.
+
+**Resolution — 2026-10-05. Partly resolved; the severity of the remaining part is lower.**
+
+1. ~~Pick one tool.~~ **Done** — `docs/migration_system_decision.md`. `sql/` + `schema_migrations` is canonical, Sqitch is retired, its project files are deleted, and the three READMEs that used to contradict each other now agree. There is one migration system.
+2. ~~Re-baseline.~~ **Done 2026-10-02.**
+3. **Partly done, and deliberately so.** 22 of 64 objects are now created by a migration, up from 12. The recommendation as written — "even if they only assert what already exists" — was revised in practice: a migration describing the status quo carries no rationale, because there is none to record, and is superseded within weeks by the migration that actually reworks the object. So the work was routed instead: ten objects nothing else touches were captured in `000`, `033` and `034`, and the other 39 ship with the change that reworks them, in Phases C, E, F and the `v2` cutover. See Phase B.3.
+4. ~~Deploy the index change.~~ **Done 2026-10-02** as `030`.
+
+What is left of this finding is not "no process" but "process adopted, coverage incomplete, and one unenforced boundary":
+
+- **Coverage.** 42 objects are still not described by a migration; a rebuild from `sql/` alone stops at `003`. Each is routed, with 17 of them waiting on open question 7.
+- **Enforcement.** The rule says DDL reaches this database only through `sql/`, and nothing enforces it — every connection is the `postgres` superuser. Three tables (`og_workflow_*`) arrived by direct DDL between the re-baseline and the scheduling of the drift check, which is the clearest possible demonstration: the check now *detects* this within a day, but nothing *prevents* it. Prevention needs the non-superuser pipeline role from Finding 14, which is still outstanding.
+
+Detection, at least, is no longer manual: `bin/drift_cron.sh` runs daily.
 
 ### Finding 2: Species data now has three competing authorities
 
@@ -542,7 +556,7 @@ Status since revision 1: **unchanged**
 
 `PacBio Kinnex` is still 138 rows with no FK to `rna_library_kinx`, and `rna_library_kinx` (188 rows) still has no FK to `rna_extraction`. Neither grew much, so this is not getting worse, but it is also exactly as wrong as it was.
 
-The `v2` redesign in `sqitch.plan` addresses this with a library identity registry replacing the five polymorphic columns. It is written and undeployed.
+The `v2` redesign addresses this with a library identity registry replacing the five polymorphic columns. It is written and undeployed; as of 2026-10-05 its DDL lives in `design/v2/` rather than a Sqitch plan.
 
 Recommendation:
 
@@ -712,7 +726,7 @@ Recommendation:
 
 Severity: High  
 Theme: Maintainability, safety  
-Status: **new** — ledger gap and drift check both closed 2026-10-02; the multiple-systems problem remains open
+Status: **resolved 2026-10-05.** Ledger gap and drift check closed 2026-10-02; the multiple-systems problem closed 2026-10-05 with `docs/migration_system_decision.md`. See the final resolution note at the end. Direct DDL continues to reach the database — detection now catches it, prevention still depends on Finding 14.
 
 | System | Location | Changes | Deployed |
 |---|---|---:|---|
@@ -749,7 +763,14 @@ One Sqitch change was also retired into the numbered set (`add_core_lookup_index
 
 Verified by test: a tampered applied file aborts the run; a deliberately broken migration leaves neither a partial schema nor a ledger row; `030` replays cleanly through the no-transaction path; and a canary table and view are both detected as drift.
 
-Still open: recommendation 2 — choose one migration system and write the decision down. The coverage report quantifies the cost of not having done so: of 61 live objects, **12 are created by a migration and 49 exist only as a dump snapshot**, with no change history or rationale behind them (was 12 of 70 before the 2026-10-05 drops). Phase B.3 routes those 49 into the phases that rework them; **17 of them are waiting specifically on this decision**, because the `v2` scaffold already has reviewed, constraint-tested DDL for them and writing `public` catch-up migrations would duplicate it.
+**Final resolution — 2026-10-05.** Recommendation 2 is done. `docs/migration_system_decision.md` declares `sql/` + `schema_migrations` canonical and retires Sqitch as a tool; `sqitch.conf` and `sqitch.plan` are deleted, so there is no longer a runnable second system. The decision rule lives in `docs/database_change_checklist.md` under "Migration Governance", as recommendation 2 asked. All three recommendations are now closed and this finding is resolved.
+
+Two things the resolution does **not** cover, tracked elsewhere so they are not lost with the finding:
+
+- **The `v2` go/no-go**, deliberately unbundled from the tool decision and still open (question 8). The 17 objects waiting on it are waiting on question 7, not on the tool.
+- **Coverage.** The report now reads **22 of 64 objects created by a migration**, up from 12 of 61 and 12 of 70 before that. 39 remain dump-only and routed; 3 are the unclaimed `og_workflow_*` tables.
+
+And one thing it exposes. Scheduling the drift check immediately found three tables — `og_workflow_recommendation`, `og_workflow_assignment_log`, `og_workflow_notification` — created by direct DDL after the 2026-10-02 re-baseline, in neither `sql/` nor the baseline. That is this finding's third system, "direct DDL", still operating three days after the mechanism to catch it was built. The check caught it within a day of being scheduled, which is the point; but **detection is not prevention**, and prevention needs the non-superuser pipeline role from Finding 14. Every connection to this database is still `postgres`. Recorded as open question 16, and the drift check is deliberately left failing until someone claims them.
 
 ### Finding 11: Three production views read frozen August snapshots
 
@@ -1113,7 +1134,7 @@ Unchanged, with two additions:
 
 Phases 0 and 1 were started and not finished. Phases 2–4 are now cheaper than estimated in July, because the August LCA rebuild did most of Phase 2's cleanup as a side effect.
 
-**Progress as of 2026-10-05: Phase A complete; Phase B three of five; Phase F unblocked.** What remains in B — choosing one migration system, and writing catch-up migrations for the 58 objects no migration describes — is the critical path for everything after it, because each later phase adds objects or constraints that should be captured by whichever system wins.
+**Progress as of 2026-10-05: Phases A and B complete; Phase F unblocked.** Phase B's critical-path items are closed — there is one migration system, it is written down, the drift check runs daily, and the ten objects that were genuine Phase B catch-up work are described by migrations. The remaining 39 uncovered objects are routed into Phases C, E, F and the `v2` cutover, where each ships alongside the change that explains it. **The two things now gating the most work are open question 7** (which external clients read this database — it blocks the `v2` cutover and 17 objects with it) **and open question 16** (who owns the three `og_workflow_*` tables that arrived by direct DDL, which keeps the daily drift check red).
 
 ### Phase A: Stop the bleeding (days, not weeks)
 
@@ -1128,29 +1149,54 @@ Phase A is complete.
 
 ### Phase B: Re-establish one source of truth
 
-Three of five done 2026-10-02. The remaining two are the substantive ones.
+**Complete 2026-10-05.** Three items closed on 2026-10-02; the remaining two — the substantive ones — closed on 2026-10-05, together with the scheduling remainder of item 4.
 
-1. **Choose one migration tool; document the decision and retire the others.** Still open, and now the critical path for this phase. One change was retired in the numbered set's favour (`add_core_lookup_indexes` → `030`, with the Sqitch copy marked SUPERSEDED), but that is one change, not a decision. See open question 8.
+1. ~~**Choose one migration tool; document the decision and retire the others.**~~ **Done 2026-10-05** — `docs/migration_system_decision.md`. `sql/` + `schema_migrations` is canonical; Sqitch is retired as a tool. `sqitch.conf` and `sqitch.plan` are deleted, so there is no longer a runnable second migration system in the repository. The six `create_v2_*` changes moved to `design/v2/` as non-executable reference DDL (`design/v2/README.md` explains what would consume them); the two superseded non-`v2` changes moved to `migrations/legacy/`. `migrations/README.md`, `sql/README.md` and `schema/README.md` were rewritten to agree with each other — the first of those had claimed "Status: Adopted — Sqitch" for two months while `sql/README.md` said the question was open. The working rule is in `docs/database_change_checklist.md` under "Migration Governance", which closes Appendix B's Workshop 1. **The decision covers the tool only.** The `v2` go/no-go was deliberately unbundled from it and remains open — see open question 8.
 2. ~~Re-baseline `schema/` from the live database.~~ **Done 2026-10-02** — it was three months stale. `scripts/export_schema_baseline.sh` already existed and was reused unchanged.
-3. **Write catch-up migrations for the unmanaged objects.** `bin/check_drift.py --coverage` reports **12 of 61 live objects are created by a migration; the other 49 exist only as a `pg_dump` snapshot**. It was 58 of 70 — the nine dropped on 2026-10-05 (`031`, `032`) came off it, which is the cheapest way to shorten this list: remove what shouldn't be there before writing migrations to describe it.
+3. ~~**Write catch-up migrations for the unmanaged objects.**~~ **Phase B's share done 2026-10-05.** `bin/check_drift.py --coverage` now reports **22 of 64 live objects are created by a migration**, up from 12 of 61; 39 remain baseline-only and 3 are in neither (see item 6). The ten that were genuine Phase B work are captured in `000`, `033` and `034`. The other 39 stay routed to the phases that rework them, per the table below.
+
+   The worklist went 58 → 49 → 39 across three days: nine objects dropped on 2026-10-05 (`031`, `032`), then ten described on 2026-10-05 (`000`, `033`, `034`). Dropping what should not be there remains the cheapest way to shorten it.
 
    **This is not one job, and most of it does not belong in Phase B.** The guiding principle: *a catch-up migration should be written as the first step of the change that reworks the object, not as a separate job beforehand.* Writing a migration that describes the status quo and then a second that changes it produces two migrations where one would do — and the first carries no rationale, because there is none to record. It describes what is, not why. The 49 route as follows.
 
    | Group | Count | Where the work belongs |
    |---|---:|---|
    | `SS260818` snapshots — 5 tables + 3 views | 8 | **Phase F.** No migration at all; they are being deleted. |
-   | Covered by the `v2` scaffold | 17 | **v2 cutover.** Blocked on open questions 8 and 10. |
+   | Covered by the `v2` scaffold | 17 | **v2 cutover.** Blocked on open questions 7 and 8. |
    | QC, raw data, ref/draft genome | 10 | **Phase C**, which already adds their PKs and FKs. |
    | Species / NCBI | 2 | **Phase E**, which already restructures them. |
    | `master_species`, `master_species_genome` | 2 | **Out of scope** — a colleague's separate work. |
-   | Nothing else touches these | 10 | **Stays here.** The only true Phase B catch-up work. |
+   | ~~Nothing else touches these~~ | ~~10~~ | ~~**Stays here.**~~ **Done 2026-10-05** — `000`, `033`, `034`. |
+   | `og_workflow_*`, new since the re-baseline | 3 | **Unclaimed.** Open question 16; see item 6. |
 
    - **Phase C (10):** `rna_qc_kinnex` and `ncbi_genome_assemblies` (C.2 adds their PKs); `raw_qc` and `ref_genomes` (C.5 fixes their 7 orphans then FKs them); `hifi_reads_qc`, `hic_reads_qc`, `raw_data`, `draft_genomes` (C.1, the zero-orphan FKs from Finding 3); plus `ref_genomes_sra_uploads` and `ref_genomes_assembly_uploads`, same `og_id`-bearing family, indexed by `030`.
    - **v2-covered (17):** the 12 lab tables, the four live LCA tables (`lca`, `lca_raw_results`, `lca_validation`, `blast_filtered_lca`), and `goat_species_v1`. All have DDL in `deploy/create_v2_lab_tables.sql` and `deploy/create_v2_lca_tables.sql` that is already written, reviewed and constraint-tested. Writing catch-up migrations for the `public` versions duplicates that work and is wasted if cutover proceeds.
    - **Phase E (2):** `species` and `species_ncbi_assembly`. `ncbi_genome_assemblies` is touched by both C and E — its CREATE goes with C, the earlier touch, and E reworks it.
-   - **Remaining Phase B work (10):** the 8 cutover-neutral views (`coverage_summary`, `filtered_lca_view`, `goat_project_metadata_v1`, `lca_pivot_view`, `lca_results_view`, `lca_validation_report_view`, `sample_view`, `v_genome_size_comparison`), `design_description` (2 rows, 3 columns), and `schema_migrations` itself. Mechanical: view DDL comes straight from `pg_get_viewdef`, and `schema_migrations` needs a bootstrap file, since a migration cannot record its own creation in a table that does not yet exist. Nothing else in the plan rewrites any of these, so capturing them now is not wasted.
-4. ~~Add a drift check (live inventory vs baseline).~~ **Done 2026-10-02** — `bin/check_drift.py` compares live objects against `schema/object_inventory.tsv` (70 objects) and exits non-zero on any difference. Verified by canary. **Remaining: wire it into cron or CI** — it is written and working but not yet scheduled.
+   - ~~**Remaining Phase B work (10)**~~ **— done 2026-10-05, in three migrations.**
+     - `000_bootstrap_schema_migrations.sql` — the ledger itself. It cannot ledger its own creation, because a file cannot contain its own SHA-256, so it is idempotent and ledgered through the normal path: a no-op replay against the live database, and a one-off `psql -f` on an empty one. `bin/apply_migrations.py` gained a guard that prints exactly that instruction when it finds no ledger, instead of a bare `relation "schema_migrations" does not exist`.
+     - `033_catchup_core_views.sql` — the 8 cutover-neutral views, definitions taken verbatim from `pg_get_viewdef(oid, true)` against the live database and emitted in topological order read from `pg_rewrite`/`pg_depend`. That order corrected an assumption: `lca_results_view` reads `lca_pivot_view`, not the reverse, and `lca_validation_report_view` reads four of the others.
+     - **`lca_validation_report_view` is a write path, not a report.** An `INSTEAD OF UPDATE` trigger routes writes through `lca_validation_report_view_upd()`. A catch-up migration capturing only the view definition would have silently dropped that path on any rebuild, so `033` captures the function and trigger too. The same function is the trigger body for `lca_validation_report_view_SS260818` — Phase F drops that view but must keep the function, as already noted there.
+     - `034_catchup_design_description.sql` — `design_description` (2 rows, 3 columns, a PK, no FKs either way, no reference from either repository). Dropping it was considered and rejected for now: "no code references" only covers the two repositories, and open question 7 is unanswered. Flagged as open question 15.
+     - Reverts for `033` and `034` are **deliberate no-ops** that say so in prose. Both migrations created nothing; dropping objects they merely describe would be data loss dressed as a rollback. This is now the standing pattern for catch-up migrations, recorded in `sql/README.md`.
+     - Verified no-op: `pg_get_viewdef`, column lists and row counts for all 8 views are byte-identical before and after, as are the function and trigger definitions; `design_description` still has its 2 rows and its PK; the snapshot view's trigger is intact; the ledger went 32 → 35 with no gap.
+4. ~~Add a drift check (live inventory vs baseline).~~ **Done 2026-10-02; scheduled 2026-10-05.** `bin/check_drift.py` compares live objects against `schema/object_inventory.tsv` and exits non-zero on any difference. `bin/drift_cron.sh` now runs it daily at 07:17 together with `bin/apply_migrations.py --verify`, and is installed in `tyler`'s crontab. Both the silent-when-healthy path and the failure path were tested.
+
+   **Host cron, not CI**, because GitHub runners cannot reach the database host and giving them access would mean committing credentials — which is what Finding 14 undid.
+
+   **The host has no MTA** — no `sendmail`, no `mail`, postfix inactive — so cron mail is dropped. A check nobody hears is not a check, so the wrapper writes `~/log/genomes_db_drift.FAILING` while the last run failed and removes it when healthy; `~/log/genomes_db_drift.log` records every run. **Surfacing that status file from a login banner or monitoring agent is an outstanding follow-up** — nothing currently pushes it at anyone.
 5. ~~Remove credentials from `create_database.py`.~~ **Superseded 2026-10-02.** The two scripts that actually reach the live database (`import_data.py`, `import_v2.py`) no longer contain credentials at all. `create_database.py` was moved to `SS/` — it targets the decommissioned host and the retired `oceanomics` database, so its literal is dead. Its credential, and those in the other 18 `SS/` files, are left in place deliberately and scrubbed at rotation.
+
+6. **New, and deliberately left open: three unmanaged tables appeared after the re-baseline.** `og_workflow_recommendation`, `og_workflow_assignment_log` and `og_workflow_notification` were created on the live database by direct DDL some time after 2026-10-02 — they hold the three highest OIDs in the database. All three are empty. All three are well modelled: primary keys, `CHECK` constraints on their enumerated columns, `timestamptz` throughout. One constraint is `source IN ('site', 'database')`, so something web-facing is being built against them. Nothing in either repository references them.
+
+   They are in **neither** `sql/` nor the baseline, so a rebuild would lose them entirely — the one tier `bin/check_drift.py` describes as "brand new direct DDL".
+
+   **Decision: leave the alarm sounding.** Not dropped (they look like live in-progress work, unlike the abandoned `data_package_*` subsystem), not described in a catch-up migration, and — the operative part — **not accepted into the baseline**. `bin/check_drift.py` therefore exits non-zero every day and the `FAILING` marker stays present until someone claims them. That is the governance rule working rather than failing: the alternative, running `--update`, is drift being rubber-stamped, which is exactly how 22 tables and 6 views got here in the first place. Recorded as open question 16. Do not silence it with `--update`.
+
+   The cost is honest and should be stated: a check that is always red trains people to ignore it. This is tolerable only because it is expected to be short-lived.
+
+Phase B is complete. Its one deliberate loose end is the unclaimed drift in item 6; the `v2` half of open question 8 was unbundled from item 1 rather than left blocking, and is tracked there.
+
+**Known limitation, measured not assumed.** The schema still cannot be rebuilt from `sql/` alone, and the catch-up migrations do not change that — they buy history and rationale for ten objects, not reproducibility. A rebuild was attempted on a scratch database to find out exactly where it stops: `000` applies, `001` and `002` apply, and `003` fails on `relation "mitogenome_data" does not exist`. It never reaches `033`, which fails in turn on `relation "lca" does not exist`. Both failures are readable and both are expected — the base tables those migrations alter are among the 39 objects still routed to Phases C, E and the `v2` cutover. The success criterion in section 13 stays **No** for that reason.
 
 ### Phase C: Add the constraints the data already satisfies
 
@@ -1184,11 +1230,11 @@ Less urgent since `030`: `summary` fell from 7.6 s to 2.0 s on indexing alone. T
 
 **Unblocked 2026-10-05.** Item 1 is done and items 2–4 are now a single operation.
 
-These eight objects (five tables, three views) account for 8 of Phase B.3's 49 uncovered objects and **need no catch-up migration at all** — they are being deleted, not brought under management. Dropping them is the cheapest way to shorten that list.
+These eight objects (five tables, three views) account for 8 of the 39 still-uncovered objects and **need no catch-up migration at all** — they are being deleted, not brought under management. Dropping them is the cheapest way to shorten that list.
 
 1. ~~Decide `lca_old`'s fate (blocking — it FKs to a snapshot).~~ **Done, migration `032`** — archived to CSV and dropped. Its FK was the only one into `mitogenome_data_SS260818` from outside the snapshot set.
 2. Drop the five `SS260818` tables. They are now a self-contained group — their three remaining FKs are all internal. Four of the five are archived in `archive/snapshots_SS260818/`; **export `blast_filtered_lca_SS260818` first**, it was deliberately left out.
-3. Drop the three snapshot views at the same time — but **keep `lca_validation_report_view_upd()`**, which is shared with the live `lca_validation_report_view`.
+3. Drop the three snapshot views at the same time — but **keep `lca_validation_report_view_upd()`**, which is shared with the live `lca_validation_report_view`. Confirmed 2026-10-05: the sharing is via `INSTEAD OF UPDATE` triggers of the same name on both views, both executing that one function. `033` captures the function and the live view's trigger, so dropping the snapshot view removes only its own trigger.
 4. Reclaim the clean index names on `mitogenome_data` (`mitogenome_data_pkey` etc., currently held by the snapshot and forcing the live table's `_1` suffixes).
 
 Note that dropping the tables makes `sql/revert/027_...` permanently unrunnable. Accepted; recorded in that file.
@@ -1202,7 +1248,7 @@ Note that dropping the tables makes `sql/revert/027_...` permanently unrunnable.
 
 ### Phase H: Status normalisation, then sequencing/library redesign
 
-As revision 1's Phases 5 and 6. `sample.ilrna_status` first — it is degrading fastest. The `v2` scaffold in `sqitch.plan` is the starting point for the library redesign if that plan is kept.
+As revision 1's Phases 5 and 6. `sample.ilrna_status` first — it is degrading fastest. The `v2` scaffold is the starting point for the library redesign if that plan is kept; its DDL is in `design/v2/` since Sqitch was retired (open question 8).
 
 ## 10. Revised Priority Backlog
 
@@ -1218,13 +1264,15 @@ All four are done. The follow-ons each item left behind are listed with their pa
 ### Highest priority
 
 1. **Rotate the `postgres` password** (Finding 14) — the only item here with a live exposure window behind it. The plumbing is done: credentials live in one file (`~/postgresql_details/oceanomics.cfg`) and `OceanOmics-Database/ROTATION.md` is the runbook, so the change itself is one line. The work is the propagation — chiefly the DBeaver users connecting as superuser from external IPs.
-2. **Choose one migration system and write the decision down** (Finding 10, Phase B.1). The only Phase B item with nothing done against it, and it gates the catch-up migrations below.
-3. **Write catch-up migrations for the 49 objects no migration describes** (Phase B.3) — down from 58 after the 2026-10-05 drops. Run `bin/check_drift.py --coverage` for the list.
-4. ~~Add an apply/ledger script and a drift check.~~ **Done 2026-10-02** — `bin/apply_migrations.py` and `bin/check_drift.py`; `schema/` re-baselined. Remaining: schedule the drift check in cron or CI.
-5. Add the seven zero-orphan FKs to `sample` — **unblocked**, `030` added the indexes they need.
-6. Add import-time species validation on `sample.nominal_species_id`.
-7. ~~Capture the `data_package_*` subsystem in a migration and the data dictionary.~~ **Moot 2026-10-05** — the subsystem was abandoned and dropped (`031`) rather than documented.
-8. Strip dead `status_overwrite` logic from `summary` and rebuild or materialise it — less acute after `030`, but 2.0 s is still structural.
+2. ~~**Choose one migration system and write the decision down**~~ **Done 2026-10-05** — `docs/migration_system_decision.md`. Tool only; the `v2` half of open question 8 is unbundled and still open.
+3. **Answer open question 16: claim or discard the three `og_workflow_*` tables.** New top-of-list item. They arrived by direct DDL after the re-baseline, are in neither `sql/` nor the baseline, and keep the daily drift check red by deliberate choice. Cheap to resolve and it restores a working signal.
+4. **Answer open question 7 — which external clients read this database.** It blocks the `v2` cutover and, with it, catch-up coverage for 17 objects: the largest single block of unmanaged schema left. Needs `pg_stat_statements` or `log_statement = 'mod'` for a fortnight.
+5. ~~**Write catch-up migrations for the 49 objects no migration describes**~~ **Phase B's ten done 2026-10-05** (`000`, `033`, `034`). The other 39 are routed to Phases C, E, F and the `v2` cutover — each ships with the change that reworks its object. Run `bin/check_drift.py --coverage` for the current list.
+6. ~~Add an apply/ledger script and a drift check.~~ **Done 2026-10-02; scheduled 2026-10-05** — `bin/drift_cron.sh` in cron, daily at 07:17. One follow-up: the host has no MTA, so surface `~/log/genomes_db_drift.FAILING` from a login banner or monitoring agent.
+7. Add the seven zero-orphan FKs to `sample` — **unblocked**, `030` added the indexes they need.
+8. Add import-time species validation on `sample.nominal_species_id`.
+9. ~~Capture the `data_package_*` subsystem in a migration and the data dictionary.~~ **Moot 2026-10-05** — the subsystem was abandoned and dropped (`031`) rather than documented.
+10. Strip dead `status_overwrite` logic from `summary` and rebuild or materialise it — less acute after `030`, but 2.0 s is still structural.
 
 ### Medium priority
 
@@ -1272,9 +1320,11 @@ Still open:
 
 New:
 
-8. Which migration system is the intended one — `sql/` + `schema_migrations`, or Sqitch? Is the `v2` redesign still the plan, or superseded? **Still open and now the critical path for Phase B.** Evidence has accumulated toward `sql/`: it has the ledger, the deployed history, and now an apply script and drift check, while Sqitch has never run against this database and one of its changes was retired into `sql/` as `030`. That is not a decision until it is written down.
+8. ~~Which migration system is the intended one — `sql/` + `schema_migrations`, or Sqitch?~~ **Answered 2026-10-05: `sql/` + `schema_migrations`.** Written down in `docs/migration_system_decision.md`, with the comparison that settled it. Sqitch is retired as a tool and its project files are deleted.
 
-   The two halves of this question are not equally open. **The tool question looks settled in practice**; the `v2` question is live and now has a measurable cost: **17 of Phase B.3's 49 uncovered objects are waiting on it.** Writing `public` catch-up migrations for them duplicates DDL that `docs/v2_scaffold_design_review.md` records as already built, deployed and reverted against a throwaway cluster, constraint-tested with rejecting data, and exercised by `import_v2.py` end to end on the real workbook (20,881 rows loaded, 1,004 quarantined). Deciding against `v2` would mean writing those 17 by hand; deciding for it makes them moot. Either way the 17 stay stuck until someone answers.
+   **The second half of this question remains open, and is now tracked on its own: is the `v2` redesign still the plan, or superseded?** It was deliberately unbundled from the tool decision so the `v2` answer is not inferred from it. The cost is unchanged and measurable: **17 of the 39 still-uncovered objects are waiting on it** — the 12 lab tables, the four live LCA tables, and `goat_species_v1`. Writing `public` catch-up migrations for them duplicates DDL that `docs/v2_scaffold_design_review.md` records as already built, deployed and reverted against a throwaway cluster, constraint-tested with rejecting data, and exercised by `import_v2.py` end to end on the real workbook (20,881 rows loaded, 1,004 quarantined). Deciding against `v2` would mean writing those 17 by hand; deciding for it makes them moot. Either way the 17 stay stuck until someone answers, and they are the single largest block of unmanaged schema left.
+
+   The DDL now lives in `design/v2/`, non-executable, with `design/v2/README.md` recording what approval would consume and in what order. **`v2` is blocked on question 7**, not on the tool choice.
 
    Two gaps in the `v2` scaffold, found 2026-10-05 and worth knowing before deciding:
 
@@ -1285,6 +1335,10 @@ New:
 12. Is `ena_sequence_accession` expected to stay empty, and why is `ena_sample_accession` missing on 172 of 539 submissions?
 13. `ont_library` and `hic_library` took zero new rows in three months, and `raw_data` took zero — expected, or a stalled import?
 14. Should `ena_specimen_accessions` remain a separate specimen registry, or become a view over `sample`?
+15. Does anything outside the two repositories read `design_description`? Two rows, three columns, a primary key, no foreign keys either way, and no reference from any view, script or migration. Captured in `034` so a rebuild would not lose it, but it is a removal candidate the moment question 7 can confirm no external consumer. Not dropped on the `031` / `032` precedent because those were provably dead and this is only unreferenced-as-far-as-we-can-see.
+16. **Who owns `og_workflow_recommendation`, `og_workflow_assignment_log` and `og_workflow_notification`?** Three empty, well-modelled tables created by direct DDL after the 2026-10-02 re-baseline, referenced by nothing in either repository, with a `source IN ('site', 'database')` constraint suggesting a web front end. They are in neither `sql/` nor the baseline, so a rebuild loses them. The daily drift check fails on them every day by deliberate choice (Phase B.6) — **do not run `bin/check_drift.py --update` to quieten it.** Answering this is now the fastest way to get the check back to green: whoever built them should either write their catch-up migration or say they can go.
+
+    Note this is the first real test of the governance rule adopted the same day, and the rule caught it. The tables appeared between the re-baseline and the scheduling of the check, which is precisely the window the check exists to close.
 
 ## 12. Risk Assessment
 
@@ -1319,11 +1373,11 @@ Unchanged in principle, re-ordered in practice: the August rebuild already did m
 
 ## 13. Proposed Success Criteria
 
-Unchanged, with four additions. Status marked as of 2026-10-02 — three met, four partly met.
+Unchanged, with four additions. Status as of 2026-10-05 — three met, five partly met.
 
 | Criterion | Status |
 |---|---|
-| The schema can be recreated from source-controlled migrations | **No**, but the gap is now routed rather than undifferentiated. 12 of 61 objects have a migration; of the other 49, 8 are being deleted (Phase F), 17 wait on the `v2` decision, 12 are folded into Phases C and E, 2 are a colleague's, and 10 are genuine Phase B work. Was 12 of 70. |
+| The schema can be recreated from source-controlled migrations | **No**, and now measured rather than estimated. 22 of 64 objects have a migration (was 12 of 61, and 12 of 70 before that). Of the other 42: 8 are being deleted (Phase F), 17 wait on the `v2` decision, 12 are folded into Phases C and E, 2 are a colleague's, and 3 are the unclaimed `og_workflow_*` tables. A rebuild attempt on a scratch database stops at `003`, on `relation "mitogenome_data" does not exist`. |
 | Every active table has an owner and documented purpose | No. |
 | Every active column is documented or intentionally self-evident | No. |
 | There is one canonical species source | No. |
@@ -1332,8 +1386,8 @@ Unchanged, with four additions. Status marked as of 2026-10-02 — three met, fo
 | Major `og_id`-based tables either have FKs or documented reasons not to | No, but unblocked by `030`. |
 | Workflow statuses use canonical values | No. |
 | Heavy views have acceptable query plans | **Partly.** `summary` 7.6 s → 2.0 s; `goat_species_v1` unchanged. |
-| Deprecated tables/columns are clearly marked and eventually removed | **Partly.** Nine removed on 2026-10-05 (`data_package_*`, `project_delivery_contact`, `lca_old`), each archived or documented first. The snapshots and the empty-column work remain. |
-| There is exactly one migration system, and the live inventory matches the baseline | **Partly.** The inventory now matches, and drift is checked automatically (`bin/check_drift.py`). Still more than one migration system. |
+| Deprecated tables/columns are clearly marked and eventually removed | **Partly.** Nine removed on 2026-10-05 (`data_package_*`, `project_delivery_contact`, `lca_old`), each archived or documented first. The snapshots and the empty-column work remain; `design_description` is newly flagged (open question 15). |
+| There is exactly one migration system, and the live inventory matches the baseline | **Partly, and for a new reason.** There is now exactly one migration system, declared in `docs/migration_system_decision.md`, and drift is checked daily rather than on demand. But the inventory no longer matches: three `og_workflow_*` tables arrived by direct DDL and have deliberately not been accepted into the baseline (open question 16). The first half is met; the second is red on purpose. |
 | No reporting view reads a frozen snapshot unless its name says so | **Met** — migration `027`. |
 | `summary` returns in under one second | **No** — 2.0 s, down from 7.6 s. Phase D is what closes the gap. |
 | Database credentials are not readable by other users on the host, and pipelines do not connect as superuser | **Partly.** Credentials are in one `600` file and out of the live scripts. Everything still connects as `postgres`, and the password has not been rotated. |
@@ -1356,11 +1410,21 @@ Unchanged, with four additions. Status marked as of 2026-10-02 — three met, fo
 
 ### Migration state
 
+As at review time (2026-10-02):
+
 | System | Changes | Applied |
 |---|---:|---:|
 | `sql/` + `schema_migrations` | 26 | 26 applied, 25 ledgered |
 | `genomes_db_review/sqitch.plan` | 8 | 0 |
 | Direct DDL | 22 tables, 6 views | 22 / 6 |
+
+As at 2026-10-05, after the Phase B close:
+
+| System | Changes | Applied |
+|---|---:|---:|
+| `sql/` + `schema_migrations` — **the one system** | 35 | 35 applied, 35 ledgered |
+| ~~Sqitch~~ | — | Retired. Project files deleted; `v2` DDL parked in `design/v2/`. |
+| Direct DDL | 3 tables (`og_workflow_*`) | Unclaimed — open question 16 |
 
 ### Orphan and blank `og_id`
 
@@ -1416,9 +1480,9 @@ All 16 columns listed in Finding 6 are at 0 rows filled, across 3,294 samples an
 
 ## Appendix B: Suggested Review Workshops
 
-### Workshop 1: Migration governance
+### ~~Workshop 1: Migration governance~~ — closed 2026-10-05
 
-Decide which migration system survives, who may apply DDL, and how drift is detected. Output: a one-page rule in `docs/database_change_checklist.md` and a drift-check query in CI.
+Decided without a workshop. `docs/migration_system_decision.md` records which system survives; `docs/database_change_checklist.md` has the one-page rule under "Migration Governance"; the drift check runs in host cron rather than CI, because runners cannot reach the database host without committed credentials. **Still unresolved and not a workshop question: who may apply DDL.** The rule says "only through `sql/`", but everything still connects as the `postgres` superuser, so nothing enforces it — see Finding 14 and the password rotation at the top of the backlog.
 
 ### Workshop 2: Snapshots and `lca_old`
 
@@ -1446,5 +1510,7 @@ Capture the eight `data_package_*` tables in a migration and the data dictionary
 | 2.6 | 2026-10-02 | Closed the Finding 10 mechanism and the Finding 14 plumbing. Added `bin/apply_migrations.py` (applies and ledgers in one step; aborts on hash drift; auto-detects `CONCURRENTLY`; guards the `005`/`019` replay hazard) and `bin/check_drift.py` (object inventory vs `schema/object_inventory.tsv`, plus a source-coverage report). Re-baselined `schema/`, three months stale. Separately, in `OceanOmics-Database`: the password was removed from the two live scripts into `~/postgresql_details/oceanomics.cfg` via a new `db_config.py`, `SS/` was documented as the superseded directory, and `ROTATION.md` was written. **The password value is unchanged** — this is plumbing, so rotation is now a one-line edit. Sections 9, 10 and 13 updated to reflect progress: Phase A complete, Phase B three of five, and the success criteria marked three met / four partly met. |
 | 2.7 | 2026-10-05 | Removed nine objects rather than writing migrations to describe them. `031` dropped the abandoned `data_package_*` subsystem and `project_delivery_contact` (eight tables, 124 stale rows, no inbound FKs, no code references). `032` dropped `lca_old` — investigated and found to hold 468 keys absent from live `lca` plus three columns the live schema lacks, but all of it superseded by a full LCA re-run, so archived and removed. Both reverts are structure-only and were proven by a drop/revert round trip on a scratch database (211 structural facts identical). Four snapshot tables plus `lca_old` archived as gzipped CSV in `archive/snapshots_SS260818/` (2.2 MB, verified to reload `EXCEPT`-identical); `blast_filtered_lca_SS260818` deliberately excluded at 4.7 MB. Live objects 70 → 61; catch-up worklist 58 → 49. Phase F item 1 closed and the snapshot removal unblocked. |
 | 2.8 | 2026-10-05 | Documentation only — no schema change. Broke Phase B.3's "49 uncovered objects" into a routing table and pushed the work into the phases that already rework each object, on the principle that a catch-up migration belongs as the first step of the change that alters the object, not as a separate job beforehand. 8 go to Phase F (deleted, no migration), 17 to the `v2` cutover, 10 to Phase C.0, 2 to Phase E.0, 10 stay in Phase B. Corrected an earlier undercount: `v2` covers **17**, not 12 — it includes the four live LCA tables and `goat_species_v1`. Recorded two `v2` gaps under open question 8 (no backfill for the five `v2` LCA tables; `v2.summary` reads `public.lca_validation` despite `v2.lca_validation` existing), and attached the DBeaver evidence from `pg_stat_activity` to question 7, the sole `v2` cutover blocker. **Scope reduction:** `master_species` and `master_species_genome` are a colleague's separate work — struck from Phase E.1, Finding 2's recommendation and the backlog so the intent is not re-derived from any of them. |
+
+| 2.9 | 2026-10-05 | **Phase B closed.** Three pieces of work. (1) The migration-system decision, written down in `docs/migration_system_decision.md`: `sql/` + `schema_migrations` is canonical, Sqitch is retired as a tool, `sqitch.conf` and `sqitch.plan` deleted, the six `create_v2_*` changes relocated to `design/v2/` as non-executable reference DDL and the two superseded ones to `migrations/legacy/`. `migrations/README.md`, `sql/README.md` and `schema/README.md` rewritten — the first had advertised "Adopted — Sqitch" for two months while the second said the question was open. The working rule added to `docs/database_change_checklist.md`, closing Workshop 1. The decision covers the **tool only**; the `v2` go/no-go was deliberately unbundled and remains open on question 7. (2) Phase B's ten catch-up objects captured in three migrations: `000` (the ledger itself, which cannot ledger its own creation), `033` (the eight cutover-neutral views, with definitions from `pg_get_viewdef` and order from `pg_rewrite`), `034` (`design_description`). Verified a strict no-op: view definitions, column lists, row counts, the function and the trigger are all byte-identical before and after. Reverts for `033` and `034` are deliberate no-ops — a catch-up migration created nothing, so dropping what it describes is data loss, not rollback. Two things the work uncovered: `lca_validation_report_view` is a **write path** via an `INSTEAD OF UPDATE` trigger, not a read-only report, so `033` captures the trigger and function too; and `lca_results_view` reads `lca_pivot_view`, not the reverse. Coverage 12 of 61 → **22 of 64**. (3) The drift check scheduled — `bin/drift_cron.sh` daily at 07:17 in cron, running `check_drift.py` and `apply_migrations.py --verify`, silent when healthy. The host has no MTA, so it writes `~/log/genomes_db_drift.FAILING` instead of relying on cron mail. Findings 1 and 10 updated with resolution notes; Finding 1 downgraded High → Medium; Finding 10 resolved. **Three new tables found by the newly scheduled check** — `og_workflow_recommendation`, `og_workflow_assignment_log`, `og_workflow_notification` — created by direct DDL after the 2026-10-02 re-baseline, empty, well modelled, referenced by nothing in either repository. Deliberately **not** accepted into the baseline, so the daily check fails until someone claims them (open question 16). `design_description` flagged as open question 15. A rebuild attempt on a scratch database put a number on the remaining gap: it stops at `003`, on `relation "mitogenome_data" does not exist`. |
 
 The previous revision is preserved at `/tmp/database_review.prev.md` at the time of writing; the authoritative history is in git.

@@ -1,18 +1,17 @@
-# Numbered SQL Migrations (deployed)
+# Numbered SQL Migrations
 
-Status: **applied to the live database.** These 30 files are the deployed system
-of record for the mitogenome/ENA schema work. The Sqitch project at the repo root
-(`sqitch.plan` / `deploy/` / `revert/` / `verify/`) is **declared but has never
-been deployed** — do not read `migrations/README.md`'s "Status: Adopted — Sqitch"
-as a description of what is running.
+Status: **the project's one migration system.** Decided 2026-10-05 —
+see [`../docs/migration_system_decision.md`](../docs/migration_system_decision.md) for the
+evidence and for what that decision deliberately does not cover (the `v2` go/no-go).
 
-Which of the two systems should be canonical is **undecided**. See open question
-8 in `database_review.md`. One Sqitch change has since been resolved in this
-directory's favour: `add_core_lookup_indexes` was ported to
-`030_core_lookup_indexes.sql` and deployed from here, so the Sqitch copy in
-`deploy/` is superseded and must not also be deployed. That precedent settles one
-change, not the question. This directory exists to put the deployed migrations
-under version control.
+These files are the deployed system of record for the `oceanomics_genomes` schema: numbered,
+idempotent, hash-ledgered in `schema_migrations`, and applied with `bin/apply_migrations.py`.
+Sqitch is retired — `sqitch.conf` and `sqitch.plan` are gone, `migrations/` is historical, and
+the undeployed `v2` scaffold is reference DDL in [`../design/v2/`](../design/v2/).
+
+The working rule for anyone changing the schema is in
+[`../docs/database_change_checklist.md`](../docs/database_change_checklist.md) under
+"Migration Governance". The short version: no DDL reaches this database any other way.
 
 ## Do not reformat an applied file
 
@@ -50,8 +49,26 @@ autocommit.
   apart. It also refuses to do anything if an already-applied file's hash no
   longer matches the tree. Applying by hand still works and still risks the
   `026` failure mode — use the script.
-- **Reverts are partial.** `revert/` covers `027`–`030` only. `001`–`026` have no
-  rollback scripts.
+- **Reverts are partial.** `sql/revert/` covers `027`–`034` only. `001`–`026` have
+  no rollback scripts and will not get them retroactively — they are applied
+  history.
+- **Catch-up migrations have no-op reverts.** `033` and `034` describe objects
+  that already existed; they created nothing. Their reverts deliberately do
+  nothing and say so, because dropping a view or table the migration never
+  created is data loss, not a rollback. To remove such an object, write a
+  forward migration following the `031` / `032` pattern: investigate, archive,
+  then drop. This is the standing pattern for any future catch-up migration.
+- **`000` cannot ledger itself.** The bootstrap file creates
+  `schema_migrations`, and a file cannot contain its own SHA-256. On the live
+  database it applies as a guarded no-op and is ledgered normally. On an empty
+  database run it by hand first:
+
+  ```bash
+  psql -f sql/000_bootstrap_schema_migrations.sql
+  bin/apply_migrations.py
+  ```
+
+  `bin/apply_migrations.py` prints exactly that when it finds no ledger.
 
 ## Applying a migration
 
@@ -74,7 +91,8 @@ bin/check_drift.py --coverage   # which objects no migration describes
 bin/check_drift.py --update     # accept the current live state as baseline
 ```
 
-Both exit non-zero on a problem, so either can go in cron or CI.
+Both exit non-zero on a problem. They run daily via `bin/drift_cron.sh`, which
+is quiet unless something is wrong — see "Scheduled checks" below.
 
 ## Connecting to a target
 
@@ -84,3 +102,45 @@ then `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD`, then
 `OceanOmics-Database/db_config.py` reads, so there is one credentials file for
 both repos. Keep it mode `600`. See Finding 14 and
 `OceanOmics-Database/ROTATION.md`.
+
+## Scheduled checks
+
+`bin/drift_cron.sh` runs `bin/check_drift.py` and `bin/apply_migrations.py
+--verify` once a day. It is installed and runs daily at 07:17.
+
+| Signal | Meaning |
+|---|---|
+| `~/log/genomes_db_drift.log` | Every run, pass or fail, appended. |
+| `~/log/genomes_db_drift.FAILING` | Exists **only** while the last run failed. Removed on the next healthy run. |
+| stdout / exit 1 | Produced only on failure. |
+
+**This host has no MTA** — no `sendmail`, no `mail`, postfix inactive — so cron
+mail is dropped. That is why the status file exists: it is the one signal you
+can check without a mail system. Surface it from a login banner or a monitoring
+agent. If an MTA is configured later, the silent-when-healthy behaviour means
+cron mail will carry only real failures, and `MAILTO=` can go at the top of the
+crontab.
+
+Host cron, not CI: GitHub runners cannot reach the database host, and wiring
+them up would mean committing credentials, which is what Finding 14 undid.
+
+The crontab entry, recorded here so it survives a lost crontab:
+
+```cron
+# Schema governance: object-inventory drift + migration ledger hash check.
+# Silent when healthy. On failure it writes ~/log/genomes_db_drift.FAILING --
+# this host has no MTA, so cron mail would be dropped. See sql/README.md.
+17 7 * * * /home/tyler/genomes_db_review/bin/drift_cron.sh
+```
+
+Install with `crontab -e`, and check it with `crontab -l`. Override the log
+path with `DRIFT_LOG` when testing.
+
+**It currently reports drift every day, on purpose.** Three tables —
+`og_workflow_recommendation`, `og_workflow_assignment_log`,
+`og_workflow_notification` — appeared on the live database by direct DDL after
+the 2026-10-02 baseline and have not been claimed by anyone. They are in
+neither `sql/` nor the baseline, so a rebuild would lose them. The decision was
+to leave the alarm sounding rather than quietly accept them into the baseline;
+see open question 16. Do not silence it with `--update` until someone owns
+those tables.

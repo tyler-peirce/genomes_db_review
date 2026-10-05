@@ -38,3 +38,30 @@ Use this checklist before changing the Ocean Genomes database schema, data-clean
 - Add smoke tests for API-backed views.
 - Compare row counts and selected known examples after changes.
 
+
+## Migration Governance
+
+The one-page rule. Decided 2026-10-05 — see `docs/migration_system_decision.md` for why.
+
+- **There is one migration system.** Numbered SQL files in `sql/`, recorded in the
+  `schema_migrations` table. Sqitch is retired; `migrations/` is historical only.
+- **No DDL reaches this database any other way.** Not from a psql session, not from DBeaver,
+  not from a pipeline script. 22 tables and 6 views arrived that way before this rule existed
+  and cost months of catch-up work.
+- **Apply with the script, never by hand:** `bin/apply_migrations.py`. It runs the file and
+  writes its ledger row in one invocation, so the two cannot come apart. Applying by hand is
+  how `026` ended up applied-but-unledgered.
+- **Never edit an applied file.** Its SHA-256 is in the ledger and the apply script refuses to
+  continue when a hash stops matching. To correct an applied migration, supersede it with a new
+  numbered file — `028` → `029` is the worked example.
+- **Every migration carries a prose header** saying why the change was made, what was rejected,
+  and what must not be done later. These headers are the project's design record; the schema
+  cannot reconstruct them.
+- **Migrations are idempotent**, guarded with `to_regclass()` so they replay safely against a
+  partial schema.
+- **Commit `schema/object_inventory.tsv` in the same change as the migration that explains it.**
+  A baseline update with no migration beside it is drift being rubber-stamped.
+- **Drift is checked daily** by `bin/drift_cron.sh` (`bin/check_drift.py` plus
+  `bin/apply_migrations.py --verify`). If it reports an object in NEITHER `sql/` nor the
+  baseline, someone has just applied DDL outside this process — find out who before accepting
+  it into the baseline.

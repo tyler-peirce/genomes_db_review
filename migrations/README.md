@@ -1,63 +1,28 @@
-# Migration Convention
+# `migrations/` — historical only
 
-Status: Adopted — Sqitch. **Not deployed.** The migrations actually applied to
-the live database are the numbered files in [`../sql/`](../sql/), tracked in the
-`schema_migrations` table; the Sqitch plan below is declared but has never been
-run. Which convention should win is still open — see `sql/README.md`.
+**Nothing is applied from this directory.** It exists to preserve the two migration
+conventions this project tried before settling on one.
 
-Schema changes are managed with [Sqitch](https://sqitch.org/) from the repo root (`sqitch.conf` / `sqitch.plan` / `deploy/` / `revert/` / `verify/`). This replaced the Phase 0 draft convention of hand-numbered files in this folder; the two files created under that convention are preserved for history in `migrations/legacy/` and have been ported into Sqitch changes of the same name (`add_core_lookup_indexes`, `create_empty_lca_table_copies`).
+The live convention is numbered SQL files in [`../sql/`](../sql/), recorded in the
+`schema_migrations` table and applied with `bin/apply_migrations.py`. See:
 
-## Connecting to a target
+- [`../docs/migration_system_decision.md`](../docs/migration_system_decision.md) — why that one
+  won, and what the decision does not cover.
+- [`../sql/README.md`](../sql/README.md) — how to write and apply a migration.
+- [`../docs/database_change_checklist.md`](../docs/database_change_checklist.md) — the working
+  rule, under "Migration Governance".
 
-No target/credentials are committed to the repo. Set standard libpq environment variables before running Sqitch, e.g.:
+## What is in `legacy/`
 
-```bash
-export PGHOST=... PGPORT=... PGDATABASE=... PGUSER=...
-export PGPASSWORD=...   # or use a ~/.pgpass entry instead
-sqitch deploy db:pg:
-```
+| Files | Convention | Fate |
+|---|---|---|
+| `202607070001_add_core_lookup_indexes.sql`, `202608040001_create_empty_lca_table_copies.sql` | Phase 0 hand-numbered draft (July 2026) | Superseded. Neither was applied from here. |
+| `sqitch_{deploy,revert,verify}_add_core_lookup_indexes.sql` | Sqitch (Aug 2026) | Superseded by `sql/030_core_lookup_indexes.sql`, which deployed this change extended from 19 to all 24 index candidates. **Do not deploy.** |
+| `sqitch_{deploy,revert,verify}_create_empty_lca_table_copies.sql` | Sqitch (Aug 2026) | Never deployed and no longer wanted — the August LCA rebuild took a different route. |
 
-Alternatively, register a named target once per machine (still no password committed):
+The six Sqitch changes that built the `v2` scaffold are **not** here. They are live design work
+awaiting a decision and live in [`../design/v2/`](../design/v2/).
 
-```bash
-sqitch target add prod db:pg://USER@HOST:PORT/DBNAME
-sqitch deploy prod
-```
-
-## Adding a change
-
-```bash
-sqitch add <short_name> -n "One-line description of the change."
-```
-
-This creates `deploy/<short_name>.sql`, `revert/<short_name>.sql`, and `verify/<short_name>.sql`, and appends the change to `sqitch.plan`.
-
-## Required content per change
-
-Every deploy script should start with a short comment block carried over from the Phase 0 convention:
-
-```sql
--- Purpose:
--- Review source:
--- Expected impact:
-```
-
-Rollback notes belong as comments in the `revert/` script; verification logic belongs as executable checks in the `verify/` script (Sqitch runs `verify` automatically after every `deploy`, and fails the deploy if verification fails).
-
-## Safety rules
-
-- Prefer additive changes before cleanup changes.
-- Use `CREATE INDEX CONCURRENTLY` / `DROP INDEX CONCURRENTLY` for large production tables when appropriate, and add `-- no-transaction` as the first line of the `deploy`/`revert` scripts for that change (Sqitch wraps scripts in a transaction by default, which `CONCURRENTLY` cannot run inside).
-- Add foreign keys only after data-quality checks pass.
-- Preserve public view/API outputs unless a contract change is approved.
-- Keep data cleanup mappings in reviewed files before running updates.
-
-## Common commands
-
-```bash
-sqitch status prod      # what's deployed vs. pending
-sqitch deploy prod      # deploy all pending changes (runs verify after each)
-sqitch verify prod      # re-run verify scripts against a deployed target
-sqitch revert prod      # revert the most recent change (prompts to confirm)
-sqitch log prod         # deployment history
-```
+Sqitch itself was retired on 2026-10-05: it never ran against this database and left no
+registry schema. `sqitch.conf` and `sqitch.plan` are deleted. Do not reinstate it to deploy
+anything in `legacy/` or `design/v2/`; port the DDL into a numbered file in `sql/` instead.

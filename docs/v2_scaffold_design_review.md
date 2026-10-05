@@ -1,7 +1,7 @@
 # Review: `v2` Lab Schema Scaffold
 
 Date: 2026-08-05
-Scope: `deploy/create_v2_lab_tables.sql` and its revert/verify pair, read against
+Scope: `design/v2/deploy/create_v2_lab_tables.sql` and its revert/verify pair, read against
 `database_review.md`, `docs/lab_key_strategy.md`, `docs/data_dictionary.md`,
 `docs/spreadsheet_column_gap_analysis.md`, the `schema/` baselines, the live workbook, and
 `name_convert.py` / `import_data.py` / `queries.py` in the sibling `OceanOmics-Database` repo.
@@ -484,14 +484,14 @@ a parallel importer:
 
 | Step | Artefact |
 |---|---|
-| 1 | `deploy/create_v2_schema.sql` |
-| 2–4 | `deploy/create_v2_lab_tables.sql` — a full replacement of the earlier structural clone, not a patch |
-| 5 | `deploy/create_v2_browse_views.sql` |
-| 6–7 | `docs/v2_cutover_dependencies.md`, then `deploy/create_v2_summary_view.sql` |
-| 8 | `scripts/backfill_v2.sql` |
-| 9 | `deploy/create_v2_quarantine.sql` |
+| 1 | `design/v2/deploy/create_v2_schema.sql` |
+| 2–4 | `design/v2/deploy/create_v2_lab_tables.sql` — a full replacement of the earlier structural clone, not a patch |
+| 5 | `design/v2/deploy/create_v2_browse_views.sql` |
+| 6–7 | `docs/v2_cutover_dependencies.md`, then `design/v2/deploy/create_v2_summary_view.sql` |
+| 8 | `design/v2/backfill_v2.sql` |
+| 9 | `design/v2/deploy/create_v2_quarantine.sql` |
 | 10 | `OceanOmics-Database/name_convert_v2.py`, `import_v2.py` |
-| 11 | `deploy/create_v2_lca_tables.sql` |
+| 11 | `design/v2/deploy/create_v2_lca_tables.sql` |
 
 Every change was deployed, verified and reverted against a throwaway PostgreSQL 14 cluster
 loaded with the live schema; each constraint was tested by feeding it the data it exists to
@@ -525,8 +525,8 @@ that basis reduced eleven views to **two** needing a rebuild.
    `docs/v2_cutover_dependencies.md` established that nine of eleven views are
    cutover-neutral under a `search_path` swap; only `summary` and `goat_species_v1` reference
    removed columns, and both are rebuilt in `create_v2_summary_view`.
-8. ~~Backfill from live.~~ **Done** — `scripts/backfill_v2.sql`, re-runnable and idempotent.
-9. ~~**Quarantine tables**~~ **Done** (decision 6) — `deploy/create_v2_quarantine.sql`. One `v2.import_quarantine` table:
+8. ~~Backfill from live.~~ **Done** — `design/v2/backfill_v2.sql`, re-runnable and idempotent.
+9. ~~**Quarantine tables**~~ **Done** (decision 6) — `design/v2/deploy/create_v2_quarantine.sql`. One `v2.import_quarantine` table:
    `source_table`, `source_row_key`, `violation_type`, `violation_detail`, `raw_row jsonb`,
    `first_seen`, `resolved_at` — written by both the backfill and the nightly import. A
    single `jsonb` table avoids maintaining a shadow schema of 12 quarantine tables, and lets
@@ -537,7 +537,7 @@ that basis reduced eleven views to **two** needing a rebuild.
     mappings (§4.2), normalising `Auomated` → `Automated Biomek i7` (F12), writing to `v2`,
     and reading the single `Library Tube ID` into the registry instead of fanning it out.
     `Latest` needs no mapping — it is a view column.
-11. ~~**v2 equivalents of the LCA/mitogenome tables**~~ **Done** (decision 1) — `deploy/create_v2_lca_tables.sql`, built to the same rules.
+11. ~~**v2 equivalents of the LCA/mitogenome tables**~~ **Done** (decision 1) — `design/v2/deploy/create_v2_lca_tables.sql`, built to the same rules.
     `lca_new` and its siblings are untouched and remain your concurrent pipeline's tables;
     this is a separate later change and should not block the lab schema.
 

@@ -1,0 +1,29 @@
+-- Revert for 033_catchup_core_views.sql
+--
+-- THIS IS A DELIBERATE NO-OP. Do not replace it with DROP statements.
+--
+-- 033 is a catch-up migration: every object it names -- the eight views, the
+-- lca_validation_report_view_upd() function and its trigger -- existed on the
+-- live database for months before 033 was written. 033 created nothing. It
+-- recorded what was already there, so that a rebuild would not lose it.
+--
+-- The inverse of "describe an existing object" is "stop describing it", which
+-- is a change to this repository, not to the database. Dropping these views
+-- would delete live reporting objects that 033 never created -- including
+-- objects queried directly by external DBeaver users, and the INSTEAD OF
+-- UPDATE write path for validation decisions. That would be data loss dressed
+-- up as a rollback.
+--
+-- To actually remove any of these objects, write a new forward migration that
+-- says why, following the 031 / 032 pattern: investigate, archive, then drop.
+--
+-- To undo 033's effect on this repository: delete its ledger row
+--
+--     DELETE FROM schema_migrations WHERE filename = '033_catchup_core_views.sql';
+--
+-- and remove the file. The database is untouched either way.
+--
+-- This no-op revert is the standing pattern for catch-up migrations -- see
+-- sql/README.md.
+
+\echo '033 is a catch-up migration. Its revert is intentionally a no-op; see this file.'

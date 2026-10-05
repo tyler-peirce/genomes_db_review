@@ -1,0 +1,24 @@
+-- Revert for 034_catchup_design_description.sql
+--
+-- THIS IS A DELIBERATE NO-OP. Do not replace it with a DROP TABLE.
+--
+-- 034 is a catch-up migration. public.design_description and its primary key
+-- predate the review; 034 created neither. It recorded what was already there
+-- so a rebuild would not lose it.
+--
+-- Dropping the table here would destroy two rows of pre-existing reference data
+-- that this migration never created. 034's own header argues the table may well
+-- be dead -- but removing it is a forward decision requiring an answer to open
+-- question 15, and it belongs in a forward migration following the 031 / 032
+-- pattern: investigate, archive to CSV, then drop.
+--
+-- To undo 034's effect on this repository: delete its ledger row
+--
+--     DELETE FROM schema_migrations WHERE filename = '034_catchup_design_description.sql';
+--
+-- and remove the file. The database is untouched either way.
+--
+-- This no-op revert is the standing pattern for catch-up migrations -- see
+-- sql/README.md.
+
+\echo '034 is a catch-up migration. Its revert is intentionally a no-op; see this file.'

@@ -134,7 +134,22 @@ def migration_files() -> dict[str, Path]:
             if MIGRATION_RE.match(p.name)}
 
 
+BOOTSTRAP = "000_bootstrap_schema_migrations.sql"
+
+
 def ledger_rows() -> dict[str, str]:
+    # The ledger cannot bootstrap itself: a migration cannot record its own
+    # creation in a table that does not yet exist. Check before querying, so an
+    # empty database gets the one instruction it needs instead of a bare
+    # 'relation "schema_migrations" does not exist' from psql.
+    if query(f"SELECT to_regclass('public.{LEDGER}') IS NOT NULL")[0][0] != "t":
+        sys.exit(
+            f"No {LEDGER} table on this database -- nothing has been applied here.\n"
+            f"\nCreate the ledger first, then run this script again:\n"
+            f"\n    psql -f sql/{BOOTSTRAP}\n    bin/apply_migrations.py\n"
+            f"\nThis script deliberately does not create it. Applying DDL and\n"
+            f"writing the ledger must stay one step -- see migration 026 for what\n"
+            f"happens when they come apart.")
     return {r[0]: r[1] for r in query(
         f"SELECT filename, sha256 FROM {LEDGER} ORDER BY filename")}
 
