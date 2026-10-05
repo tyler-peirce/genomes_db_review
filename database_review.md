@@ -189,7 +189,7 @@ Mitogenome / LCA, live:
 | `lca_raw_results` | 20,170 | 46,072 | Content-addressed. No PK. |
 | `lca_validation` | 2,021 | 1,854 | `validated_rank` added (`024`). |
 | `blast_filtered_lca` | 191,888 | 241,564 | Rebuilt; orphans 334 → 0. `taxon_id` widened to text. |
-| `lca_old` | 2,895 | 2,895 | Legacy. Now FK'd to the `SS260818` snapshot. |
+| `lca_old` | 2,895 | 2,895 | Legacy. FK'd to the `SS260818` snapshot. **Dropped 2026-10-05, migration `032`** — superseded by a full LCA re-run; archived to CSV. |
 
 ENA submission pipeline (all new):
 
@@ -202,7 +202,7 @@ ENA submission pipeline (all new):
 | `ena_locus_registry_archive` | 0 | Frozen archive from `010`. Empty — nothing had been allocated. |
 | `ena_candidate_loci_archive` | 0 | Frozen archive from `010`. Empty. |
 
-Data delivery subsystem (all new, no migration):
+Data delivery subsystem (all new, no migration) — **all eight dropped 2026-10-05, migration `031`.** The work was abandoned and the 124 rows were stale. Structure is recoverable from `sql/revert/031_...`; the rows are only in the nightly S3 base backup:
 
 | Table | Rows |
 |---|---:|
@@ -846,7 +846,15 @@ Recommendation:
 - Decide whether these are an archive or a rollback point. If archive: move them to an `archive` schema, drop the six snapshot views, and the clean index names become reclaimable.
 - If they are a rollback point, they have outlived it — the live tables have three months of pipeline output the snapshot does not.
 - Either way, document them. A new reader encountering `mitogenome_data` and `mitogenome_data_SS260818` with near-identical row counts has no way to tell which is authoritative, and three production views currently pick the wrong one.
-- `lca_old`'s FK to the snapshot is the thing that makes a clean drop impossible. Resolve `lca_old` first — revision 1's open question 5 (is `lca_old` still used?) is now blocking.
+- ~~`lca_old`'s FK to the snapshot is the thing that makes a clean drop impossible. Resolve `lca_old` first.~~ **Resolved 2026-10-05, migration `032`.** `lca_old` was archived to CSV and dropped; its `fk_mitogenome` went with it.
+
+**Status 2026-10-05.** The snapshots are now unblocked. Four FKs pointed into `mitogenome_data_SS260818`; the only one from outside the snapshot set was `lca_old`'s, and it is gone. The remaining three are from `lca_SS260818`, `lca_raw_results_SS260818` and `lca_validation_SS260818` — internal to the group, so the five tables are removable as a unit once the three snapshot views go.
+
+Four of the five are archived as gzipped CSV in `archive/snapshots_SS260818/`, verified to reload `EXCEPT`-identical. **`blast_filtered_lca_SS260818` (192,207 rows) is deliberately not archived** — 4.7 MB gzipped was judged too much to commit — so it must be exported elsewhere before that table is dropped.
+
+Two traps for whoever does the drop, both recorded in the archive manifest:
+- `lca_validation_report_view_upd()` is shared with the **live** `lca_validation_report_view`. Drop the snapshot views, keep the function.
+- `sql/revert/027_...` reads two of the snapshot tables, so dropping them makes `027` permanently irreversible. Accepted and noted in that file.
 
 ### Finding 13: Nine tables have no primary key
 
@@ -1105,7 +1113,7 @@ Unchanged, with two additions:
 
 Phases 0 and 1 were started and not finished. Phases 2–4 are now cheaper than estimated in July, because the August LCA rebuild did most of Phase 2's cleanup as a side effect.
 
-**Progress as of 2026-10-02: Phase A complete; Phase B three of five.** What remains in B — choosing one migration system, and writing catch-up migrations for the 58 objects no migration describes — is the critical path for everything after it, because each later phase adds objects or constraints that should be captured by whichever system wins.
+**Progress as of 2026-10-05: Phase A complete; Phase B three of five; Phase F unblocked.** What remains in B — choosing one migration system, and writing catch-up migrations for the 58 objects no migration describes — is the critical path for everything after it, because each later phase adds objects or constraints that should be captured by whichever system wins.
 
 ### Phase A: Stop the bleeding (days, not weeks)
 
@@ -1124,7 +1132,7 @@ Three of five done 2026-10-02. The remaining two are the substantive ones.
 
 1. **Choose one migration tool; document the decision and retire the others.** Still open, and now the critical path for this phase. One change was retired in the numbered set's favour (`add_core_lookup_indexes` → `030`, with the Sqitch copy marked SUPERSEDED), but that is one change, not a decision. See open question 8.
 2. ~~Re-baseline `schema/` from the live database.~~ **Done 2026-10-02** — it was three months stale. `scripts/export_schema_baseline.sh` already existed and was reused unchanged.
-3. **Write catch-up migrations for the unmanaged objects.** Still open, and now precisely scoped rather than estimated: `bin/check_drift.py --coverage` reports **12 of 70 live objects are created by a migration; the other 58 exist only as a `pg_dump` snapshot** with no change history or rationale. That list is the worklist. The 19 with no coverage at all before the re-baseline were the eight `data_package_*` tables, `project_delivery_contact`, `ncbi_genome_assemblies`, `master_species_genome`, the five `SS260818` snapshots, three snapshot views, and `schema_migrations` itself.
+3. **Write catch-up migrations for the unmanaged objects.** Still open, but smaller: `bin/check_drift.py --coverage` now reports **12 of 61 live objects are created by a migration; the other 49 exist only as a `pg_dump` snapshot**. That list is the worklist. It was 58 of 70 — the nine dropped on 2026-10-05 (`031`, `032`) came off it, which is the cheapest way to shorten this list: remove what shouldn't be there before writing migrations to describe it.
 4. ~~Add a drift check (live inventory vs baseline).~~ **Done 2026-10-02** — `bin/check_drift.py` compares live objects against `schema/object_inventory.tsv` (70 objects) and exits non-zero on any difference. Verified by canary. **Remaining: wire it into cron or CI** — it is written and working but not yet scheduled.
 5. ~~Remove credentials from `create_database.py`.~~ **Superseded 2026-10-02.** The two scripts that actually reach the live database (`import_data.py`, `import_v2.py`) no longer contain credentials at all. `create_database.py` was moved to `SS/` — it targets the decommissioned host and the retired `oceanomics` database, so its literal is dead. Its credential, and those in the other 18 `SS/` files, are left in place deliberately and scrubbed at rotation.
 
@@ -1153,10 +1161,14 @@ Less urgent since `030`: `summary` fell from 7.6 s to 2.0 s on indexing alone. T
 
 ### Phase F: Resolve the snapshots
 
-1. Decide `lca_old`'s fate (blocking — it FKs to a snapshot).
-2. Move the five `SS260818` tables to an `archive` schema, or drop them.
-3. Drop the three snapshot-specific views if the snapshots go.
-4. Reclaim the clean index names on `mitogenome_data`.
+**Unblocked 2026-10-05.** Item 1 is done and items 2–4 are now a single operation.
+
+1. ~~Decide `lca_old`'s fate (blocking — it FKs to a snapshot).~~ **Done, migration `032`** — archived to CSV and dropped. Its FK was the only one into `mitogenome_data_SS260818` from outside the snapshot set.
+2. Drop the five `SS260818` tables. They are now a self-contained group — their three remaining FKs are all internal. Four of the five are archived in `archive/snapshots_SS260818/`; **export `blast_filtered_lca_SS260818` first**, it was deliberately left out.
+3. Drop the three snapshot views at the same time — but **keep `lca_validation_report_view_upd()`**, which is shared with the live `lca_validation_report_view`.
+4. Reclaim the clean index names on `mitogenome_data` (`mitogenome_data_pkey` etc., currently held by the snapshot and forcing the live table's `_1` suffixes).
+
+Note that dropping the tables makes `sql/revert/027_...` permanently unrunnable. Accepted; recorded in that file.
 
 ### Phase G: Documentation
 
@@ -1184,16 +1196,16 @@ All four are done. The follow-ons each item left behind are listed with their pa
 
 1. **Rotate the `postgres` password** (Finding 14) — the only item here with a live exposure window behind it. The plumbing is done: credentials live in one file (`~/postgresql_details/oceanomics.cfg`) and `OceanOmics-Database/ROTATION.md` is the runbook, so the change itself is one line. The work is the propagation — chiefly the DBeaver users connecting as superuser from external IPs.
 2. **Choose one migration system and write the decision down** (Finding 10, Phase B.1). The only Phase B item with nothing done against it, and it gates the catch-up migrations below.
-3. **Write catch-up migrations for the 58 objects no migration describes** (Phase B.3). Scope is now exact rather than estimated — run `bin/check_drift.py --coverage` for the list.
+3. **Write catch-up migrations for the 49 objects no migration describes** (Phase B.3) — down from 58 after the 2026-10-05 drops. Run `bin/check_drift.py --coverage` for the list.
 4. ~~Add an apply/ledger script and a drift check.~~ **Done 2026-10-02** — `bin/apply_migrations.py` and `bin/check_drift.py`; `schema/` re-baselined. Remaining: schedule the drift check in cron or CI.
 5. Add the seven zero-orphan FKs to `sample` — **unblocked**, `030` added the indexes they need.
 6. Add import-time species validation on `sample.nominal_species_id`.
-7. Capture the `data_package_*` subsystem in a migration and the data dictionary — the largest single block of the 58 uncovered objects.
+7. ~~Capture the `data_package_*` subsystem in a migration and the data dictionary.~~ **Moot 2026-10-05** — the subsystem was abandoned and dropped (`031`) rather than documented.
 8. Strip dead `status_overwrite` logic from `summary` and rebuild or materialise it — less acute after `030`, but 2.0 s is still structural.
 
 ### Medium priority
 
-1. Resolve `lca_old`, then the `SS260818` snapshots.
+1. ~~Resolve `lca_old`~~ **(done, `032`)**, then drop the `SS260818` snapshots — now unblocked and a single operation. Export `blast_filtered_lca_SS260818` first.
 2. Consolidate the three species tables.
 3. Consolidate the two NCBI assembly tables.
 4. Normalise `sample.ilrna_status`, then the other status fields.
@@ -1219,6 +1231,8 @@ Resolved since revision 1:
 | 2 | Are `OG672L-1`, `OG90_bc2008`, `OG750_PD` valid? | Artefacts. The `blast_filtered_lca` rebuild did not reproduce any of them. 7 remain in `raw_qc` / `ref_genomes`. |
 | 4 | Should `status_overwrite` exist if empty but referenced by `summary`? | No. Still empty across all eight tables after three more months. Deprecate and strip from `summary`. |
 | 6 | Should `species_ncbi_assembly` be populated or marked inactive? | Superseded. `ncbi_genome_assemblies` holds 1,772 rows. Consolidate. |
+| 3 | Is `lca_old` still used by any report or user? | **No** — answered 2026-10-05. Nothing in code reads it, no view depends on it. Its 2,895 rows include 468 keys absent from live `lca`, but the LCA pipeline was re-run from scratch, so those are superseded output and must not be re-ingested. Archived to CSV and dropped (`032`). |
+| 9 | Who owns the `data_package_*` subsystem, and where does its code live? | **Moot** — answered 2026-10-05. The work was abandoned and will not be resumed; the eight tables were dropped (`031`). |
 
 Still open:
 
@@ -1277,7 +1291,7 @@ Unchanged, with four additions. Status marked as of 2026-10-02 — three met, fo
 
 | Criterion | Status |
 |---|---|
-| The schema can be recreated from source-controlled migrations | **No.** 12 of 70 objects are created by a migration; 58 exist only as a dump snapshot. |
+| The schema can be recreated from source-controlled migrations | **No**, but closer. 12 of 61 objects are created by a migration; 49 exist only as a dump snapshot. Was 12 of 70. |
 | Every active table has an owner and documented purpose | No. |
 | Every active column is documented or intentionally self-evident | No. |
 | There is one canonical species source | No. |
@@ -1286,7 +1300,7 @@ Unchanged, with four additions. Status marked as of 2026-10-02 — three met, fo
 | Major `og_id`-based tables either have FKs or documented reasons not to | No, but unblocked by `030`. |
 | Workflow statuses use canonical values | No. |
 | Heavy views have acceptable query plans | **Partly.** `summary` 7.6 s → 2.0 s; `goat_species_v1` unchanged. |
-| Deprecated tables/columns are clearly marked and eventually removed | No. |
+| Deprecated tables/columns are clearly marked and eventually removed | **Partly.** Nine removed on 2026-10-05 (`data_package_*`, `project_delivery_contact`, `lca_old`), each archived or documented first. The snapshots and the empty-column work remain. |
 | There is exactly one migration system, and the live inventory matches the baseline | **Partly.** The inventory now matches, and drift is checked automatically (`bin/check_drift.py`). Still more than one migration system. |
 | No reporting view reads a frozen snapshot unless its name says so | **Met** — migration `027`. |
 | `summary` returns in under one second | **No** — 2.0 s, down from 7.6 s. Phase D is what closes the gap. |
@@ -1398,5 +1412,6 @@ Capture the eight `data_package_*` tables in a migration and the data dictionary
 | 2.4 | 2026-10-02 | Moved the 29 deployed numbered migrations and their three revert scripts from `/home/tyler/sql` into `sql/` in this repo, byte-identical so the `schema_migrations` SHA-256 ledger stays valid, and deleted the untracked original. Path references in this document updated accordingly; no finding, count, or conclusion changed. The migration-tool question (open question 8) remains open. |
 | 2.5 | 2026-10-02 | Completed Phase A. Applied `030_core_lookup_indexes.sql` (Finding 4) — the July Sqitch change `add_core_lookup_indexes`, ported into the numbered-SQL convention rather than deployed through Sqitch, and extended from 19 to all 24 index candidates; 24 indexes created, 0 invalid, `summary` 7.6 s → 2.0 s. Added `BEGIN`/`COMMIT` to `026`, replayed it as a no-op, and wrote its missing ledger row (Finding 10). `chmod 600 /home/tyler/.env.db` (Finding 14). Findings 4, 10 and 14 updated with resolution notes; the open remainders — password rotation, one migration system, a drift check, an apply/ledger script — are called out in each. |
 | 2.6 | 2026-10-02 | Closed the Finding 10 mechanism and the Finding 14 plumbing. Added `bin/apply_migrations.py` (applies and ledgers in one step; aborts on hash drift; auto-detects `CONCURRENTLY`; guards the `005`/`019` replay hazard) and `bin/check_drift.py` (object inventory vs `schema/object_inventory.tsv`, plus a source-coverage report). Re-baselined `schema/`, three months stale. Separately, in `OceanOmics-Database`: the password was removed from the two live scripts into `~/postgresql_details/oceanomics.cfg` via a new `db_config.py`, `SS/` was documented as the superseded directory, and `ROTATION.md` was written. **The password value is unchanged** — this is plumbing, so rotation is now a one-line edit. Sections 9, 10 and 13 updated to reflect progress: Phase A complete, Phase B three of five, and the success criteria marked three met / four partly met. |
+| 2.7 | 2026-10-05 | Removed nine objects rather than writing migrations to describe them. `031` dropped the abandoned `data_package_*` subsystem and `project_delivery_contact` (eight tables, 124 stale rows, no inbound FKs, no code references). `032` dropped `lca_old` — investigated and found to hold 468 keys absent from live `lca` plus three columns the live schema lacks, but all of it superseded by a full LCA re-run, so archived and removed. Both reverts are structure-only and were proven by a drop/revert round trip on a scratch database (211 structural facts identical). Four snapshot tables plus `lca_old` archived as gzipped CSV in `archive/snapshots_SS260818/` (2.2 MB, verified to reload `EXCEPT`-identical); `blast_filtered_lca_SS260818` deliberately excluded at 4.7 MB. Live objects 70 → 61; catch-up worklist 58 → 49. Phase F item 1 closed and the snapshot removal unblocked. |
 
 The previous revision is preserved at `/tmp/database_review.prev.md` at the time of writing; the authoritative history is in git.

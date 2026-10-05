@@ -6,6 +6,19 @@
 --
 -- Restoring these re-introduces the staleness 027 fixed (61 og_ids missing, 39
 -- stale). Use only to undo a bad deploy, not as a steady state.
+--
+-- DEPENDS ON THE SS260818 SNAPSHOTS, WHICH ARE SCHEDULED FOR REMOVAL.
+-- The definitions below read "lca_validation_SS260818" and
+-- "mitogenome_data_SS260818". Those tables are still live today, but they are
+-- slated to be dropped -- migration 032 removed the last foreign key into them
+-- from outside the snapshot set, so nothing blocks it any more.
+--
+-- Once they go, this revert stops working and 027 becomes permanently
+-- irreversible. That is accepted: 027 was applied on 2026-10-02, has been
+-- settled since, and reverting it would restore known-wrong reporting. Noted
+-- here so the failure is understood rather than surprising. The snapshot data
+-- itself is archived at archive/snapshots_SS260818/ if these definitions ever
+-- need to be reconstructed for forensics.
 
 BEGIN;
 

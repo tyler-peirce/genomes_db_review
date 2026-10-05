@@ -5,13 +5,6 @@
 # kind	name
 table	blast_filtered_lca
 table	blast_filtered_lca_SS260818
-table	data_package_artifact
-table	data_package_component
-table	data_package_delivery
-table	data_package_email
-table	data_package_email_recipient
-table	data_package_item
-table	data_package_link_set
 table	design_description
 table	dna_extraction
 table	draft_genomes
@@ -28,7 +21,6 @@ table	hifi_reads_qc
 table	illumina_library
 table	lca
 table	lca_SS260818
-table	lca_old
 table	lca_raw_results
 table	lca_raw_results_SS260818
 table	lca_validation
@@ -40,7 +32,6 @@ table	mitogenome_data_SS260818
 table	ncbi_genome_assemblies
 table	ont_library
 table	pacbio_library
-table	project_delivery_contact
 table	raw_data
 table	raw_qc
 table	ref_genomes
