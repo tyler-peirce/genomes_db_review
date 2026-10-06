@@ -1,5 +1,13 @@
 -- Deploy genomes_db:create_v2_summary_view to pg
 -- requires: create_v2_browse_views
+-- requires: create_v2_lca_tables
+--
+-- BUILD ORDER CHANGED 2026-10-05. This change used to come fifth, before create_v2_lca_tables,
+-- which was only valid while v2.summary read public.lca_validation. Repointing it at
+-- v2.lca_validation (Phase V.1 item 3) inverts the last two steps: the LCA tables must exist
+-- first. The order in design/v2/README.md and in Phase V.3 of database_review.md is updated to
+-- match. Deploying in the old order now fails outright, which is the good outcome -- it fails
+-- at deploy rather than resolving to the wrong schema.
 
 -- Purpose: Rebuild the workbook's Summary sheet as a database view (decision 5, §5 step 6),
 --   replacing the nine derived columns removed from v2.sample, and rebuild the one other view
@@ -11,16 +19,27 @@
 --
 -- Review source: docs/v2_scaffold_design_review.md decision 5, F5, §5 steps 6-7;
 --   docs/v2_cutover_dependencies.md, which established that only `summary` and
---   `goat_species_v1` reference removed columns — the other nine views are cutover-neutral and
---   need no DDL because a search_path swap resolves them to v2 unchanged.
+--   `goat_species_v1` reference removed columns.
+--
+--   CORRECTED 2026-10-05: this used to add "the other nine views are cutover-neutral and need
+--   no DDL because a search_path swap resolves them to v2 unchanged". The last clause is
+--   wrong and it is the kind of wrong someone acts on. Views bind to table OIDs at creation,
+--   not to names, so an existing view ignores the search_path entirely and keeps reading
+--   `public` — and it survives a rename of its base table too, silently following the OID.
+--   The nine need no EDIT to their SQL; they must still be recreated (CREATE OR REPLACE VIEW
+--   is enough and preserves grants and INSTEAD OF triggers). Same correction is recorded in
+--   docs/v2_cutover_dependencies.md and in sql/033's header.
 --
 -- Expected impact: Additive only. Two views in the `v2` schema. Nothing in `public` changes;
 --   the live `summary` view keeps working against the live tables until cutover.
 --
--- Prerequisite outside this project: these views read four tables that are out of scope and
---   stay in `public` — `lca_validation`, `master_species`, `ref_genomes`. They are referenced
+-- Prerequisite outside this project: these views read two tables that are out of scope and
+--   stay in `public` — `master_species` and `ref_genomes`. They are referenced
 --   schema-qualified so the reference does not silently follow a changed search_path, and they
 --   must exist for this change to deploy.
+--
+--   `lca_validation` was on that list until 2026-10-05 and is not any more: v2 builds it, so
+--   this view reads `v2.lca_validation`. See the note at the column.
 
 BEGIN;
 
@@ -123,19 +142,29 @@ SELECT s.og_num,
           JOIN v2.tissue t ON t.tissue_id = r.tissue_id
          WHERE t.og_id = s.og_id) AS rna_kinnex_actual,
 
-       -- LCA validation stays in public: those tables are out of scope per decision 1.
+       -- Reads v2.lca_validation. This said public.lca_validation until 2026-10-05, and the
+       -- qualification WAS deliberate -- decision 1 put the LCA tables out of scope, and the
+       -- file header documented it alongside master_species and ref_genomes. Phase V.1 item 3
+       -- allows for that case and says to leave it commented if so.
+       --
+       -- It is repointed anyway, because the premise expired rather than the reasoning being
+       -- wrong: create_v2_lca_tables.sql now builds v2.lca_validation, so "out of scope" is
+       -- no longer true of this table. Left pointing at public it would have been the exact
+       -- Finding 11 failure mode -- v2.summary silently reading a superseded table after
+       -- cutover and returning plausible, stale validation names. master_species and
+       -- ref_genomes stay public-qualified: those really are out of scope.
        (SELECT string_agg(DISTINCT lv.validated_species_name, ', ' ORDER BY lv.validated_species_name)
-          FROM public.lca_validation lv
+          FROM v2.lca_validation lv
          WHERE lv.og_id = s.og_id AND lv.tech = 'ilmn'
            AND lv.validated_species_name IS NOT NULL AND lv.validated_species_name <> '')
          AS ilmn_validated_species_name,
        (SELECT string_agg(DISTINCT lv.validated_species_name, ', ' ORDER BY lv.validated_species_name)
-          FROM public.lca_validation lv
+          FROM v2.lca_validation lv
          WHERE lv.og_id = s.og_id AND lv.tech = 'hifi'
            AND lv.validated_species_name IS NOT NULL AND lv.validated_species_name <> '')
          AS hifi_validated_species_name,
        (SELECT string_agg(DISTINCT lv.validated_species_name, ', ' ORDER BY lv.validated_species_name)
-          FROM public.lca_validation lv
+          FROM v2.lca_validation lv
          WHERE lv.og_id = s.og_id AND lv.tech = 'hic'
            AND lv.validated_species_name IS NOT NULL AND lv.validated_species_name <> '')
          AS hic_validated_species_name,

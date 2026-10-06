@@ -10,4 +10,7 @@ DROP TABLE v2.lca_validation;
 DROP TABLE v2.lca;
 DROP TABLE v2.mitogenome_data;
 
+-- The triggers went with their tables; the function did not.
+DROP FUNCTION v2.lca_set_content_hash();
+
 COMMIT;

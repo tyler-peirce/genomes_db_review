@@ -70,10 +70,42 @@ BEGIN
     RAISE EXCEPTION 'v2.%.% is character varying; v2 standardises on text (F8)', rec.table_name, rec.column_name;
   END LOOP;
 
-  -- public.lca_new and friends must be untouched (decision 1).
-  IF EXISTS (SELECT 1 FROM information_schema.tables
-             WHERE table_schema = 'v2' AND table_name LIKE '%\_new') THEN
-    RAISE EXCEPTION 'A *_new table was created in v2; those belong to concurrent work (decision 1)';
+  -- The *_new check this used to carry is gone, not relaxed. It guarded against touching
+  -- `lca_new` and its siblings while the LCA rebuild was concurrent work. That rebuild has
+  -- landed and those tables are now the live LCA tables themselves, so the check tested a
+  -- condition that can no longer occur. Corrected 2026-10-05, Phase V.1 item 1.
+  --
+  -- What is worth asserting instead: the columns migrations 017, 022 and 024 added, which
+  -- this file omitted for three months, and the content-addressed keys.
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema = 'v2' AND table_name = 'lca'
+                   AND column_name = 'content_hash') THEN
+    RAISE EXCEPTION 'v2.lca.content_hash is missing (migration 017)';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema = 'v2' AND table_name = 'lca_validation'
+                   AND column_name = 'validated_rank') THEN
+    RAISE EXCEPTION 'v2.lca_validation.validated_rank is missing (migration 024)';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema = 'v2' AND table_name = 'mitogenome_data'
+                   AND column_name = 'annotation_integrity_status') THEN
+    RAISE EXCEPTION 'v2.mitogenome_data is missing the migration 026 annotation columns';
+  END IF;
+
+  -- The key must include content_hash, not lca_run_date: 33 live lca_raw_results rows
+  -- collide under a run_date key (several HSPs per accession in one run).
+  IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        WHERE c.conrelid = 'v2.lca_raw_results'::regclass AND c.contype = 'p'
+          AND pg_get_constraintdef(c.oid) LIKE '%content_hash%') THEN
+    RAISE EXCEPTION 'v2.lca_raw_results primary key does not include content_hash; it is not satisfiable by live data';
+  END IF;
+
+  -- content_hash is NOT NULL and in the key, so the trigger that fills it must exist.
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger
+                 WHERE tgrelid = 'v2.lca'::regclass AND NOT tgisinternal) THEN
+    RAISE EXCEPTION 'v2.lca has no content_hash trigger; every insert would violate NOT NULL';
   END IF;
 END $$;
 
