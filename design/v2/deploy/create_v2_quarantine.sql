@@ -12,7 +12,7 @@
 --   actually ask.
 --
 -- Review source: docs/v2_scaffold_design_review.md decision 6, §5 step 9.
--- Expected impact: Additive only. One table, one function, one view, in the `v2` schema.
+-- Expected impact: Additive only. Two tables, one function, two views, in the `v2` schema.
 
 BEGIN;
 
@@ -37,7 +37,9 @@ CREATE TABLE v2.import_quarantine (
         'unique',                -- collides with an existing row
         'duplicate_source_row',  -- the SOURCE has the same key twice (see §4.4)
         'lookup',                -- value is outside a controlled vocabulary
-        'conflicting_value'      -- same fact recorded twice with different values
+        'conflicting_value',     -- same fact recorded twice with different values
+        'check',                 -- the database rejected it under a CHECK constraint
+        'displaced'              -- not a defect: a seated row the workbook replaced (Phase V.2)
     )),
     -- A resolution note without a resolution date is a half-finished record.
     CONSTRAINT import_quarantine_resolution_check CHECK (resolution_note IS NULL OR resolved_at IS NOT NULL)
@@ -106,9 +108,56 @@ SELECT source_table,
        max(last_seen)  AS most_recent
 FROM v2.import_quarantine
 WHERE resolved_at IS NULL
+  AND violation_type <> 'displaced'
 GROUP BY source_table, violation_type
 ORDER BY count(*) DESC, source_table, violation_type;
 
-COMMENT ON VIEW v2.v_quarantine_open IS 'One line per (table, violation) still blocking rows. The lab-facing summary of what needs fixing.';
+COMMENT ON VIEW v2.v_quarantine_open IS 'One line per (table, violation) still blocking rows. The lab-facing summary of what needs fixing. Excludes displaced rows, which block nothing; see v_quarantine_displaced.';
+
+-- ---------------------------------------------------------------------------------------
+-- Rows the workbook replaced (Phase V.2, owner decision 2026-10-06: the workbook wins)
+-- ---------------------------------------------------------------------------------------
+--
+-- When a workbook row claims a (parent, attempt number) already held by a different tube ID
+-- that the workbook no longer carries, import_v2.py deletes the seated row and loads the
+-- workbook's. The deleted row is kept here, whole, as raw_row. It is a record, not a defect,
+-- so it is left out of v_quarantine_open; resolve it once someone has confirmed the
+-- replacement was right.
+
+CREATE VIEW v2.v_quarantine_displaced AS
+SELECT source_table,
+       source_row_key   AS displaced_key,
+       violation_detail AS replaced_by,
+       first_seen       AS displaced_at,
+       raw_row
+FROM v2.import_quarantine
+WHERE resolved_at IS NULL
+  AND violation_type = 'displaced'
+ORDER BY first_seen DESC, source_table, source_row_key;
+
+COMMENT ON VIEW v2.v_quarantine_displaced IS 'Seated rows import_v2.py deleted because the workbook assigned their attempt slot to another tube ID. raw_row holds the deleted row in full.';
+
+-- ---------------------------------------------------------------------------------------
+-- The workbook's attempt keys, staged for the backfill (Phase V.2)
+-- ---------------------------------------------------------------------------------------
+--
+-- backfill_v2.sql reads the database, not the workbook, so on its own it cannot tell which
+-- side of an attempt-key tie the lab still means. `import_v2.py --stage-attempt-keys` writes
+-- every (tube ID, parent, attempt number) the workbook carries here, and the backfill seats a
+-- tied row only when it is the one row of its tie that appears. The backfill refuses to run
+-- while this table is empty.
+
+CREATE TABLE v2.workbook_attempt_keys (
+    source_table  text        NOT NULL,
+    row_key       text        NOT NULL,
+    parent_key    text,
+    attempt_num   integer,
+    workbook_file text        NOT NULL,
+    staged_at     timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT workbook_attempt_keys_pkey PRIMARY KEY (source_table, row_key)
+);
+
+COMMENT ON TABLE v2.workbook_attempt_keys IS 'Attempt-keyed rows of the lab workbook, staged by import_v2.py --stage-attempt-keys so backfill_v2.sql can prefer the workbook''s side of a tie. Replaced wholesale on each staging run; workbook_file records which workbook.';
 
 COMMIT;

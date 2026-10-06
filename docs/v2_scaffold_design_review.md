@@ -1,14 +1,410 @@
 # Review: `v2` Lab Schema Scaffold
 
-Date: 2026-08-05
+Revision 2: 2026-10-05 — see §0. Revision 2.1: 2026-10-06 — Phase V.2 resolution, §0.10.
+Date: 2026-08-05 (revision 1)
 Scope: `design/v2/deploy/create_v2_lab_tables.sql` and its revert/verify pair, read against
 `database_review.md`, `docs/lab_key_strategy.md`, `docs/data_dictionary.md`,
 `docs/spreadsheet_column_gap_analysis.md`, the `schema/` baselines, the live workbook, and
 `name_convert.py` / `import_data.py` / `queries.py` in the sibling `OceanOmics-Database` repo.
-Status: Review complete, and the build it recommends is done. Findings reflect the eleven
+Status: Revision 2 complete (§0) — re-reviewed against the live catalog 2026-10-05, validated on
+a throwaway cluster, not deployed. Findings reflect the eleven
 decisions taken 2026-08-05 (§2); all four open questions are closed (§7); all eleven steps of
 §5 are implemented. One earlier finding was withdrawn on re-measurement — see the correction
 note in F4a.
+
+## 0. Revision 2 — re-review against the live catalog, 2026-10-05
+
+Revision 1 is retained below exactly as written. It is the record of why the scaffold has the
+shape it has, and nothing in this section supersedes its findings F1–F13 or its eleven
+decisions. What this section adds is the result of re-reading the DDL against the **live
+catalog** rather than against revision 1's own analysis, which is Phase V.1 of
+`database_review.md`.
+
+**Why it was required.** The DDL was designed, built and constraint-tested on 2026-08-05 and
+not touched again. The live database kept moving: migrations `017` through `034` landed,
+including the entire LCA rebuild. Revision 1 could not have known about any of it, so its
+sign-off had quietly expired. The owner's instruction on 2026-10-05 was not to promote any of
+this to numbered migrations on revision 1's authority.
+
+**Method.** Two new scripts, both read-only and both kept in the repo because the questions
+they answer recur:
+
+- `scripts/diff_v2_against_live.py` — column-by-column diff of the `v2` DDL against
+  `information_schema`, with every difference classified against the finding that explains it.
+  Its exit criterion is zero unexplained differences. Run it before Phase V.3.
+- `scripts/audit_v2_dependents.py` — the dependent views, triggers and functions, read from
+  `pg_depend`, `pg_rewrite`, `pg_trigger` and `pg_proc`. Run it again at Phase V.5.
+
+Everything was validated on a throwaway PostgreSQL 14.24 cluster loaded from a `pg_dump` of
+the current live database: all six deploy files applied, all six verify scripts passed, the
+full revert sequence returned the cluster to baseline, forward re-apply succeeded, and the
+backfill ran twice to identical row counts.
+
+### 0.1 What the re-review found
+
+Nine defects. Three would have failed outright; the rest would have lost data quietly, which
+is worse.
+
+| # | Defect | Consequence had it shipped |
+|---|---|---|
+| 1 | **40 columns** added by migrations `017`–`026` absent from the `v2` DDL | Silently dropped at cutover. 34 on `mitogenome_data` (depth, trna-advisory, order-variant, annotation-integrity families), `content_hash` + `taxon_rank_db` on `lca` and `lca_raw_results`, `validated_rank` + `lca_genus` on `lca_validation` |
+| 2 | `lca.top_confidence_score` and `lca_raw_results.confidence_score` declared `real` | **Backfill aborts.** Migration `022` widened both to `double precision` because `real` underflows below ~1.18e-38 and HiFi hits reach 5.27e-163. 30 live rows raise `value out of range: underflow` on a `::real` cast |
+| 3 | `blast_filtered_lca.taxon_id` declared `integer` | **1,009 rows rejected.** `022` made it `text` because those rows hold semicolon-separated multi-taxon lists (`104759;596308;627028`). Not an overflow — the largest single value is well inside `int4`, which is why it reads as safe |
+| 4 | `v2.lca_raw_results` primary key keyed on `lca_run_date` | **Not satisfiable by live data:** 33 of 46,644 rows collide, because one BLAST accession can yield several HSPs in a run (same accession and run date, different `percent_match`). `017` made row identity content-addressed for exactly this reason |
+| 5 | `content_hash` is `NOT NULL` and in two keys, with no trigger to fill it | Every insert outside the backfill fails |
+| 6 | `v2.mitogenome_data.annotation` declared `NOT NULL` | 374 of 2,349 rows quarantined for a constraint no finding asked for and live does not enforce. They are simply not yet annotated — all 374 have every annotation-derived field null, all 1,975 annotated rows have every one populated |
+| 7 | Registry guards in the lab backfill test `library_tube_id` alone, while the FK is on `(library_tube_id, parent_id)` | **Backfill aborts** on current data — tube ID `0` is shared by an Illumina and a PacBio library with different parents |
+| 8 | Attempt-key ties filtered out with no quarantine record | **100 rows silently dropped** — neither loaded nor quarantined. The one outcome decision 6 exists to prevent, and not what `create_v2_lab_tables.sql`'s own comment says happens ("those rows quarantine for the lab to renumber") |
+| 9 | `v2` carries neither `content_hash` nor the `lca_set_content_hash` trigger; `set_updated_at` has no `v2` counterpart | Migration `017`'s content-addressing silently reverted |
+
+Items 1–6 and 9 are fixed in `design/v2/deploy/create_v2_lca_tables.sql`, 7–8 in
+`design/v2/backfill_v2.sql`, each with the reasoning at the point of change.
+
+**Four more came out of re-checking the workbook (§0.8), and they are a different class** —
+every one is a `name_convert_v2.py` mapping rather than DDL, and every one presents as a silent
+NULL rather than an error:
+
+| # | Defect | Consequence |
+|---|---|---|
+| 10 | `illumina_library.library_plate_well` maps to `Library Plate Well`, renamed to `Final Library Plate Well` | 1,078 populated rows dropped — a regression in the fix for §4.1 |
+| 11 | `rna_library_ilmn.library_size` maps to `cDNA Library Size (bp)`, removed from that sheet | column unsourced |
+| 12 | `rna_library_kinx.synthesis_conc` maps a `\r\n` where the header has a bare `\n` | 110 workbook values; live is 0 of 189. The August "FIXED" note describes this bug and its fix reproduces it |
+| 13 | `4.HiCLysate`'s `Proximity Ligation yield (ng)` (383 of 386 rows) is mapped nowhere, and `v2` generates yield from a column populated on 77 | 306 rows generate NULL where a measurement exists |
+
+Plus four new lab headers with no mapping and no `v2` column: `Extract Plate name Or tube`
+(274), `Extract Plate Well` (266), `Final Plate Name` (135), `Final Plate Well` (135).
+
+### 0.2 Two findings that were right about the source and wrong about the database
+
+This is the pattern worth carrying into future reviews, because both were careful pieces of
+analysis that nonetheless reached a conclusion the database contradicts.
+
+**§4.4 — "RNA tube-ID overlap: none".** Measured on the workbook, this is correct: the suffix
+conventions (`_IL` / `_dIL` for Illumina RNA, `_KL` for Kinnex) do not collide, so a shared
+registry primary key is safe. Measured on the **live tables**, 24 `_KL` tube IDs appear in
+*both* `rna_library_ilmn` and `rna_library_kinx` with the same parent `rna_id` — because the
+importer writes Kinnex rows into both RNA tables. The same artefact also duplicated
+`kinnex_barcode` and `kinnex_primers` onto `rna_library_ilmn`, where all 16 populated rows
+carry values identical to their Kinnex row. So the registry key is sound in principle and
+unsatisfiable against today's rows. Handled by quarantining the duplicates rather than
+widening the key to `(library_tube_id, library_type)`, which would preserve rows that should
+not exist; the real fix is in the importer, before cutover.
+
+**F4 — `dna_extraction.ratioqubit_nanodrop` is "dead on both ends".** Both halves are still
+true of the import path: the mapped header does not exist in the workbook and `queries.py`
+never inserted the field. But the column holds **987 populated rows** of 2,636, 277 distinct
+values from -0.2 to 6.96 — real measurements that arrived by some other route, most likely
+hand entry through DBeaver. Revision 1 asked "does anything write this?" and stopped. The
+question that decides whether a column can be dropped is "is there anything in it?". Dropping
+it would have destroyed 987 hand-entered measurements that exist nowhere else — the F4a
+failure mode reached from the opposite direction. **Kept.**
+
+The general lesson: an analysis of the source is not an analysis of the destination. Both
+findings would have survived any amount of re-reading of the documents; only querying the
+database exposed them.
+
+### 0.3 Column dispositions
+
+Every live column absent from the `v2` DDL now falls into one of three buckets, and
+`scripts/diff_v2_against_live.py` enforces that the third is empty:
+
+- **Intentional removal**, citing a revision 1 finding — F1 `og_id` on child tables, F2
+  `og_num`, F4/F5 the seventeen `sample` columns, F6 the five `sequencing` tube-ID columns.
+- **Added by a migration after 2026-08-05** — the 40 columns of item 1 above. All restored.
+  A migration that was worth writing is not something a redesign gets to discard in silence.
+- **Added by the lab after 2026-08-05.** Seven columns. Six were already documented as
+  deliberate `DROPPED:` notes in the DDL, and re-measurement confirms all six:
+  `sample.illumina_public` (0/3294 populated, against `hifi_public`'s 8),
+  `tissue.field_id` (7202 of 7241 rows match `sample.field_id` exactly; the 27 that differ are
+  the spreadsheet formula returning `0` against a null), the two `rna_library_ilmn` Kinnex
+  columns (§0.2), and `rna_library_kinx.created_at`/`updated_at` (dropped on consistency
+  grounds — they exist on one table of twelve). The seventh is `ratioqubit_nanodrop`, which
+  was wrong; see §0.2.
+
+  Note the `created_at`/`updated_at` decision also retires the `set_updated_at` trigger. That
+  is correct but it must not lapse unnoticed: the function has to be **pinned to `public`** at
+  cutover so it cannot follow the `search_path` into a `v2` table with no such column.
+
+### 0.4 Dependents: the audit was too narrow, and functions were never in it
+
+`docs/v2_cutover_dependencies.md` is corrected in place. The four substantive changes:
+
+1. **The audit covered the twelve lab tables; `v2` recreates seventeen.** Ten non-snapshot
+   views read the seventeen. **`mitogenome_submission_view` was never audited and it breaks** —
+   it selects `m.og_num` straight from `mitogenome_data`, which F2 removes. It has been
+   reworked three times since revision 1 (`027`, `028`, `029`). **This is the one piece of DDL
+   this re-review identified and did not write**; it needs a `v2` equivalent or a rewrite
+   before Phase V.5.
+2. **There are two writable views, not one.** `embargo_assignment_view` was classified as a
+   plain reader of seven `sample` columns. It carries `trg_embargo_assignment_view_upd`, an
+   `INSTEAD OF UPDATE` trigger that writes to `sample`.
+3. **Eleven of this database's own functions follow the cutover silently.** None pins a
+   `search_path`; the database- and role-level settings are both unset and the session default
+   is `"$user", public`. Six are `build_*_samplesheet*` functions generating Nextflow
+   samplesheets from `sample` and `sequencing` — and `sequencing` loses its five library
+   tube-ID columns under F6. Dispositions (pin / follow / rewrite) are recorded in
+   `scripts/audit_v2_dependents.py`, which reports any function lacking one. The pinning
+   `ALTER FUNCTION`s are Phase V.5 work: V.1 changed no live object.
+4. **`CREATE OR REPLACE VIEW`, not `DROP` + `CREATE`.** Revision 1's cutover document said the
+   nine cutover-neutral views needed "no DDL" because a `search_path` swap would resolve them,
+   which is wrong — views bind to OIDs — and the correction then over-prescribed a drop.
+   `CREATE OR REPLACE` rebinds through the `search_path` while preserving grants, dependent
+   views and both `INSTEAD OF` triggers, which a `DROP` silently destroys.
+
+### 0.5 Validation, against revision 1's numbers
+
+**Source workbook: `OceanGenomes_Database_261006.xlsx`** (2026-10-06, 5.3 MB). Naming it
+matters — see §0.8. An earlier pass of this revision used
+`OceanGenomes_Databasev5.Feb24_260804.xlsx`, the August workbook, and the importer figures
+below were wrong as a result.
+
+Backfill, which reads the live database rather than the workbook:
+
+| | revision 1 (2026-08-05) | revision 2 (2026-10-06) |
+|---|---|---|
+| Twelve lab tables loaded | 20,881 | **21,926** |
+| Five LCA tables loaded | n/a — no backfill existed | **298,076** (0 quarantined) |
+| Quarantined | 1,004 | **870** |
+
+`import_v2.py`, which reads the workbook, against an empty `v2`:
+
+| | revision 1 | Aug workbook | **Oct workbook** |
+|---|---|---|---|
+| Twelve lab tables loaded | 20,881 | — | **21,347** |
+| Rejected outright | — | — | **243** |
+| Degraded (loaded, one field nulled) | — | — | **1,137** |
+| Quarantine rows total | 1,004 | 1,049 | **1,292** |
+
+**The quarantine count is up 23% on the August workbook, and that is a finding, not noise** —
+Phase V.1 item 6 said to treat it as one. Four drivers, in order of size:
+
+- `sample` `type_cast` **584 → 761** (+177). The largest single movement and the one to chase
+  first: 761 of 3,294 sample rows now carry at least one field that will not convert.
+- `sequencing` `foreign_key` **31 → 68** (+37). Rows pointing at a library that does not exist,
+  more than doubled.
+- `rna_library_ilmn` `type_cast` **4 → 29** (+25).
+- `rna_library_ilmn` `unique` 53 → 56, and it remains by far the worst table in relative
+  terms: **69 of 334 rows rejected outright, only 265 loaded.**
+
+The backfill's own figures above are unaffected by the workbook version, since it reads the
+database.
+
+The attempt-key ties are worth watching rather than filing, because they are growing: revision
+1 cites "5 of 2,223" on `dna_extraction` and "53 of 321" on `4.RNAIllumina` as the worst case.
+Measured now: `rna_library_ilmn` **107 of 389**, `dna_extraction` 49, `hic_lysate` 9,
+`ont_library` 4, `pacbio_library` 3, `illumina_library` 1, `rna_library_kinx` 1. The lab keeps
+creating them, so this needs a standing report, not a cleanup.
+
+### 0.6 `import_v2.py` cannot run after the backfill — and this is a cutover blocker
+
+Phase V.1 item 6 said to re-run `import_v2.py` against the current workbook. Doing so exposed
+a defect that only appears in the exact combination Phase V creates, which is why nobody had
+seen it.
+
+**Against an empty `v2` the importer completes.** It quarantines 1,292 rows against the current
+workbook — up 23% on the August workbook and up 29% on revision 1's 1,004; see §0.5 for the
+drivers. "Completes" is not "is fine".
+
+**Against a backfilled `v2` it aborts** with
+`duplicate key value violates unique constraint "dna_extraction_attempt_key"`. That is the
+sequence Phase V actually performs: V.4 backfills `v2` from `public`, and V.2 requires the
+importer to be the live path before the swap. So the first nightly run after the backfill fails.
+
+The mechanism, traced on `(tissue_id, ext_num) = (OG2111G, 1)`:
+
+1. `public.dna_extraction` holds **three** rows for tissue `OG2111G`: `OG2111G_D2` (#2),
+   `OG2111G_D` (#1) and `OG2111E_D` (#1). The last two collide on the attempt key, and
+   `OG2111E_D`'s own prefix disagrees with the tissue it is filed under — one of 48 such rows.
+2. The backfill breaks the tie **by lexicographic tube ID**, so `OG2111E_D` wins and
+   `OG2111G_D` is quarantined. The tie-break is arbitrary by construction, and here it seats
+   the suspect row and rejects the one the workbook carries.
+3. The workbook supplies `OG2111G_D` for that attempt. The importer upserts
+   `ON CONFLICT (dna_id)` — `dna_id` being the primary key — which does not match
+   `OG2111E_D`. The attempt-key `UNIQUE` then rejects the insert.
+4. The whole run aborts in one transaction, so **one bad pair blocks every table**.
+
+There are **48 colliding `(tissue_id, ext_num)` pairs across 97 rows** in live
+`dna_extraction`, so this is not a single-row curiosity.
+
+Three things follow, and none of them is a `v2` DDL change — this is Phase V.2 work, in the
+sibling repo, and it needs a decision rather than a patch:
+
+- **The backfill should not seat an arbitrary winner.** Preferring the lexicographically-first
+  tube ID is indefensible once you see it choose a row whose prefix contradicts its parent.
+  Better options are to quarantine *both* sides of a tie, so nothing is seated until the lab
+  resolves it, or to prefer the row the workbook still contains. The current behaviour is
+  recorded in `backfill_v2.sql` and flagged there.
+- **`ON CONFLICT (primary_key)` is the wrong conflict target for a table with an attempt key.**
+  The importer can only ever reconcile rows that agree on `dna_id`, and tube IDs are mutable —
+  which is how the database accumulates rows the workbook no longer has.
+- **The importer must not abort the batch on one constraint violation.** Its own design note
+  says a row violating a `v2` constraint "goes to `v2.import_quarantine` with the reason". That
+  is true of the checks it performs itself and not true of a violation the database raises, and
+  the difference is a failed nightly run versus one quarantined row.
+
+This also qualifies the V.2 instruction "importer changes land before the swap, never after".
+They have to, and as it stands they cannot: the importer does not survive contact with a
+backfilled schema.
+
+### 0.7 Build order changed
+
+Steps 5 and 6 are swapped: **LCA tables before the summary view.** Repointing `v2.summary` at
+`v2.lca_validation` makes the summary view depend on them. Recorded in
+`design/v2/README.md`, in the `-- requires:` headers, and in Phase V.3. Deploying in the old
+order now fails at deploy time rather than resolving to the wrong schema, which is the
+outcome to want.
+
+### 0.8 Assumptions re-checked against the current workbook
+
+Every workbook-derived claim in revision 1 was re-measured against
+**`OceanGenomes_Database_261006.xlsx`** (2026-10-06). An earlier pass of this revision used the
+August workbook, `OceanGenomes_Databasev5.Feb24_260804.xlsx`, which was the same mistake the
+whole re-review exists to catch, one level up: validating a design against a stale source.
+**Both the workbook filename and its date belong in any figure quoted from it.** The workbook
+is not under version control and its name carries the date, so this is cheap to get right and
+invisible when got wrong.
+
+All fourteen sheets still exist with the same names. Every sheet has grown; `1.MetaData` is now
+3,294 rows, matching live `sample` exactly.
+
+#### Claims that re-measure as still true
+
+- **F5 / decision 9 — the six technology columns hold Y/N only.** Still exactly `{Y, N}` in
+  October, and the counts barely move (`ilmn` 1522Y/187N, `hifi` 284/1476, `hic` 267/1479,
+  `nano` 34/1463, `rna` 167/1474, `ilrna` 169/1470 → **166/1473**). `boolean` is right.
+- **F13 — proximity-ligation yield is conc × 40.** Exact on all 77 rows where both are
+  populated: min, median and max of the ratio are all 40.000. The formula in
+  `v2.hic_lysate.prox_ligation_yield` is correct. Its *direction* is not — see below.
+- **Attempt-key ties in the workbook are stable:** `3.DNAExtractions` 5 → 4,
+  `4.RNAIllumina` 9 → 9, `4.HiCLysate` 1 → 1, `4.RNAkinnex` 1 → 1. Revision 1's "5 of 2,223"
+  and "8 repeated IDs on 4.RNAIllumina" still hold. Note these are *workbook* ties; the much
+  larger figures in §0.1 item 8 (107 on `rna_library_ilmn`, 49 on `dna_extraction`) are *live
+  database* ties and come from a different measurement.
+- The multi-alternative mappings (`sample.og_id` ← `Specimen ID`/`OGID`, `sample.field_id` ←
+  `Field Identifier`/`Field_Identifier`) still resolve.
+
+#### Mappings that worked in August and are dead now
+
+Checked by resolving every `(table, column) → header` pair in `name_convert_v2.py` against the
+October headers, rather than by running the importer — a dead mapping produces a silent NULL,
+so running the importer does not reveal it.
+
+| v2 column | mapped header | what happened | rows affected |
+|---|---|---|---|
+| `illumina_library.library_plate_well` | `Library Plate Well` | renamed to **`Final Library Plate Well`** | **1,078 populated** |
+| `rna_library_ilmn.library_size` | `cDNA Library Size (bp)` | header removed from `4.RNAIllumina` entirely (it survives on `4.RNAkinnex`) | column now unsourced |
+
+The first is a regression in the fix for §4.1. `library_plate_well` was added to `v2`
+*specifically* because 1,523 rows of hand-entered plate positions were being dropped nightly;
+the header has since been renamed and the new mapping no longer matches, so `v2` would drop
+1,078 of them again. **F4a's failure mode, inside the fix for F4a.**
+
+#### New headers with nowhere to go
+
+Added since August, populated, and mapped to nothing — so `v2` would drop them:
+
+| sheet | header | populated |
+|---|---|---|
+| `3.DNAExtractions` | `Extract Plate name Or tube` | 274 |
+| `3.DNAExtractions` | `Extract Plate Well` | 266 |
+| `4.RNAIllumina` | `Final Plate Name` | 135 |
+| `4.RNAIllumina` | `Final Plate Well` | 135 |
+
+These are the same *kind* of column §4.1 catalogued and `v2` adopted — hand-entered plate and
+well positions. The lab is evidently still extending its plate tracking, which means §4.1 is
+not a closed list and will need re-running before each promotion, not once.
+
+#### Two defects that have nothing to do with the workbook version
+
+Both would have been found against either workbook. They surfaced only because this pass
+checked mappings against headers instead of trusting the importer to complain.
+
+1. **`rna_library_kinx.synthesis_conc` has never worked, and the August "fix" did not fix it.**
+   `name_convert_v2.py` records this under FIXED: "the real header contains an embedded CRLF:
+   `cDNA Concentration \r\n(end of section 1 conc)`". The real header contains a bare **LF**
+   (`0x0a`), in the August workbook and the October one alike. The corrected mapping specifies
+   `\r\n`, so it still never matches. The workbook holds **110 populated values** and live
+   `rna_library_kinx.synthesis_conc` is **0 of 189**. Revision 1 diagnosed the bug correctly and
+   then wrote a fix that reproduces it.
+
+2. **WITHDRAWN 2026-10-06 — see §0.10.** The yield column is a formula on every row, and the
+   306 "recorded yields" below are all 0.0. The finding is kept as written so the error is
+   visible.
+
+   **`4.HiCLysate`'s `Proximity Ligation yield (ng)` — 383 of 386 rows — is mapped nowhere, and
+   `v2` derives that value from a column with 77.** `v2.hic_lysate.prox_ligation_yield` is
+   `GENERATED ALWAYS AS (prox_ligation_conc * 40)`, and `prox_ligation_conc` maps to
+   `Proximity Ligation Conc. (ng/uL)`, which is populated on 77 rows. So **306 rows have a
+   recorded yield and will generate NULL.** The derivation is exactly right and pointed the
+   wrong way: since yield = conc × 40 holds exactly, `conc = yield / 40` recovers all 306.
+   Either map the yield column and generate `conc` from it, or fall back to `yield / 40` when
+   `conc` is absent.
+
+   §4.1 also mis-states this sheet's counts — it lists `Proximity Ligation prep date` at 356
+   rows (actually **82**) and `Proximity Ligation Conc. (ng/uL)` at 80 (actually **77**), and
+   omits the yield column altogether, which is the most-populated of the three.
+
+#### What this means for Phase V.3
+
+`scripts/diff_v2_against_live.py` compares the DDL to the database. Nothing compares
+`name_convert_v2.py` to the workbook, and that is the gap all four findings above came through.
+Three of the four are invisible from the database alone, because a dead mapping and a dropped
+column both look like a NULL. **A mapping-vs-workbook check belongs alongside the column diff
+before V.3 promotes anything**, and `import_v2.py`'s unmatched-header report is not a substitute:
+it lists headers with no mapping, and says nothing about a mapping with no header.
+
+### 0.9 What revision 2 did not change
+
+- **Decisions 1–11 all stand.** Item 6 above is the only place where a `NOT NULL` was relaxed,
+  and that constraint was never one of the decisions.
+- **Findings F1–F13 all stand**, with the two qualifications in §0.2.
+- **No live object was touched.** Everything was validated against a throwaway cluster; the
+  live database was read and never written. `bin/check_drift.py` output is unchanged.
+- **`sql/033_catchup_core_views.sql` still carries the uncorrected "no DDL is needed"
+  sentence** in its header comment. Deliberate: `033` is applied and ledgered, and
+  `docs/database_change_checklist.md` forbids editing an applied file because
+  `bin/apply_migrations.py` refuses to continue when a SHA-256 stops matching. A comment is
+  not worth breaking the ledger for; `docs/v2_cutover_dependencies.md` is the correction of
+  record.
+
+### 0.10 Revision 2.1 — Phase V.2 resolution, 2026-10-06
+
+§0.6's three decisions were taken by the owner, and §0.8's gap now has a tool.
+`database_review.md` Phase V.2 holds the full outcome and figures. The points that change
+this document:
+
+- **§0.6 is resolved.**
+  - **The backfill seats the workbook's side of a tie.** If the workbook carries none of the
+    tied rows, or more than one, the backfill seats none of them.
+  - **The workbook wins at import.**
+    - A seated row the workbook no longer carries is displaced into `v2.v_quarantine_displaced`.
+    - It is kept instead if libraries or sequencing hang off it, and the workbook row is
+      quarantined.
+    - A renumber or a swap of two tubes applies in one upsert, because the attempt keys are
+      now deferrable.
+  - **A violation the database raises quarantines one row.** It no longer aborts the batch.
+  - **Tested on a local cluster.** With `OG2111E_D` seated in `(OG2111G, 1)` after a backfill,
+    the importer now completes and seats `OG2111G_D`.
+- **§0.8 has a tool:** `scripts/check_v2_mappings.py` runs a mapping-versus-workbook check.
+  - It reproduced the three header defects.
+  - It found four hand-entered headers this section missed.
+  - Every column it allows is either a measured formula or an owner decision.
+- **§0.8 item 2 is withdrawn.**
+  - Checked cell by cell, `Proximity Ligation yield (ng)` is `=IF(R="NA","NA",R*40)` on all
+    386 rows of `OceanGenomes_Database_261006.xlsx`, with no typed values.
+  - It was counted as 383 populated because pandas reads cached formula results, and an empty
+    concentration makes the formula return 0.0.
+  - The F13 design stands as built: yield is generated from concentration, and the
+    concentration (77 values) is the measurement. Inverting it, as recommended, would have
+    stored 306 false zeros.
+  - The method lesson is the same as §0.2, one level down: a populated count does not show a
+    column is data. Check whether the values are typed or computed.
+- **F13 is qualified, not reversed.** The lab still records proximity-ligation concentration on
+  `4.HiCLibrary` (264 numeric values, against 77 on `4.HiCLysate`).
+  - By owner decision, those values load into the legacy `hic_library.prox_ligation_conc` until
+    the lab moves to the lysate sheet.
+  - `v_hic_library_browse` already keeps the two apart as `prox_ligation_conc` and
+    `prox_ligation_conc_legacy`.
 
 ## 1. Summary
 
@@ -578,8 +974,9 @@ not be used as a template for the v2 index set.
 
 Nothing outstanding is a schema question. What remains needs either the lab or the team:
 
-**For the lab — 1,004 quarantined rows.** A trial import of the current workbook loads 20,881
-rows and blocks 1,004. Hand them `SELECT * FROM v2.v_quarantine_open`. The two worth naming:
+**For the lab — 1,004 quarantined rows.** (Revision 2: **870**, against 21,926 loaded; see
+§0.5. The breakdown below is revision 1's and the shape of it still holds.) A trial import of
+the current workbook loads 20,881 rows and blocks 1,004. Hand them `SELECT * FROM v2.v_quarantine_open`. The two worth naming:
 
 - **`4.RNAIllumina` reuses attempt numbers on 53 of its 321 rows**, so only 259 load. This is
   also why its `Latest` column is wrong today: `MAX(#)` ties and flags several rows at once.
@@ -591,10 +988,11 @@ The rest are unparseable measurements (`weight`, `av_size`, the 260/280 ratios) 
 that one field null, plus 24 duplicated source keys where the current importer's
 `ON CONFLICT DO UPDATE` silently lets the last row win.
 
-**For the team — the one genuine cutover blocker.** Open question 10 of `database_review.md`:
-which consumers query this database from outside these two repos. `docs/v2_cutover_dependencies.md`
-closes the in-repo half and proposes closing the rest with `pg_stat_statements` rather than
-recollection. Note the trap recorded there: `queries.py` writes *unqualified* table names, so
+**For the team — ~~the one genuine cutover blocker~~.** Open question 10 of
+`database_review.md` (question 7 in its current numbering): which consumers query this
+database from outside these two repos. **Closed by decision 2026-10-05 rather than answered** —
+consumers hardcoding `public.` are accepted breakage. It no longer blocks the cutover. The
+in-database half is answered by `scripts/audit_v2_dependents.py`; see §0.4. Note the trap recorded there: `queries.py` writes *unqualified* table names, so
 it follows the `search_path` — the cutover moves the live importer silently, which means the
 importer work must land before the swap, not after.
 

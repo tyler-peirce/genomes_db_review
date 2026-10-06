@@ -63,6 +63,8 @@ SELECT t.og_id,
        d.total_yield,
        d.av_size,
        d.extraction_qc,
+       d.extract_plate,
+       d.extract_plate_well,
        d.comment
 FROM v2.dna_extraction d
 JOIN v2.tissue t ON t.tissue_id = d.tissue_id;
@@ -253,6 +255,9 @@ SELECT t.og_id,
        x.index_set,
        x.index_well,
        x.index_inx,
+       x.final_plate_name,
+       x.final_plate_well,
+       x.well_position,
        x.comments
 FROM v2.rna_library_ilmn x
 JOIN v2.rna_extraction r ON r.rna_id    = x.rna_id

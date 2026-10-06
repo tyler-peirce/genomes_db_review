@@ -1162,7 +1162,7 @@ Phase A is complete.
    | Group | Count | Where the work belongs |
    |---|---:|---|
    | `SS260818` snapshots — 5 tables + 3 views | 8 | **Phase F.** No migration at all; they are being deleted. |
-   | Covered by the `v2` scaffold | 17 | **v2 cutover.** Blocked on open questions 7 and 8. |
+   | Covered by the `v2` scaffold | 17 | **Phase V, the `v2` cutover.** Direction approved 2026-10-05; gated on open question 7 and on the scaffold re-review (V.1). |
    | QC, raw data, ref/draft genome | 10 | **Phase C**, which already adds their PKs and FKs. |
    | Species / NCBI | 2 | **Phase E**, which already restructures them. |
    | `master_species`, `master_species_genome` | 2 | **Out of scope** — a colleague's separate work. |
@@ -1170,7 +1170,7 @@ Phase A is complete.
    | `og_workflow_*`, new since the re-baseline | 3 | **Unclaimed.** Open question 16; see item 6. |
 
    - **Phase C (10):** `rna_qc_kinnex` and `ncbi_genome_assemblies` (C.2 adds their PKs); `raw_qc` and `ref_genomes` (C.5 fixes their 7 orphans then FKs them); `hifi_reads_qc`, `hic_reads_qc`, `raw_data`, `draft_genomes` (C.1, the zero-orphan FKs from Finding 3); plus `ref_genomes_sra_uploads` and `ref_genomes_assembly_uploads`, same `og_id`-bearing family, indexed by `030`.
-   - **v2-covered (17):** the 12 lab tables, the four live LCA tables (`lca`, `lca_raw_results`, `lca_validation`, `blast_filtered_lca`), and `goat_species_v1`. All have DDL in `deploy/create_v2_lab_tables.sql` and `deploy/create_v2_lca_tables.sql` that is already written, reviewed and constraint-tested. Writing catch-up migrations for the `public` versions duplicates that work and is wasted if cutover proceeds.
+   - **v2-covered (17) — now Phase V:** the 12 lab tables, the four live LCA tables (`lca`, `lca_raw_results`, `lca_validation`, `blast_filtered_lca`), and `goat_species_v1`. All have DDL in `design/v2/` — the lab tables in `deploy/create_v2_lab_tables.sql`, the LCA tables in `deploy/create_v2_lca_tables.sql`, and `goat_species_v1` in `deploy/create_v2_summary_view.sql`, which is where it is rebuilt. That DDL was written, reviewed and constraint-tested in August and is **pending re-review** (Phase V.1) before it is promoted. Writing catch-up migrations for the `public` versions duplicates it and is wasted now that cutover is the agreed direction.
    - **Phase E (2):** `species` and `species_ncbi_assembly`. `ncbi_genome_assemblies` is touched by both C and E — its CREATE goes with C, the earlier touch, and E reworks it.
    - ~~**Remaining Phase B work (10)**~~ **— done 2026-10-05, in three migrations.**
      - `000_bootstrap_schema_migrations.sql` — the ledger itself. It cannot ledger its own creation, because a file cannot contain its own SHA-256, so it is idempotent and ledgered through the normal path: a no-op replay against the live database, and a one-off `psql -f` on an empty one. `bin/apply_migrations.py` gained a guard that prints exactly that instruction when it finds no ledger, instead of a bare `relation "schema_migrations" does not exist`.
@@ -1203,10 +1203,14 @@ Phase B is complete. Its one deliberate loose end is the unclaimed drift in item
 0. **Capture these ten tables in a catch-up migration first, as step one of the constraint work** (routed here from Phase B.3): `rna_qc_kinnex`, `ncbi_genome_assemblies`, `raw_qc`, `ref_genomes`, `hifi_reads_qc`, `hic_reads_qc`, `raw_data`, `draft_genomes`, `ref_genomes_sra_uploads`, `ref_genomes_assembly_uploads`. None of them is created by any migration today. Writing the `CREATE TABLE` and the constraint it is about to gain in one change means the migration explains itself; written separately beforehand, the first one would just restate the catalog. Note `draft_genomes` has 118 columns and `ref_genomes` 58 — those two are the bulk of the effort here.
 
 1. Add the seven zero-orphan FKs from Finding 3, with pipeline owners' sign-off. **Unblocked 2026-10-02** — migration `030` added the child-side indexes these need.
+
+   **Two of the seven come off this list, and the rest must wait for V.5.** Recorded 2026-10-05 by Phase V.1, which found the interaction. `mitogenome_data` and `blast_filtered_lca` are two of the seventeen tables `v2` recreates, and `create_v2_lca_tables.sql` already gives all five LCA tables an FK to `v2.sample(og_id)` — adding them to `public` here writes a migration the cutover throws away.
+
+   The remaining five, plus C.5's `raw_qc` and `ref_genomes`, all point at `public.sample` from tables that stay in `public`. **Foreign keys bind to OIDs exactly as views do.** Added before V.5, they bind to `public.sample`; the rename to `sample_pre_v2` does not break them — they follow the OID and keep validating new rows against the frozen pre-cutover sample list — and V.6's `DROP` then either fails or cascades them away. That is worse than the view version of the same trap, because a stale FK rejection reads as a data error rather than a schema error and so does not announce itself. Run this step *after* V.5 and the unqualified `REFERENCES sample` resolves to `v2.sample` correctly. **The ordering is load-bearing.**
 2. Add PKs to `ncbi_genome_assemblies` and `rna_qc_kinnex`; add `rna_qc_kinnex` → `rna_library_kinx` FK (Finding 13).
 3. Add `rna_library_kinx.rna_id` → `rna_extraction` FK (still outstanding from revision 1).
 4. Add the `NOT VALID` "exactly one library link" check on `sequencing` (Finding 5).
-5. Fix the 7 remaining orphans in `raw_qc` and `ref_genomes`, then FK those too.
+5. Fix the 7 remaining orphans in `raw_qc` and `ref_genomes`, then FK those too — **after V.5**, for the OID reason in C.1.
 
 ### Phase D: Fix `summary`
 
@@ -1248,7 +1252,146 @@ Note that dropping the tables makes `sql/revert/027_...` permanently unrunnable.
 
 ### Phase H: Status normalisation, then sequencing/library redesign
 
-As revision 1's Phases 5 and 6. `sample.ilrna_status` first — it is degrading fastest. The `v2` scaffold is the starting point for the library redesign if that plan is kept; its DDL is in `design/v2/` since Sqitch was retired (open question 8).
+As revision 1's Phases 5 and 6. `sample.ilrna_status` first — it is degrading fastest. **Most of this phase is absorbed by Phase V**: the `v2` design already removes the derived status columns at source (F5) and already builds the library registry (F6, decision 4), so the sequencing/library redesign is cutover work, not a separate later project. What remains here afterwards is the structural change the owner wants *beyond* `v2`, including the deferred `tissue_type_code` / `tissue_index` columns from `lab_key_strategy.md` §6.2 — parked because they parse the ID grammar, which only becomes safe once `v2` enforces it.
+
+### Phase V: the `v2` cutover
+
+**Direction approved 2026-10-05** (open question 8). `v2` is the intended foundation for the schema; this phase is how it lands. It is the largest remaining piece of work in the plan and it closes **17 of the 39 uncovered objects** in one step.
+
+Both gates are now cleared. **V.0 was dropped by decision and V.1 is done**, both 2026-10-05; the detail is under each below. Phase V starts at V.2.
+
+**V.0 — ~~Close open question 7.~~ Dropped 2026-10-05 at the owner's direction.** The fortnight of `log_statement = 'all'` logging will not be run, and open question 7 is closed by decision rather than answered. A consumer carrying hardcoded `public.` prefixes in its own queries is accepted breakage: it fails after cutover and is fixed then. Most such fixes are one word.
+
+   **What this trades away, because it is not nothing.** The logging was the only proposed way to identify a broken consumer *before* breaking it. Without it, the first signal is a person reporting a failure. V.5's design is what makes that tolerable — the superseded tables are renamed so they fail loudly and immediately instead of serving stale data to someone who never notices.
+
+   **What it does not trade away, which turned out to be most of the value.** Everything *inside* the database was always in the catalog and never needed two weeks of waiting. `scripts/audit_v2_dependents.py`, written for V.1, inventories it in a second: ten dependent views, seven triggers, and **eleven functions that follow the `search_path` silently** — among them six `build_*_samplesheet*` functions generating Nextflow samplesheets from `sample` and `sequencing`, which nobody had examined and which V.0's log would have surfaced only as traffic from an unidentified client. V.0 would have added the *external* clients only, which is precisely the category now accepted as breakage.
+
+   So the honest summary is that V.0 was mis-scoped as a blocker rather than wrong to want: the discoverable half was free all along, and the expensive half covered the risk being accepted. Run `scripts/audit_v2_dependents.py` again on the morning of the cutover.
+
+**V.1 — Re-review the scaffold before promoting any of it. Done 2026-10-05.** Output: `docs/v2_scaffold_design_review.md` revision 2, `scripts/diff_v2_against_live.py`, `scripts/audit_v2_dependents.py`, and the DDL and backfill changes recorded below. Validated end to end against a throwaway cluster loaded from the current baseline — deploy, verify, revert, re-apply, and the backfill run twice to idempotency.
+
+   The re-review was the right call and the margin was not close. Nine defects, six of them unknown in August, and three would have caused an outright failure rather than quiet damage:
+
+   - **40 columns** added by migrations `017`–`026` were absent from the `v2` DDL and would have been dropped at cutover — 34 on `mitogenome_data` alone.
+   - **Three types reverted migration `022`**; two of them make the backfill *abort* (`real` underflows on HiFi confidence scores reaching 5.27e-163), and the third rejects 1,009 rows of semicolon-separated multi-taxon ids.
+   - **`v2.lca_raw_results`'s primary key cannot be satisfied by live data** — 33 collisions, because it keyed on `lca_run_date` instead of the content hash that `017` introduced.
+   - **`content_hash` was `NOT NULL`, in two keys, with no trigger to fill it.**
+   - **`mitogenome_data.annotation` was `NOT NULL`**, which would have quarantined 374 not-yet-annotated assemblies for a constraint no finding asked for.
+   - **The lab backfill silently discarded 100 rows** and aborted outright on a tube ID shared across two library types — see the §4.4 note below.
+   - Plus the three defects already known: the stale `lca_new` scope boundary, the missing LCA backfill, and `v2.summary` reading `public.lca_validation`.
+
+   Two conclusions worth carrying forward beyond this phase. First, **every one of the six new defects is a migration landing after the design and nobody reconciling the two** — the `v2` directory had no mechanism to notice, which is what `scripts/diff_v2_against_live.py` now provides; run it before V.3. Second, **two August findings were right about the spreadsheet and wrong about the database**: §4.4 concluded RNA tube IDs do not overlap (true of the workbook, false of the live tables, where 24 `_KL` tubes appear in both RNA tables), and F4 called `ratioqubit_nanodrop` "dead on both ends" (true of the import path, false of the table, which holds 987 hand-entered measurements). An analysis of the source is not an analysis of the destination.
+
+   Original scope, for the record:
+
+1. **Re-diff the LCA DDL against the live catalog.** `create_v2_lca_tables.sql` declares `lca_new` and siblings out of scope as concurrent work (lines 5, 31); that rebuild has since landed and those are now the live `lca`, `lca_raw_results`, `lca_validation` and `blast_filtered_lca`. Column-by-column against `information_schema`, not by reading the August document.
+2. **Write the missing LCA backfill.** `backfill_v2.sql` covers the twelve lab tables only; the five LCA/mitogenome tables would cut over empty. Build it to the same two-statement pattern — rows that pass, then rows that quarantine — so it stays re-runnable and idempotent.
+3. **Fix `v2.summary`'s `public.lca_validation` references** (lines 128–138) unless the re-review finds the qualification was deliberate, in which case comment it like the `master_species` and `ref_genomes` ones at the top of that file.
+4. **Re-diff the twelve lab tables against live.** Three months of imports have run since the design. Any column the lab has added to the workbook since August is missing from `v2` and will be silently dropped at cutover — which is exactly the `name_convert.py` failure mode of F4a, repeated.
+5. **Re-check the eleven dependent views, and correct the cutover document.** `docs/v2_cutover_dependencies.md` audited them in August and found nine cutover-neutral. Migration `033` has since captured eight of them, and `027` repointed three. Confirm the audit still holds, and in particular that `lca_validation_report_view`'s `INSTEAD OF UPDATE` write path survives the swap — it is a write path, not a report, and nothing in the August analysis knew that.
+
+   **That document contains an error that someone would otherwise act on.** Its line 12 states the mechanism correctly — "a view *recreated* with `v2` ahead of `public` on the search path resolves to the v2 tables with no edit at all" — but its summary then says a "`search_path` swap is sufficient and **no DDL is needed**" for the nine cutover-neutral views. That is wrong: views bind to table OIDs, not names, so an existing view ignores the `search_path` entirely and keeps reading `public`. The nine need no *edit*; they absolutely need **recreating**. Corrected 2026-10-05; the consequence is spelled out in V.5.
+6. **Re-run the validation the August review claims.** Deploy / verify / revert against a throwaway cluster loaded from the *current* baseline, re-run the constraint tests, and re-run `import_v2.py` against the current workbook. The August numbers (20,881 loaded, 1,004 quarantined) are the comparison point; a large change in the quarantine count is a finding, not noise.
+7. **Audit for new `public.` hardcoding** across all six deploy files, not just the known one in `create_v2_summary_view.sql`.
+
+   Output: an updated `docs/v2_scaffold_design_review.md` — a revision 2 of that document, not a rewrite — plus whatever DDL changes it demands.
+
+**V.2 — Importer changes land before the swap, never after. Done 2026-10-06, validated on a local throwaway cluster; the full-data backfill run is still owed (below).**
+
+   **Outcome.** The three §0.6 decisions were taken by the owner on 2026-10-06, and all three are now built.
+   - **The backfill prefers the workbook row.** `import_v2.py --stage-attempt-keys` copies the workbook's attempt keys into the new `v2.workbook_attempt_keys`.
+     - When live has a tie, `backfill_v2.sql` seats the one tied row the workbook carries under that same `(parent, attempt)`.
+     - If the workbook carries none of them, or more than one, nothing is seated and every tied row is quarantined.
+     - The backfill refuses to run with nothing staged.
+   - **The workbook wins at import.** A seated row whose slot the workbook gives to a different tube is handled by whether the workbook still carries that tube:
+     - **Still carried** (a renumber or a swap): it moves in the same upsert, because the nine attempt keys are now `DEFERRABLE INITIALLY IMMEDIATE`.
+     - **No longer carried:** it is deleted and kept whole in `v2.v_quarantine_displaced`.
+     - **No longer carried, but libraries or sequencing hang off it:** the seated row stays, and the workbook row is quarantined instead.
+   - **A database-raised violation costs one row, not the run.** Each table is written under a savepoint and falls back to one row at a time. In that fallback the attempt key stays deferred until the end of the pass, so an unrelated bad row cannot block a legitimate swap. An earlier version did block it, and the local test caught that.
+   - **`check` was added to the quarantine vocabulary**, for CHECK violations the database raises.
+   - **Exit status for the scheduler:** 0 means the run completed, however many rows were quarantined; non-zero means it aborted and wrote nothing. The schedule lives on another HPC and the owner is setting it up, so that is documented in `OceanOmics-Database/README.md` rather than built here.
+
+   **The mapping check was built first**, as this step required: `scripts/check_v2_mappings.py`. It reports three things that look like a NULL in the database:
+   - mappings whose header is gone
+   - mappings that match only after whitespace is normalised
+   - populated headers that nothing reads
+
+   Every allowed exception is listed in its `EXPLAINED` registry with a reason.
+   - It reproduced all four defects below.
+   - It also found four hand-entered headers §0.8 had missed. Two get mapped by owner decision: `Well Position` gets a new column, and `4.HiCLibrary`'s proximity-ligation concentration loads into the legacy `hic_library` column. The other two are not stored by decision.
+   - Against `OceanGenomes_Database_261006.xlsx` it now exits 0. The importer matches headers after normalising whitespace, so a stray CR, LF or doubled space can no longer cost a column its data.
+
+   **One §0.8 finding was wrong and is withdrawn: proximity-ligation yield.** `4.HiCLysate`'s `Proximity Ligation yield (ng)` is `=IF(R="NA","NA",R*40)` on all 386 rows, with no typed values. The 306 "recorded yields" on rows with no concentration are all `0.0`. The existing design, `prox_ligation_yield GENERATED AS (prox_ligation_conc * 40)`, is correct and stays. Mapping that column, as §0.8 recommended, would have stored 306 false zeros. Measure formula versus typed value before calling a column data.
+
+   **Figures, against an empty `v2`, from `OceanGenomes_Database_261006.xlsx`:**
+   - 21,347 loaded and 243 rejected, identical to §0.5.
+   - 1,139 degraded against 1,137. The extra two are the text `too low` in two newly mapped numeric columns.
+   - Recovered data: `synthesis_conc` 109 values (previously 0), `library_plate_well` 1,078, legacy HiC proximity-ligation concentration 264, and the five plate columns 274 / 266 / 129 / 129 / 34.
+
+   A second run and a `--dry-run` were both unchanged.
+
+   The local test reproduced the post-backfill sequence that used to abort. With `OG2111E_D` seated in `(OG2111G, 1)`, the importer completed, displaced `OG2111E_D` and seated `OG2111G_D`. All six DDL files deploy, verify, revert and re-apply, and `diff_v2_against_live.py` reports zero UNEXPLAINED against the 2026-10-02 baseline.
+
+   **Owed before V.4: a backfill run against a full copy of live.** Local validation used the committed schema baseline and synthetic `public` rows; reading live from this session was not permitted. The real tie figures — how many of the 48 `dna_extraction` pairs, and of the 107 `rna_library_ilmn` rows, the workbook resolves — come only from that run. Expect the remainder to quarantine in full, which is more rows than the old tie-break lost.
+
+   Record of the original scope follows.
+
+   **Scope widened 2026-10-05: `import_v2.py` does not currently survive the backfill at all.** Phase V.1 ran it against a cluster that had been backfilled — the state V.4 creates — and it **aborts** on `dna_extraction_attempt_key`. Against an empty `v2` it is fine (1,049 quarantined, against August's 1,004), so this appears only in the combination Phase V actually performs.
+
+   Cause: live holds 48 colliding `(tissue_id, ext_num)` pairs across 97 rows. The backfill breaks each tie by lexicographic tube ID and quarantines the loser; for `(OG2111G, 1)` that seats `OG2111E_D` — whose prefix contradicts the tissue it is filed under — and rejects `OG2111G_D`, which is the row the workbook carries. The importer then cannot insert it, because it upserts `ON CONFLICT (dna_id)` and the colliding row has a different `dna_id`. One pair aborts the entire run, since it is a single transaction.
+
+   **Four mapping defects also block this step**, all found by re-checking `name_convert_v2.py` against the current workbook `OceanGenomes_Database_261006.xlsx` (§0.8 of the design review). Each presents as a silent NULL, not an error, which is why running the importer did not reveal them: `illumina_library.library_plate_well` maps to a header the lab renamed to `Final Library Plate Well` (1,078 rows — a regression in the §4.1 fix); `rna_library_ilmn.library_size` maps to a header since removed; `rna_library_kinx.synthesis_conc` maps a `\r\n` where the header has a bare `\n`, so the August "FIXED" never worked and live is 0 of 189 against 110 workbook values; and `4.HiCLysate`'s `Proximity Ligation yield (ng)` (383 of 386 rows) is mapped nowhere while `v2` generates that value from a column populated on 77 *(withdrawn 2026-10-06: the column is a formula and its other 306 values are 0.0 — see the outcome above)*. Four new lab headers have no mapping or column at all.
+
+   **Nothing in the toolchain compares the mappings to the workbook**, which is the gap all four came through. `scripts/diff_v2_against_live.py` compares DDL to database; `import_v2.py`'s unmatched-header report finds headers with no mapping but not mappings with no header. Build the inverse check before this step.
+
+   Three further decisions, detailed in `docs/v2_scaffold_design_review.md` §0.6: whether the backfill should quarantine **both** sides of an attempt-key tie rather than seating an arbitrary winner; what the importer's conflict target should be on a table whose primary key is a mutable tube ID; and whether the importer should quarantine a database-raised violation instead of aborting the batch. The last one is the difference between a failed nightly run and one blocked row.
+
+   Original note: `queries.py` writes **unqualified** table names, so it follows the `search_path` silently. The swap moves the nightly importer whether or not anyone intends it. `name_convert_v2.py` and `import_v2.py` already exist as the parallel path (§5 step 10); they must be the live path before the search_path changes.
+
+**V.3 — Promote the DDL to numbered migrations** in `sql/`. **Re-run both check scripts and the mapping check (`scripts/check_v2_mappings.py -e <workbook>`, built in V.2) against the then-current workbook first** — the workbook is not in version control, carries its date in its filename, and gained five changed headers in the two months to 2026-10-06. Quote the filename beside any figure taken from it. Then, in the plan order recorded in `design/v2/README.md`: schema, lab tables, browse views, quarantine, **LCA tables, summary view** (those two swapped 2026-10-05 — `v2.summary` now reads `v2.lca_validation`, so the LCA tables must exist first), then the backfill. Run `scripts/diff_v2_against_live.py` immediately before promoting: if any migration has landed since the re-review, it will have the same effect on this DDL that `017`–`026` did. Applied with `bin/apply_migrations.py`. **Do not resurrect Sqitch to deploy them.** Port the `verify/` scripts into each migration's own verification — Sqitch ran them automatically and `bin/apply_migrations.py` does not.
+
+**V.4 — Backfill and reconcile, with both schemas readable.** Stage the workbook's attempt keys first (`import_v2.py --stage-attempt-keys`); the backfill refuses to run without them. Run the backfill to idempotency, then reconcile: row counts per table, `EXCEPT` in both directions on the columns that survive unchanged, and a read of the quarantine contents to confirm every rejected row is a known defect rather than a backfill bug. This step needs `public` and `v2` both live and queryable — it is the only way to prove equivalence — so nothing is deprecated yet.
+
+**V.5 — Cut over, and make the old tables fail hard rather than serve stale data.** Adopted 2026-10-05 at the owner's direction, replacing the earlier "keep `public` populated and readable until consumers are confirmed" plan. That plan's weakness is the one Finding 11 already demonstrated: a consumer still reading superseded tables gets plausible, silently-wrong answers, and nobody notices for weeks. The alternative is to break it loudly, at a moment when someone is watching and the fix is trivial.
+
+   **Deprecate the 17 superseded objects individually — not the `public` schema.** `public` keeps roughly 46 objects `v2` never touched (`raw_data`, `ref_genomes`, `draft_genomes`, the `ena_*` family, `mitogenome_data`, `master_species`, the `og_workflow_*` tables). Deprecating the schema takes all of them down too.
+
+   **`REVOKE` does not work here, and the reason is worth recording.** The obvious way to make `public.sample` fail is to revoke read on it. It is a no-op: **everything connects as the `postgres` superuser**, and superusers bypass all permission checks. `REVOKE` only becomes an option once the non-superuser pipeline role from Phase A.3 exists, which is still outstanding. Do not plan around it until it does.
+
+   **Rename instead.** `ALTER TABLE public.sample RENAME TO sample_pre_v2;` — `public.sample` then fails with `relation "public.sample" does not exist`, which is immediate, unambiguous, and names the problem. Unqualified `FROM sample` resolves through the `search_path` to the new table, so a well-behaved consumer never notices. Unlike dropping, it is **instantly reversible**, so this buys hard failure and keeps a rollback window. `COMMENT` each renamed object with its deprecation date and intended drop date.
+
+   Set the `search_path` at the **database** level, not per-role, so a consumer connecting as some role nobody remembered still resolves correctly.
+
+   **The trap — dependent views will not fail hard, they will silently follow.** This is the one thing that would defeat the whole approach, and it needs to be understood before the step is planned. **PostgreSQL views bind to table OIDs at creation time, not to names.** `public.sample_view` holds a dependency on the specific `public.sample` table, so:
+
+   - changing the `search_path` does **not** repoint an existing view — it keeps reading `public.sample`;
+   - renaming `public.sample` to `sample_pre_v2` does **not** break it either — the view follows the OID and keeps serving stale data under its own unchanged name.
+
+   The result without action is precisely the failure being designed out: direct queries fail loudly while the views quietly return pre-cutover data. **Every dependent view must be dropped and recreated at cutover — all eleven, not only the two that reference removed columns.** See the correction to `docs/v2_cutover_dependencies.md` noted in V.1 item 5.
+
+   Order within this step: set the database `search_path` → **`CREATE OR REPLACE`** all dependent views → pin the two functions above → rename the 17 `public` objects to `_pre_v2`.
+
+   **`CREATE OR REPLACE VIEW`, not `DROP` + `CREATE`.** It re-parses the definition and rebinds it to whatever the `search_path` resolves to now — which is the whole point — while preserving grants to the `readonly` role, the dependent views, and the `INSTEAD OF UPDATE` triggers that a `DROP` would silently take with it. There are **two** such write paths, not one: `lca_validation_report_view` and also `embargo_assignment_view`, which the August audit classified as a plain reader. Only `summary`, `goat_species_v1` and `mitogenome_submission_view` change their output columns and so need a true `DROP` + `CREATE`.
+
+   `mitogenome_submission_view` is the one piece of DDL Phase V.1 identified and did not write: it selects `mitogenome_data.og_num`, which `v2` removes, and no `v2` equivalent exists yet. It needs writing before this step runs.
+
+   **Then watch — but with less than was planned.** This step used to rely on V.0's `log_statement` tooling to surface anyone who breaks, by host and `application_name`, within a day. V.0 was dropped, so that is not available and external breakage will arrive as a person reporting it. Keep the window short but **non-zero** anyway: it is still the only period in which a broken consumer is cheaply fixable, and the rename makes the failure loud and self-describing. If appetite for `log_statement = 'all'` returns for even 48 hours around the cutover, this is the moment it is worth most — far more than a fortnight of it beforehand would have been.
+
+   **Run `scripts/audit_v2_dependents.py` on the morning of the cutover**, not from memory. It reports the dependent views, the triggers, and the eleven unpinned functions with their recorded dispositions. Two of those dispositions are `ALTER FUNCTION ... SET search_path` statements that belong in this step: `lca_set_content_hash` and `set_updated_at` must be pinned to `public` so they cannot follow the swap into `v2` tables that no longer have the columns they maintain.
+
+   Worth telling consumers in the same message that breaks them: most fixes are one word. The twelve **browse views** re-expose `og_id` and a derived `latest` on every child table and are inlined by the planner, so `illumina_library` → `v_illumina_library_browse` restores the removed join column at no cost. `summary` keeps all sixteen removed `sample` columns as derived output.
+
+**V.6 — Consolidate into `public` and retire the parallel schema.** After a quiet period with no new breakage. The tables already carry their final names — decision 3 ensured `v2.sample` is schema `v2`, table `sample`, never `v2_sample` — so **nothing is renamed here; objects are moved**:
+
+   ```sql
+   ALTER TABLE v2.sample SET SCHEMA public;
+   ```
+
+   Per object, because `ALTER SCHEMA v2 RENAME TO public` is not available — `public` exists and keeps its other ~46 objects, and two schemas cannot be merged by renaming one. Then drop the `_pre_v2` tables and `DROP SCHEMA v2`.
+
+   **What this does and does not fix.** It resolves *addressing* completely: `FROM sample` and `FROM public.sample` both reach the new table and the `search_path` stops mattering. It does nothing for *contracts* — the removed `og_id` columns, the sixteen removed `sample` columns, `status_overwrite` as `boolean`, the real date and numeric types, and the `sequencing` library registry break a stale query wherever the table sits. Consolidation is the last step of the cutover, not a way to avoid the middle ones; doing it early would only convert loud breakage into late breakage.
+
+**V.7 — Close out.** The 17 objects become migration-covered; re-run `bin/check_drift.py --coverage` and update section 13. Phase H's remaining scope shrinks to what is genuinely beyond `v2`.
 
 ## 10. Revised Priority Backlog
 
@@ -1266,7 +1409,7 @@ All four are done. The follow-ons each item left behind are listed with their pa
 1. **Rotate the `postgres` password** (Finding 14) — the only item here with a live exposure window behind it. The plumbing is done: credentials live in one file (`~/postgresql_details/oceanomics.cfg`) and `OceanOmics-Database/ROTATION.md` is the runbook, so the change itself is one line. The work is the propagation — chiefly the DBeaver users connecting as superuser from external IPs.
 2. ~~**Choose one migration system and write the decision down**~~ **Done 2026-10-05** — `docs/migration_system_decision.md`. Tool only; the `v2` half of open question 8 is unbundled and still open.
 3. **Answer open question 16: claim or discard the three `og_workflow_*` tables.** New top-of-list item. They arrived by direct DDL after the re-baseline, are in neither `sql/` nor the baseline, and keep the daily drift check red by deliberate choice. Cheap to resolve and it restores a working signal.
-4. **Answer open question 7 — which external clients read this database.** It blocks the `v2` cutover and, with it, catch-up coverage for 17 objects: the largest single block of unmanaged schema left. Needs `pg_stat_statements` or `log_statement = 'mod'` for a fortnight.
+4. ~~**Answer open question 7 — which external clients read this database.**~~ **Closed by decision 2026-10-05, not answered.** The fortnight of logging will not be run; consumers hardcoding `public.` are accepted breakage. It no longer blocks the cutover. The in-database half of the question *is* answered, by `scripts/audit_v2_dependents.py`. See Phase V.0 for what the decision trades away.
 5. ~~**Write catch-up migrations for the 49 objects no migration describes**~~ **Phase B's ten done 2026-10-05** (`000`, `033`, `034`). The other 39 are routed to Phases C, E, F and the `v2` cutover — each ships with the change that reworks its object. Run `bin/check_drift.py --coverage` for the current list.
 6. ~~Add an apply/ledger script and a drift check.~~ **Done 2026-10-02; scheduled 2026-10-05** — `bin/drift_cron.sh` in cron, daily at 07:17. One follow-up: the host has no MTA, so surface `~/log/genomes_db_drift.FAILING` from a login banner or monitoring agent.
 7. Add the seven zero-orphan FKs to `sample` — **unblocked**, `030` added the indexes they need.
@@ -1312,24 +1455,85 @@ Still open:
 4. Are QC records conceptually linked to samples, libraries, sequencing runs, lanes, or files?
 5. Does each `sequencing` row represent a run, a library on a run, a lane, or an output file?
 6. What are the required public contracts for GoaT API output?
-7. Which downstream users or scripts query the database directly outside these repos? **This is the single blocker on the `v2` cutover** — `docs/v2_cutover_dependencies.md` names it as the only one, and refers to it as "open question 10" (its numbering, not this document's). Cutover is a `search_path` swap, so the risk is a client with hardcoded `public.` prefixes, or one that silently follows the swap.
+7. Which downstream users or scripts query the database directly outside these repos? **CLOSED BY DECISION 2026-10-05, not answered — and it no longer blocks the `v2` cutover.** The owner's call: a consumer carrying hardcoded `public.` prefixes is accepted breakage, to be fixed when it fails after cutover. The instrumentation procedure below is left in place because it is the right procedure if the question is ever reopened, and because Phase V.5 may want 48 hours of it *around* the cutover, where it is worth far more than a fortnight beforehand.
+
+   **Half of this question was answered for free, and that is the lesson worth keeping.** The procedure below finds *external* clients. Everything *inside* the database — views, triggers, functions — was in the catalog the whole time and needed no waiting at all. `scripts/audit_v2_dependents.py` (written for Phase V.1) reports it in about a second: ten dependent views, seven triggers and eleven unpinned functions, including six `build_*_samplesheet*` functions feeding Nextflow that nobody had looked at and that follow the `search_path` silently. Framing the whole question as "needs a fortnight of logging" delayed the cheap half behind the expensive half for two months. When a question looks blocked on instrumentation, check what the catalog already knows first.
+
+   Historical framing, retained: `docs/v2_cutover_dependencies.md` named it the only blocker and referred to it as "open question 10" (its numbering, not this document's). Cutover is a `search_path` swap, so the risk is a client with hardcoded `public.` prefixes, or one that silently follows the swap.
 
    **Partial answer, 2026-10-05.** `pg_stat_activity` shows live sessions from `130.95.40.88` (UWA) and `120.23.172.134`, across four DBeaver versions, **all connecting as the `postgres` superuser**. So there are at least two human consumers outside both repos, using a GUI client where saved queries may well carry explicit `public.` prefixes. That is evidence, not an answer: it catches whoever happened to be connected, not scheduled jobs, notebooks or dashboards.
 
-   To close it properly, run `pg_stat_statements` or `log_statement = 'mod'` for a fortnight and inventory the real clients. That is a live `postgresql.conf` change and has deliberately not been made.
+   **How to close it — concrete procedure, written 2026-10-05.** Earlier revisions said "run `pg_stat_statements` or `log_statement = 'mod'` for a fortnight". That is too vague to act on, and **`log_statement = 'mod'` is the wrong setting for this question**: it logs DDL and data-modifying statements only. The consumers that break at cutover are overwhelmingly *readers* — a DBeaver saved query doing `SELECT ... FROM public.sample` is invisible to `'mod'`. The corrected procedure is below.
+
+   The question has two halves, and no single setting answers both:
+
+   | Half | What answers it | What it cannot tell you |
+   |---|---|---|
+   | *What SQL is being run* — does any of it carry a hardcoded `public.` prefix? | `pg_stat_statements`, or the statement log | `pg_stat_statements` normalises literals but **preserves table names**, so the `public.` prefix is visible. It records `userid`, which is useless here because everything connects as `postgres`. |
+   | *Who is running it* — which host, which tool, which human? | the statement log with an attributing `log_line_prefix` | the log alone is high-volume and needs rotation managing |
+
+   **Recommended: the statement log, because it needs no restart.** `pg_stat_statements` must be added to `shared_preload_libraries`, which requires a **server restart**; that is the single reason it is not the primary recommendation. If a restart is scheduled for other reasons, add it then — it is cheap to keep running permanently and is worth having regardless.
+
+   Step 1 — set these in `postgresql.conf`, then `SELECT pg_reload_conf();`. All four are reload-only; **no restart, and reverting is another reload**:
+
+   ```
+   log_statement = 'all'
+   log_line_prefix = '%m [%p] user=%u db=%d host=%h app=%a '
+   log_rotation_age = '1d'
+   log_rotation_size = '512MB'
+   log_truncate_on_rotation = on
+   ```
+
+   `%h` is the client address, `%a` the `application_name` — which DBeaver, psql, psycopg2 and R's `DBI` all set, and which is the single most useful field for naming a consumer. Without a `log_line_prefix` carrying `%h` and `%a` the log tells you *what* ran but not *who*, which is half an answer.
+
+   Step 2 — **measure the volume after 24 hours, before committing to a fortnight.** `du -sh` the log directory. This is the only real cost of the exercise and it is unknown until measured; the rotation settings above cap it, but confirm the cap is survivable on this host before leaving it running.
+
+   Step 3 — after a fortnight, inventory. The distinct-consumer list:
+
+   ```sh
+   grep -ho 'host=[^ ]* app=[^ ]*' $PGDATA/log/*.log | sort | uniq -c | sort -rn
+   ```
+
+   And the actual blocker — statements carrying an explicit schema prefix:
+
+   ```sh
+   grep -iE 'public\.[a-z_]+' $PGDATA/log/*.log | grep -oiE 'host=[^ ]+ app=[^ ]+|public\.[a-z_]+' | sort | uniq -c
+   ```
+
+   **A fortnight, not a week**, because the risk is the consumer nobody remembers: a monthly report, a quarterly export, a notebook run when someone needs a figure. Two weeks catches weekly cadences and most ad-hoc use; it will still miss anything monthly, which is a residual risk to state rather than pretend away.
+
+   Step 4 — classify every distinct `(host, app)` pair into one of three buckets, which is what the cutover plan actually needs:
+
+   | Bucket | Meaning | Action at cutover |
+   |---|---|---|
+   | **Follows `search_path`** | unqualified table names only | Nothing. It moves to `v2` automatically — convenient, and dangerous for writers (see `queries.py` in `docs/v2_cutover_dependencies.md`). |
+   | **Hardcodes `public.`** | explicit prefix | Must be found and updated, or it silently keeps reading the old tables after cutover. This is the failure mode the whole exercise exists to find. |
+   | **Writes** | `INSERT` / `UPDATE` / `DELETE` | Must be updated *before* the swap, not after. |
+
+   Step 5 — turn it back off (`log_statement = 'none'`, reload) and record the inventory in `docs/v2_cutover_dependencies.md` under its "Consumers outside this repo" section, which is where it belongs and which currently says "still open".
+
+   **Two caveats worth stating up front.** The log captures only what runs during the window — it is evidence of presence, never of absence. And `log_statement = 'all'` writes query text to disk, so if any query embeds sensitive literals the log inherits that sensitivity; the log directory should be mode `700` for the duration, consistent with Finding 14.
 
 New:
 
 8. ~~Which migration system is the intended one — `sql/` + `schema_migrations`, or Sqitch?~~ **Answered 2026-10-05: `sql/` + `schema_migrations`.** Written down in `docs/migration_system_decision.md`, with the comparison that settled it. Sqitch is retired as a tool and its project files are deleted.
 
-   **The second half of this question remains open, and is now tracked on its own: is the `v2` redesign still the plan, or superseded?** It was deliberately unbundled from the tool decision so the `v2` answer is not inferred from it. The cost is unchanged and measurable: **17 of the 39 still-uncovered objects are waiting on it** — the 12 lab tables, the four live LCA tables, and `goat_species_v1`. Writing `public` catch-up migrations for them duplicates DDL that `docs/v2_scaffold_design_review.md` records as already built, deployed and reverted against a throwaway cluster, constraint-tested with rejecting data, and exercised by `import_v2.py` end to end on the real workbook (20,881 rows loaded, 1,004 quarantined). Deciding against `v2` would mean writing those 17 by hand; deciding for it makes them moot. Either way the 17 stay stuck until someone answers, and they are the single largest block of unmanaged schema left.
+   ~~**The second half of this question remains open: is the `v2` redesign still the plan, or superseded?**~~ **Direction settled 2026-10-05: `v2` is the intended foundation and the project is going ahead with it.** The decision is the database owner's, recorded here so it is not re-litigated: `v2` is the step that makes the schema self-describing enough for other people to work with — real types, real foreign keys, constrained vocabularies, and 79 `COMMENT ON` statements against a live database where Finding 9 recorded 0 of 42 objects documented. Further structural change is wanted afterwards (Phase H, and the deferred `tissue_type_code` / `tissue_index` work in `lab_key_strategy.md` §6.2, which was parked precisely because it needs the ID grammar enforced first — `v2` is what enforces it). Those come *after* this foundation, not instead of it.
 
-   The DDL now lives in `design/v2/`, non-executable, with `design/v2/README.md` recording what approval would consume and in what order. **`v2` is blocked on question 7**, not on the tool choice.
+   **Settling the direction does not unblock the work, and the distinction matters.** Two gates remain, and both are execution gates rather than open questions:
 
-   Two gaps in the `v2` scaffold, found 2026-10-05 and worth knowing before deciding:
+   - **Gate 1 — ~~question 7 is the hard blocker.~~ Dropped 2026-10-05.** The instrumentation will not be run and consumers hardcoding `public.` are accepted breakage. It is no longer on the critical path. See Phase V.0 for what that trades away, and note that the *in-database* half of the question — which views, triggers and functions follow the swap — is answered for free by `scripts/audit_v2_dependents.py`, which needed no fortnight.
+   - **Gate 2 — ~~the scaffold needs a fresh review before it is deployed.~~ Done 2026-10-05.** Nine defects found, six of them unknown in August, three of which would have failed outright rather than quietly. The gate did its job; see Phase V.1 and `docs/v2_scaffold_design_review.md` revision 2.
 
-   - **The five `v2` LCA tables have DDL but no backfill.** `scripts/backfill_v2.sql` covers the twelve lab tables only. A cutover today would land an empty `v2.lca`, `v2.lca_raw_results`, `v2.lca_validation`, `v2.blast_filtered_lca` and `v2.mitogenome_data`.
-   - **`v2.summary` reads `public.lca_validation`** (`deploy/create_v2_summary_view.sql`, lines ~128–138) even though `v2.lca_validation` exists. That looks like an oversight rather than a deliberate out-of-scope qualification — `master_species` and `ref_genomes` are schema-qualified on purpose and documented as such at the top of the same file; `lca_validation` is not.
+   The cost of the parked state is unchanged and measurable: **17 of the 39 still-uncovered objects are waiting on it** — the 12 lab tables, the four live LCA tables, and `goat_species_v1`. Writing `public` catch-up migrations for them duplicates DDL that `docs/v2_scaffold_design_review.md` records as already built, deployed and reverted against a throwaway cluster, constraint-tested with rejecting data, and exercised by `import_v2.py` end to end on the real workbook (20,881 rows loaded, 1,004 quarantined). With the direction now settled, those 17 are a **waiting cost rather than an open argument** — they become moot at cutover and nobody should write them by hand in the meantime.
+
+   The DDL lives in `design/v2/`, non-executable, with `design/v2/README.md` recording what approval would consume and in what order.
+
+   Three known defects in the `v2` scaffold, all of which Phase V.1 must resolve:
+
+   - **Decision 1's scope boundary is out of date, and this is the significant one.** `design/v2/deploy/create_v2_lca_tables.sql` lines 5 and 31 state that `public.lca_new` and its siblings are separate concurrent work and are untouched. That was true in August. The LCA rebuild has since landed and **those tables are now the live `lca`, `lca_raw_results`, `lca_validation` and `blast_filtered_lca`** — the same four counted among the 17. So the `v2` LCA DDL was written against an assumption about table shape that no longer describes what is live, and must be re-diffed against the live catalog before it is trusted. This is independent of the cutover decision and needed doing either way.
+   - **The five `v2` LCA tables have DDL but no backfill.** `design/v2/backfill_v2.sql` covers the twelve lab tables only. A cutover today would land an empty `v2.lca`, `v2.lca_raw_results`, `v2.lca_validation`, `v2.blast_filtered_lca` and `v2.mitogenome_data`.
+   - **`v2.summary` reads `public.lca_validation`** (`design/v2/deploy/create_v2_summary_view.sql`, lines 128–138) even though `v2.lca_validation` exists. That looks like an oversight rather than a deliberate out-of-scope qualification — `master_species` and `ref_genomes` are schema-qualified on purpose and documented as such at the top of the same file; `lca_validation` is not.
 10. ~~Were the three snapshot-reading views intended to read snapshots, or is that a leftover from the August rebuild?~~ **Answered:** a leftover. Migration `027` repointed them (Finding 11).
 11. ~~Should the `SS260818` tables be archived, dropped, or retained as a rollback point?~~ **Answered 2026-10-05: archived, then dropped.** Four of the five plus `lca_old` are in `archive/snapshots_SS260818/` as verified gzipped CSV; `blast_filtered_lca_SS260818` was excluded at 4.7 MB and must be exported before its table goes. Removal is unblocked — see Phase F.
 12. Is `ena_sequence_accession` expected to stay empty, and why is `ena_sample_accession` missing on 172 of 539 submissions?
@@ -1377,7 +1581,7 @@ Unchanged, with four additions. Status as of 2026-10-05 — three met, five part
 
 | Criterion | Status |
 |---|---|
-| The schema can be recreated from source-controlled migrations | **No**, and now measured rather than estimated. 22 of 64 objects have a migration (was 12 of 61, and 12 of 70 before that). Of the other 42: 8 are being deleted (Phase F), 17 wait on the `v2` decision, 12 are folded into Phases C and E, 2 are a colleague's, and 3 are the unclaimed `og_workflow_*` tables. A rebuild attempt on a scratch database stops at `003`, on `relation "mitogenome_data" does not exist`. |
+| The schema can be recreated from source-controlled migrations | **No**, and now measured rather than estimated. 22 of 64 objects have a migration (was 12 of 61, and 12 of 70 before that). Of the other 42: 8 are being deleted (Phase F), 17 are closed by the Phase V cutover, 12 are folded into Phases C and E, 2 are a colleague's, and 3 are the unclaimed `og_workflow_*` tables. A rebuild attempt on a scratch database stops at `003`, on `relation "mitogenome_data" does not exist`. |
 | Every active table has an owner and documented purpose | No. |
 | Every active column is documented or intentionally self-evident | No. |
 | There is one canonical species source | No. |
@@ -1510,7 +1714,9 @@ Capture the eight `data_package_*` tables in a migration and the data dictionary
 | 2.6 | 2026-10-02 | Closed the Finding 10 mechanism and the Finding 14 plumbing. Added `bin/apply_migrations.py` (applies and ledgers in one step; aborts on hash drift; auto-detects `CONCURRENTLY`; guards the `005`/`019` replay hazard) and `bin/check_drift.py` (object inventory vs `schema/object_inventory.tsv`, plus a source-coverage report). Re-baselined `schema/`, three months stale. Separately, in `OceanOmics-Database`: the password was removed from the two live scripts into `~/postgresql_details/oceanomics.cfg` via a new `db_config.py`, `SS/` was documented as the superseded directory, and `ROTATION.md` was written. **The password value is unchanged** — this is plumbing, so rotation is now a one-line edit. Sections 9, 10 and 13 updated to reflect progress: Phase A complete, Phase B three of five, and the success criteria marked three met / four partly met. |
 | 2.7 | 2026-10-05 | Removed nine objects rather than writing migrations to describe them. `031` dropped the abandoned `data_package_*` subsystem and `project_delivery_contact` (eight tables, 124 stale rows, no inbound FKs, no code references). `032` dropped `lca_old` — investigated and found to hold 468 keys absent from live `lca` plus three columns the live schema lacks, but all of it superseded by a full LCA re-run, so archived and removed. Both reverts are structure-only and were proven by a drop/revert round trip on a scratch database (211 structural facts identical). Four snapshot tables plus `lca_old` archived as gzipped CSV in `archive/snapshots_SS260818/` (2.2 MB, verified to reload `EXCEPT`-identical); `blast_filtered_lca_SS260818` deliberately excluded at 4.7 MB. Live objects 70 → 61; catch-up worklist 58 → 49. Phase F item 1 closed and the snapshot removal unblocked. |
 | 2.8 | 2026-10-05 | Documentation only — no schema change. Broke Phase B.3's "49 uncovered objects" into a routing table and pushed the work into the phases that already rework each object, on the principle that a catch-up migration belongs as the first step of the change that alters the object, not as a separate job beforehand. 8 go to Phase F (deleted, no migration), 17 to the `v2` cutover, 10 to Phase C.0, 2 to Phase E.0, 10 stay in Phase B. Corrected an earlier undercount: `v2` covers **17**, not 12 — it includes the four live LCA tables and `goat_species_v1`. Recorded two `v2` gaps under open question 8 (no backfill for the five `v2` LCA tables; `v2.summary` reads `public.lca_validation` despite `v2.lca_validation` existing), and attached the DBeaver evidence from `pg_stat_activity` to question 7, the sole `v2` cutover blocker. **Scope reduction:** `master_species` and `master_species_genome` are a colleague's separate work — struck from Phase E.1, Finding 2's recommendation and the backlog so the intent is not re-derived from any of them. |
-
 | 2.9 | 2026-10-05 | **Phase B closed.** Three pieces of work. (1) The migration-system decision, written down in `docs/migration_system_decision.md`: `sql/` + `schema_migrations` is canonical, Sqitch is retired as a tool, `sqitch.conf` and `sqitch.plan` deleted, the six `create_v2_*` changes relocated to `design/v2/` as non-executable reference DDL and the two superseded ones to `migrations/legacy/`. `migrations/README.md`, `sql/README.md` and `schema/README.md` rewritten — the first had advertised "Adopted — Sqitch" for two months while the second said the question was open. The working rule added to `docs/database_change_checklist.md`, closing Workshop 1. The decision covers the **tool only**; the `v2` go/no-go was deliberately unbundled and remains open on question 7. (2) Phase B's ten catch-up objects captured in three migrations: `000` (the ledger itself, which cannot ledger its own creation), `033` (the eight cutover-neutral views, with definitions from `pg_get_viewdef` and order from `pg_rewrite`), `034` (`design_description`). Verified a strict no-op: view definitions, column lists, row counts, the function and the trigger are all byte-identical before and after. Reverts for `033` and `034` are deliberate no-ops — a catch-up migration created nothing, so dropping what it describes is data loss, not rollback. Two things the work uncovered: `lca_validation_report_view` is a **write path** via an `INSTEAD OF UPDATE` trigger, not a read-only report, so `033` captures the trigger and function too; and `lca_results_view` reads `lca_pivot_view`, not the reverse. Coverage 12 of 61 → **22 of 64**. (3) The drift check scheduled — `bin/drift_cron.sh` daily at 07:17 in cron, running `check_drift.py` and `apply_migrations.py --verify`, silent when healthy. The host has no MTA, so it writes `~/log/genomes_db_drift.FAILING` instead of relying on cron mail. Findings 1 and 10 updated with resolution notes; Finding 1 downgraded High → Medium; Finding 10 resolved. **Three new tables found by the newly scheduled check** — `og_workflow_recommendation`, `og_workflow_assignment_log`, `og_workflow_notification` — created by direct DDL after the 2026-10-02 re-baseline, empty, well modelled, referenced by nothing in either repository. Deliberately **not** accepted into the baseline, so the daily check fails until someone claims them (open question 16). `design_description` flagged as open question 15. A rebuild attempt on a scratch database put a number on the remaining gap: it stops at `003`, on `relation "mitogenome_data" does not exist`. |
+| 3.0 | 2026-10-05 | Documentation only — no schema change. **Open question 8's second half is answered: `v2` is the intended foundation and the project is going ahead with it**, recorded as the database owner's decision so it is not re-litigated. Settling the direction deliberately does *not* unblock the work, and the revision says so in both places: question 7 remains the hard blocker, and the owner added a second gate — **the August scaffold must be re-reviewed before any of its DDL is promoted to a migration**, having sat untouched for two months while the live database moved. Added **Phase V, the `v2` cutover**, as a six-step phase (V.0 instrumentation, V.1 re-review, V.2 importer first, V.3 promote to migrations, V.4 backfill and swap, V.5 close out); V.0 and V.1 are independent and should run in parallel. Rewrote open question 7 from a one-line suggestion into a five-step procedure with exact settings, and **corrected it**: it previously offered `log_statement = 'mod'`, which logs only writes and would therefore miss the read-only consumers that are the actual cutover risk — the recommendation is now `log_statement = 'all'` with an attributing `log_line_prefix`, chosen over `pg_stat_statements` because it needs a reload rather than a restart. Recorded a third scaffold defect alongside the two known ones: **`create_v2_lca_tables.sql` declares `lca_new` and siblings out of scope as concurrent work, which is no longer true** — that rebuild landed and those are now the live LCA tables, four of the 17, so the `v2` LCA DDL describes a shape that may not match live and heads the V.1 worklist. Fixed three stale references introduced by the Sqitch retirement: the `v2`-covered bullet's file paths and its incorrect claim that `goat_species_v1` is in the lab/LCA DDL (it is in `create_v2_summary_view.sql`), and `scripts/backfill_v2.sql` → `design/v2/backfill_v2.sql`. Phase H reduced — most of it is absorbed by Phase V, since `v2` already removes the derived status columns (F5) and builds the library registry (F6). |
+| 3.1 | 2026-10-05 | Documentation only — no schema change. Reworked the back half of Phase V at the owner's direction, replacing "keep `public` populated and readable until consumers are confirmed" with **deprecate-and-fail-hard**: a consumer still reading superseded tables gets plausible wrong answers and nobody notices, which is Finding 11 by construction, so break it loudly while someone is watching. V.4 is now backfill and reconcile with both schemas readable; **V.5** cuts over and renames the 17 superseded `public` objects to `_pre_v2`; **V.6** consolidates the `v2` objects into `public` and retires the schema; V.7 closes out. Three mechanics recorded because each is easy to get wrong. (1) **The `public` schema itself cannot be deprecated** — it keeps ~46 objects `v2` never touched; only the 17 can be. (2) **`REVOKE` is a no-op here** — everything connects as the `postgres` superuser and superusers bypass permission checks, so it is unavailable until the non-superuser role from Phase A.3 exists; renaming is what produces a hard failure, and it is reversible, so it keeps a rollback window that dropping would not. (3) **Views bind to table OIDs, not names**, so an existing view ignores a `search_path` change *and* silently follows a rename — left alone, all eleven dependent views would keep serving pre-cutover data under unchanged names while direct queries moved to `v2`. All eleven must be dropped and recreated, not just the two referencing removed columns. That last point is a **correction to `docs/v2_cutover_dependencies.md`**, whose summary claimed a swap was "sufficient and no DDL is needed" for the nine cutover-neutral views while its own body said "recreated"; both that line and its `log_statement = 'mod'` suggestion are now corrected in place. Also recorded in V.6: consolidation fixes *addressing* and not *contracts* — removed columns and retyped columns break a stale query wherever the table sits — and the twelve browse views plus `summary` are the one-word fix for most broken consumers. |
+| 3.2 | 2026-10-06 | **Phase V.2 done**, validated on a local throwaway cluster; the full-data backfill run is owed before V.4. Owner decisions: on attempt-key ties the backfill prefers the workbook's row, and the workbook wins at import; a database-raised violation is quarantined per row instead of aborting the run. New: `scripts/check_v2_mappings.py`; `import_v2.py --stage-attempt-keys` and `v2.workbook_attempt_keys`; the `displaced` and `check` quarantine types and `v2.v_quarantine_displaced`; deferrable attempt keys; five plate columns. Mapping fixes: `library_plate_well`, `synthesis_conc`, `library_size` and HiC proximity-ligation concentration on the library sheet. **Withdrew §0.8's proximity-ligation-yield finding**: the column is a formula, and its 306 "values" are 0.0. |
 
 The previous revision is preserved at `/tmp/database_review.prev.md` at the time of writing; the authoritative history is in git.

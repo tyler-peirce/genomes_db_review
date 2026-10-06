@@ -21,6 +21,16 @@ BEGIN
     RAISE EXCEPTION 'Missing view v2.v_quarantine_open';
   END IF;
 
+  IF NOT EXISTS (SELECT 1 FROM information_schema.views
+                 WHERE table_schema = 'v2' AND table_name = 'v_quarantine_displaced') THEN
+    RAISE EXCEPTION 'Missing view v2.v_quarantine_displaced';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables
+                 WHERE table_schema = 'v2' AND table_name = 'workbook_attempt_keys') THEN
+    RAISE EXCEPTION 'Missing table v2.workbook_attempt_keys';
+  END IF;
+
   IF NOT EXISTS (SELECT 1 FROM pg_proc p
                  JOIN pg_namespace n2 ON n2.oid = p.pronamespace
                  WHERE n2.nspname = 'v2' AND p.proname = 'quarantine') THEN
@@ -68,6 +78,18 @@ BEGIN
   EXCEPTION WHEN check_violation THEN
     NULL;
   END;
+
+  -- A displaced row is a record, not a blocker: listed by v_quarantine_displaced and kept
+  -- out of v_quarantine_open.
+  PERFORM v2.quarantine('dna_extraction', 'OG2111E_D', 'displaced',
+                        'replaced by workbook row OG2111G_D for (OG2111G, 1)',
+                        '{"dna_id":"OG2111E_D"}'::jsonb);
+  IF EXISTS (SELECT 1 FROM v2.v_quarantine_open WHERE violation_type = 'displaced') THEN
+    RAISE EXCEPTION 'v_quarantine_open lists displaced rows';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM v2.v_quarantine_displaced WHERE displaced_key = 'OG2111E_D') THEN
+    RAISE EXCEPTION 'v_quarantine_displaced does not list a displaced row';
+  END IF;
 
   -- An unknown violation type must be rejected.
   BEGIN

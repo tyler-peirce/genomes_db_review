@@ -30,7 +30,8 @@
 --   F8  `text` throughout; no `character varying(n)`.
 --   F12 `Manual/ Automated Method` is a shared lookup across the two library tables that use it.
 --   F13 Proximity ligation lives on `hic_lysate`; `hic_library.prox_ligation_conc` is retained
---       as a legacy read-only column.
+--       as a legacy column, still written by the importer while the lab records the value on
+--       4.HiCLibrary (owner decision 2026-10-06).
 --   §4.1 Fourteen columns of hand-entered lab data that the nightly import has been silently
 --       dropping are added. They are marked `-- gap` below.
 --
@@ -225,6 +226,7 @@ CREATE TABLE v2.dna_extraction (
     nano_drop_conc      real,
     ratio_260_280       real,
     ratio_260_230       real,
+    ratioqubit_nanodrop real,
     total_yield         real,
     gdna_femtol_id      text,
     av_size             real,
@@ -237,16 +239,33 @@ CREATE TABLE v2.dna_extraction (
     dna_box             text,
     dna_notes           text,
     status_overwrite    boolean,
+    extract_plate       text,                                                  -- gap
+    extract_plate_well  text,                                                  -- gap
 
     CONSTRAINT dna_extraction_pkey PRIMARY KEY (dna_id),
     CONSTRAINT dna_extraction_tissue_id_fkey FOREIGN KEY (tissue_id) REFERENCES v2.tissue(tissue_id),
-    CONSTRAINT dna_extraction_attempt_key UNIQUE (tissue_id, ext_num)
+    CONSTRAINT dna_extraction_attempt_key UNIQUE (tissue_id, ext_num) DEFERRABLE INITIALLY IMMEDIATE
 );
 
 -- DROPPED: og_id and og_num (F1, F2). og_num in particular was computed by stripping every
 --   non-digit from tissue_id, so OG123G2 yielded 1232 rather than 123.
--- DROPPED: ratioqubit_nanodrop (F4) — dead on both ends. The mapped spreadsheet header does
---   not exist AND queries.py's dna_extraction insert never referenced the field.
+-- KEPT: ratioqubit_nanodrop. This was DROPPED in the August revision as "dead on both ends --
+--   the mapped spreadsheet header does not exist AND queries.py never inserted the field".
+--   Re-checked against live 2026-10-05 (Phase V.1 item 4): both halves of that are still true
+--   about the import PATH, and neither is true about the DATA. The column holds 987 populated
+--   rows of 2,636, 277 distinct values from -0.2 to 6.96 -- real measurements that arrived by
+--   some route other than the nightly import, most likely hand entry through DBeaver.
+--
+--   The August analysis asked "does anything write this?" and stopped there. The question that
+--   decides whether a column can be dropped is "is there anything in it?", and there is. A
+--   cutover on the August reading would have destroyed 987 hand-entered measurements that
+--   exist in no other table and no backup -- which is the F4a failure mode this whole review
+--   exists to stop, arrived at from the opposite direction.
+--
+--   Kept so the backfill carries the values. Nothing maintains it, so it is a candidate for
+--   deletion later; that is a decision for the lab with the 987 rows in front of them, not a
+--   side effect of a stale mapping audit. name_convert_v2.py still lists it under REMOVED,
+--   which is correct for the mapping and should stay.
 
 COMMENT ON TABLE  v2.dna_extraction IS 'One row per DNA extraction attempt from a tissue. Source: the 3.DNAExtractions sheet.';
 COMMENT ON COLUMN v2.dna_extraction.status_overwrite IS
@@ -259,7 +278,16 @@ COMMENT ON COLUMN v2.dna_extraction.status_overwrite IS
 COMMENT ON CONSTRAINT dna_extraction_attempt_key ON v2.dna_extraction IS
     'The spreadsheet''s own "Latest" formula, MAX(#) per parent, is only correct if this holds - '
     'a tie marks two rows as latest. It fails on 5 of 2,223 rows here (and on 53 of 321 on '
-    '4.RNAIllumina, the worst case); those rows quarantine for the lab to renumber.';
+    '4.RNAIllumina, the worst case); those rows quarantine for the lab to renumber. '
+    'DEFERRABLE INITIALLY IMMEDIATE, as are all nine attempt keys: every statement still '
+    'checks it, but import_v2.py defers it within one table step so that a renumber or a swap '
+    'of two attempt numbers -- legitimate edits -- can land in a single upsert.';
+COMMENT ON COLUMN v2.dna_extraction.extract_plate IS
+    'Spreadsheet header "Extract Plate name Or tube", added by the lab after 2026-08. Populated '
+    'on 274 rows of OceanGenomes_Database_261006.xlsx.';
+COMMENT ON COLUMN v2.dna_extraction.extract_plate_well IS
+    'Spreadsheet header "Extract Plate Well", added by the lab after 2026-08. Populated on 266 '
+    'rows of OceanGenomes_Database_261006.xlsx.';
 
 -- ---------------------------------------------------------------------------------------
 -- rna_extraction  (spreadsheet: 3.RNAExtractions)
@@ -296,7 +324,7 @@ CREATE TABLE v2.rna_extraction (
 
     CONSTRAINT rna_extraction_pkey PRIMARY KEY (rna_id),
     CONSTRAINT rna_extraction_tissue_id_fkey FOREIGN KEY (tissue_id) REFERENCES v2.tissue(tissue_id),
-    CONSTRAINT rna_extraction_attempt_key UNIQUE (tissue_id, ext_num)
+    CONSTRAINT rna_extraction_attempt_key UNIQUE (tissue_id, ext_num) DEFERRABLE INITIALLY IMMEDIATE
 );
 
 -- DROPPED: og_id (F1).
@@ -323,13 +351,27 @@ CREATE TABLE v2.hic_lysate (
     lysate_cde           real,
     prox_ligation_date   date,                                                  -- gap
     prox_ligation_conc   real,                                                  -- gap
+    -- GENERATED, and pointed the wrong way. Flagged 2026-10-06 (Phase V.1, workbook
+    -- re-check); left as-is because the fix changes which column the importer reads, which is
+    -- a name_convert_v2.py change, not a DDL one.
+    --
+    -- The formula is exactly right: on all 77 rows of 4.HiCLysate where both values are
+    -- present, yield / conc is 40.000 at min, median and max. But the workbook populates
+    -- "Proximity Ligation yield (ng)" on 383 of 386 rows and
+    -- "Proximity Ligation Conc. (ng/uL)" on only 77, and name_convert_v2.py maps the sparse
+    -- one. So 306 rows have a recorded yield and will generate NULL here.
+    --
+    -- Since the relationship is exact it inverts: conc = yield / 40 recovers all 306. Either
+    -- map the yield column and generate conc from it, or have the importer fall back to
+    -- yield / 40 when conc is blank. F13 established the relationship and did not check which
+    -- side of it the lab actually fills in.
     prox_ligation_yield  real GENERATED ALWAYS AS (prox_ligation_conc * 40) STORED,
     lysate_comments      text,
     status_overwrite     boolean,
 
     CONSTRAINT hic_lysate_pkey PRIMARY KEY (lysate_id),
     CONSTRAINT hic_lysate_tissue_id_fkey FOREIGN KEY (tissue_id) REFERENCES v2.tissue(tissue_id),
-    CONSTRAINT hic_lysate_attempt_key UNIQUE (tissue_id, lysate_num)
+    CONSTRAINT hic_lysate_attempt_key UNIQUE (tissue_id, lysate_num) DEFERRABLE INITIALLY IMMEDIATE
 );
 
 COMMENT ON TABLE  v2.hic_lysate IS 'One row per Hi-C lysate prepared from a tissue. Source: the 4.HiCLysate sheet.';
@@ -413,7 +455,7 @@ CREATE TABLE v2.illumina_library (
         REFERENCES v2.library(library_tube_id, dna_id),
     CONSTRAINT illumina_library_prep_automation_fkey FOREIGN KEY (prep_automation)
         REFERENCES v2.prep_automation(prep_automation),
-    CONSTRAINT illumina_library_attempt_key UNIQUE (dna_id, ilmn_num)
+    CONSTRAINT illumina_library_attempt_key UNIQUE (dna_id, ilmn_num) DEFERRABLE INITIALLY IMMEDIATE
 );
 
 -- DROPPED: og_id (F1). library_qubit_conc is real here; it was text on the live table and
@@ -421,7 +463,7 @@ CREATE TABLE v2.illumina_library (
 
 COMMENT ON TABLE  v2.illumina_library IS 'One row per Illumina DNA library. Source: the 4.Illumina sheet.';
 COMMENT ON COLUMN v2.illumina_library.prep_automation IS 'Spreadsheet header "Manual/ Automated Method", populated on 1,607 rows and dropped by the importer until now. 941 of them read "Auomated Biomek i7" and normalise to "Automated Biomek i7" at backfill.';
-COMMENT ON COLUMN v2.illumina_library.library_plate_well IS 'Spreadsheet header "Library Plate Well". Populated on 1,523 rows and dropped by the importer until now.';
+COMMENT ON COLUMN v2.illumina_library.library_plate_well IS 'Spreadsheet header "Final Library Plate Well", renamed by the lab from "Library Plate Well" between the 260804 and 261006 workbooks; name_convert_v2.py maps both. Populated on 1,523 rows in August and 1,078 in OceanGenomes_Database_261006.xlsx, and dropped by the live importer.';
 COMMENT ON COLUMN v2.illumina_library.index_plate IS 'Spreadsheet header "Index Plate". Populated on 1,297 rows and dropped by the importer until now.';
 
 -- ---------------------------------------------------------------------------------------
@@ -457,7 +499,7 @@ CREATE TABLE v2.pacbio_library (
         REFERENCES v2.library(library_tube_id, dna_id),
     CONSTRAINT pacbio_library_prep_automation_fkey FOREIGN KEY (prep_automation)
         REFERENCES v2.prep_automation(prep_automation),
-    CONSTRAINT pacbio_library_attempt_key UNIQUE (dna_id, pacb_num)
+    CONSTRAINT pacbio_library_attempt_key UNIQUE (dna_id, pacb_num) DEFERRABLE INITIALLY IMMEDIATE
 );
 
 COMMENT ON TABLE  v2.pacbio_library IS 'One row per PacBio HiFi library. Source: the 4.PacBio sheet.';
@@ -487,7 +529,7 @@ CREATE TABLE v2.ont_library (
     CONSTRAINT ont_library_dna_id_fkey FOREIGN KEY (dna_id) REFERENCES v2.dna_extraction(dna_id),
     CONSTRAINT ont_library_registry_fkey FOREIGN KEY (ont_library_tube_id, dna_id)
         REFERENCES v2.library(library_tube_id, dna_id),
-    CONSTRAINT ont_library_attempt_key UNIQUE (dna_id, ont_num)
+    CONSTRAINT ont_library_attempt_key UNIQUE (dna_id, ont_num) DEFERRABLE INITIALLY IMMEDIATE
 );
 
 COMMENT ON TABLE  v2.ont_library IS 'One row per Oxford Nanopore library. Source: the 4.ONT sheet.';
@@ -524,17 +566,18 @@ CREATE TABLE v2.hic_library (
     CONSTRAINT hic_library_lysate_id_fkey FOREIGN KEY (lysate_id) REFERENCES v2.hic_lysate(lysate_id),
     CONSTRAINT hic_library_registry_fkey FOREIGN KEY (hic_library_tube_id, lysate_id)
         REFERENCES v2.library(library_tube_id, lysate_id),
-    CONSTRAINT hic_library_attempt_key UNIQUE (lysate_id, hic_num)
+    CONSTRAINT hic_library_attempt_key UNIQUE (lysate_id, hic_num) DEFERRABLE INITIALLY IMMEDIATE
 );
 
 COMMENT ON TABLE  v2.hic_library IS 'One row per Hi-C library. Source: the 4.HiCLibrary sheet.';
 COMMENT ON COLUMN v2.hic_library.prox_ligation_conc IS
-    'LEGACY, READ-ONLY. Retained to hold the 226 historical values that have no equivalent on '
-    'their lysate row; the importer must not write here. The live home for this measurement is '
-    'hic_lysate.prox_ligation_conc (decision 11, F13). These 226 cannot be migrated up because '
-    '10 of their lysates carry conflicting values across their libraries and no rule picks a '
-    'winner. Drop this column once the lab has resolved those or agreed the history is '
-    'disposable.';
+    'LEGACY. The intended home for this measurement is hic_lysate.prox_ligation_conc (decision '
+    '11, F13), but the lab still records it on 4.HiCLibrary - 264 numeric values in '
+    'OceanGenomes_Database_261006.xlsx against 77 on 4.HiCLysate - so import_v2.py writes it '
+    'here by owner decision 2026-10-06 rather than drop every new value. The 226 backfilled '
+    'values cannot be migrated up because 10 of their lysates carry conflicting values across '
+    'their libraries and no rule picks a winner. Retire this column once the lab records the '
+    'measurement on 4.HiCLysate.';
 
 -- ---------------------------------------------------------------------------------------
 -- rna_library_ilmn  (spreadsheet: 4.RNAIllumina)
@@ -557,12 +600,15 @@ CREATE TABLE v2.rna_library_ilmn (
     index_inx           text,
     comments            text,
     status_overwrite    boolean,
+    final_plate_name    text,                                                  -- gap
+    final_plate_well    text,                                                  -- gap
+    well_position       text,                                                  -- gap
 
     CONSTRAINT rna_library_ilmn_pkey PRIMARY KEY (rna_library_tube_id),
     CONSTRAINT rna_library_ilmn_rna_id_fkey FOREIGN KEY (rna_id) REFERENCES v2.rna_extraction(rna_id),
     CONSTRAINT rna_library_ilmn_registry_fkey FOREIGN KEY (rna_library_tube_id, rna_id)
         REFERENCES v2.library(library_tube_id, rna_id),
-    CONSTRAINT rna_library_ilmn_attempt_key UNIQUE (rna_id, rna_num)
+    CONSTRAINT rna_library_ilmn_attempt_key UNIQUE (rna_id, rna_num) DEFERRABLE INITIALLY IMMEDIATE
 );
 
 -- DROPPED: og_id (F1); kinnex_primers and kinnex_barcode (F4, §6.4) — Kinnex protocol fields
@@ -571,6 +617,19 @@ CREATE TABLE v2.rna_library_ilmn (
 --   that is misplaced Kinnex data and belongs in rna_library_kinx.
 
 COMMENT ON TABLE  v2.rna_library_ilmn IS 'One row per Illumina RNA library. Source: the 4.RNAIllumina sheet.';
+COMMENT ON COLUMN v2.rna_library_ilmn.library_size IS
+    'Historical values only. The "cDNA Library Size (bp)" header was removed from 4.RNAIllumina '
+    'between the 260804 and 261006 workbooks, so nothing writes this column after the backfill.';
+COMMENT ON COLUMN v2.rna_library_ilmn.final_plate_name IS
+    'Spreadsheet header "Final Plate Name", added by the lab after 2026-08. Populated on 135 rows '
+    'of OceanGenomes_Database_261006.xlsx.';
+COMMENT ON COLUMN v2.rna_library_ilmn.final_plate_well IS
+    'Spreadsheet header "Final Plate Well", added by the lab after 2026-08. Populated on 135 rows '
+    'of OceanGenomes_Database_261006.xlsx.';
+COMMENT ON COLUMN v2.rna_library_ilmn.well_position IS
+    'Spreadsheet header "Well Position". Populated on 63 rows of '
+    'OceanGenomes_Database_261006.xlsx. Possibly the predecessor of final_plate_well; kept '
+    'separate until the lab says so (owner decision 2026-10-06).';
 COMMENT ON COLUMN v2.rna_library_ilmn.perc_product IS 'Mapped in name_convert.py to a "% Product" header that no longer exists on 4.RNAIllumina, so it has been silently NULL. Retained pending a mapping fix, not a schema fix.';
 
 -- ---------------------------------------------------------------------------------------
@@ -603,7 +662,7 @@ CREATE TABLE v2.rna_library_kinx (
     CONSTRAINT rna_library_kinx_rna_id_fkey FOREIGN KEY (rna_id) REFERENCES v2.rna_extraction(rna_id),
     CONSTRAINT rna_library_kinx_registry_fkey FOREIGN KEY (rna_library_tube_id, rna_id)
         REFERENCES v2.library(library_tube_id, rna_id),
-    CONSTRAINT rna_library_kinx_attempt_key UNIQUE (rna_id, rna_num)
+    CONSTRAINT rna_library_kinx_attempt_key UNIQUE (rna_id, rna_num) DEFERRABLE INITIALLY IMMEDIATE
 );
 
 -- The FK to rna_extraction is present here, unlike on the live table (F7). The live table

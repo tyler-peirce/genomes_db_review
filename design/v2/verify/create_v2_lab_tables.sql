@@ -83,7 +83,9 @@ BEGIN
       ('sample','ont_num'), ('sample','rna_status'), ('sample','ilrna_status'),
       ('sample','rna_extraction'), ('sample','summary_comments'), ('sample','illumina_public'),
       ('sample','rna_kinnex_status'), ('sample','rna_processing_comment'),
-      ('dna_extraction','ratioqubit_nanodrop'),
+      -- dna_extraction.ratioqubit_nanodrop was on this list until 2026-10-05. It is now
+      -- asserted PRESENT below instead: the column holds 987 populated rows, so dropping
+      -- it destroys data. See the KEPT note in the deploy file.
       ('rna_library_ilmn','kinnex_primers'), ('rna_library_ilmn','kinnex_barcode')
     ) AS t(table_name, column_name)
   LOOP
@@ -254,6 +256,35 @@ BEGIN
                      AND column_name = rec.column_name) THEN
       RAISE EXCEPTION 'Missing expected column v2.%.% (spreadsheet_column_gap_analysis.md)',
         rec.table_name, rec.column_name;
+    END IF;
+  END LOOP;
+
+  ------------------------- Phase V.2: plate columns the lab added after the August review
+  FOR rec IN
+    SELECT table_name, column_name FROM (VALUES
+      ('dna_extraction','extract_plate'), ('dna_extraction','extract_plate_well'),
+      ('rna_library_ilmn','final_plate_name'), ('rna_library_ilmn','final_plate_well'),
+      ('rna_library_ilmn','well_position')
+    ) AS t(table_name, column_name)
+  LOOP
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema = 'v2' AND table_name = rec.table_name
+                     AND column_name = rec.column_name) THEN
+      RAISE EXCEPTION 'Missing expected column v2.%.% (Phase V.2, check_v2_mappings.py)',
+        rec.table_name, rec.column_name;
+    END IF;
+  END LOOP;
+
+  ----------- Phase V.2: attempt keys are deferrable, but still checked per statement by default
+  FOR rec IN
+    SELECT c.conname, c.condeferrable, c.condeferred
+    FROM pg_constraint c
+    JOIN pg_namespace n ON n.oid = c.connamespace AND n.nspname = 'v2'
+    WHERE c.conname LIKE '%\_attempt\_key'
+  LOOP
+    IF NOT rec.condeferrable OR rec.condeferred THEN
+      RAISE EXCEPTION '% must be DEFERRABLE INITIALLY IMMEDIATE (import_v2.py defers it per table step)',
+        rec.conname;
     END IF;
   END LOOP;
 END $$;
