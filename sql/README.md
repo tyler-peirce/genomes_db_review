@@ -49,7 +49,7 @@ autocommit.
   apart. It also refuses to do anything if an already-applied file's hash no
   longer matches the tree. Applying by hand still works and still risks the
   `026` failure mode — use the script.
-- **Reverts are partial.** `sql/revert/` covers `027`–`034` only. `001`–`026` have
+- **Reverts are partial.** `sql/revert/` covers `027`–`040` only. `001`–`026` have
   no rollback scripts and will not get them retroactively — they are applied
   history.
 - **Catch-up migrations have no-op reverts.** `033` and `034` describe objects
@@ -58,6 +58,11 @@ autocommit.
   created is data loss, not a rollback. To remove such an object, write a
   forward migration following the `031` / `032` pattern: investigate, archive,
   then drop. This is the standing pattern for any future catch-up migration.
+- **`035`–`040` (the `v2` schema, Phase V.3) must not be replayed after the backfill.** Each
+  carries its former verify script inside its own transaction, and those assert that the new
+  tables and the quarantine are empty. That holds at creation, so the crash-recovery replay is
+  safe, but a replay after `scripts/backfill_v2.sql` has run fails — loudly, and rolled back.
+  Once V.6 consolidates `v2` into `public`, fix forward rather than replaying.
 - **`000` cannot ledger itself.** The bootstrap file creates
   `schema_migrations`, and a file cannot contain its own SHA-256. On the live
   database it applies as a guarded no-op and is ledgered normally. On an empty

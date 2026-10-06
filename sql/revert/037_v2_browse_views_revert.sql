@@ -1,5 +1,11 @@
--- Revert genomes_db:create_v2_browse_views from pg
-
+-- Revert 037_v2_browse_views.sql.
+--
+-- Ported from design/v2/revert/create_v2_browse_views.sql. Run the v2 reverts in reverse order, 040 down
+-- to 035. Like the other files in sql/revert/ this does not touch the ledger; afterwards
+-- remove the row by hand:
+--
+--     DELETE FROM schema_migrations WHERE filename = '037_v2_browse_views.sql';
+--
 -- v_sequencing_browse is dropped first: it selects from v_library_browse.
 
 BEGIN;

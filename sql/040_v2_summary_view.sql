@@ -1,6 +1,11 @@
--- Deploy genomes_db:create_v2_summary_view to pg
--- requires: create_v2_browse_views
--- requires: create_v2_lca_tables
+-- 040_v2_summary_view.sql -- Phase V.3: v2.summary and v2.goat_species_v1.
+--
+-- Ported 2026-10-06 from design/v2/deploy/create_v2_summary_view.sql, re-reviewed in Phase V.1 and
+-- rehearsed on a restore of live in V.2. Run after 039_v2_lca_tables.sql. Idempotent: every CREATE
+-- is guarded (IF NOT EXISTS / OR REPLACE; triggers by a pg_trigger check), so the
+-- crash-recovery replay in bin/apply_migrations.py is a no-op. The former Sqitch verify
+-- script runs at the end INSIDE this transaction: a failed check rolls the whole
+-- migration back, which Sqitch (verify after commit) could not do.
 --
 -- BUILD ORDER CHANGED 2026-10-05. This change used to come fifth, before create_v2_lca_tables,
 -- which was only valid while v2.summary read public.lca_validation. Repointing it at
@@ -81,7 +86,7 @@ BEGIN;
 --
 -- Ancestor joins route through `tissue`, since the child tables no longer carry og_id (F1).
 
-CREATE VIEW v2.summary AS
+CREATE OR REPLACE VIEW v2.summary AS
 SELECT s.og_num,
        s.og_id,
        s.project_id,
@@ -259,7 +264,7 @@ COMMENT ON COLUMN v2.summary.illumina_actual  IS 'Illumina libraries that actual
 --
 -- master_species, ref_genomes and species stay in public: they are outside the twelve.
 
-CREATE VIEW v2.goat_species_v1 AS
+CREATE OR REPLACE VIEW v2.goat_species_v1 AS
 SELECT s.ncbi_taxon_id,
        s.family,
        s.species,
@@ -309,5 +314,57 @@ COMMENT ON VIEW v2.goat_species_v1 IS
     'GoaT species submission view. Differs from the public version only in reading pacbio '
     'status from v2.summary rather than sample.pb_status, which F5 removed. See '
     'docs/v2_cutover_dependencies.md.';
+
+-- ---------------------------------------------------------------------------------------
+-- Verification (ported from design/v2/verify/create_v2_summary_view.sql)
+-- ---------------------------------------------------------------------------------------
+-- The point of this view is that it replaces columns removed from v2.sample. So the useful
+-- assertion is not "it exists" but "it produces every rollup that was removed", plus the
+-- planned/actual pairs decision 9 exists to enable.
+
+DO $$
+DECLARE
+  col text;
+BEGIN
+  FOREACH col IN ARRAY ARRAY['summary', 'goat_species_v1'] LOOP
+    IF NOT EXISTS (SELECT 1 FROM information_schema.views
+                   WHERE table_schema = 'v2' AND table_name = col) THEN
+      RAISE EXCEPTION 'Missing expected view: v2.%', col;
+    END IF;
+    EXECUTE format('SELECT 1 FROM v2.%I LIMIT 1', col);   -- executes it, so a bad column fails here
+  END LOOP;
+
+  -- Every rollup removed from v2.sample must be recoverable here (decision 5, F5).
+  FOREACH col IN ARRAY ARRAY[
+    'tissues', 'extracted', 'dna_extraction_status', 'illumina_status', 'pacbio_status',
+    'hic_status', 'nanopore_status', 'rna_extraction_status', 'rna_ilmn_status',
+    'rna_kinnex_status'
+  ] LOOP
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema = 'v2' AND table_name = 'summary' AND column_name = col) THEN
+      RAISE EXCEPTION 'v2.summary does not replace the removed sample column "%" (decision 5)', col;
+    END IF;
+  END LOOP;
+
+  -- Planned/actual pairs (F5, decision 9).
+  FOREACH col IN ARRAY ARRAY[
+    'illumina_planned', 'illumina_actual', 'hifi_planned', 'hifi_actual',
+    'hic_planned', 'hic_actual', 'nanopore_planned', 'nanopore_actual',
+    'rna_planned', 'rna_actual', 'rna_ilmn_planned', 'rna_ilmn_actual'
+  ] LOOP
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema = 'v2' AND table_name = 'summary' AND column_name = col) THEN
+      RAISE EXCEPTION 'v2.summary is missing % (F5 planned-vs-actual)', col;
+    END IF;
+  END LOOP;
+
+  -- The dead Summary-sheet columns must not have reappeared under their old names.
+  FOREACH col IN ARRAY ARRAY['summary_comments', 'illumina_sequencing', 'rna_kinnex_sequencing'] LOOP
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'v2' AND table_name = 'summary' AND column_name = col) THEN
+      RAISE EXCEPTION 'v2.summary.% is a dead column that should not have been carried over (F4)', col;
+    END IF;
+  END LOOP;
+END $$;
 
 COMMIT;

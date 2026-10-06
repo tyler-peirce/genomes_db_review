@@ -1,6 +1,12 @@
--- Deploy genomes_db:create_v2_lca_tables to pg
--- requires: create_v2_lab_tables
-
+-- 039_v2_lca_tables.sql -- Phase V.3: The five LCA / mitogenome tables and their content_hash trigger.
+--
+-- Ported 2026-10-06 from design/v2/deploy/create_v2_lca_tables.sql, re-reviewed in Phase V.1 and
+-- rehearsed on a restore of live in V.2. Run after 038_v2_quarantine.sql. Idempotent: every CREATE
+-- is guarded (IF NOT EXISTS / OR REPLACE; triggers by a pg_trigger check), so the
+-- crash-recovery replay in bin/apply_migrations.py is a no-op. The former Sqitch verify
+-- script runs at the end INSIDE this transaction: a failed check rolls the whole
+-- migration back, which Sqitch (verify after commit) could not do.
+--
 -- Purpose: Build v2 equivalents of the LCA / mitogenome tables to the same design rules as the
 --   lab tables (decision 1, §5 step 11).
 --
@@ -41,7 +47,7 @@
 BEGIN;
 
 
-CREATE TABLE v2.mitogenome_data (
+CREATE TABLE IF NOT EXISTS v2.mitogenome_data (
     og_id text NOT NULL,
     tech text NOT NULL,
     seq_date text NOT NULL,
@@ -183,7 +189,7 @@ CREATE TABLE v2.mitogenome_data (
     CONSTRAINT mitogenome_data_og_id_fkey FOREIGN KEY (og_id) REFERENCES v2.sample(og_id)
 );
 
-CREATE TABLE v2.lca (
+CREATE TABLE IF NOT EXISTS v2.lca (
     og_id text NOT NULL,
     tech text NOT NULL,
     seq_date text NOT NULL,
@@ -239,7 +245,7 @@ CREATE TABLE v2.lca (
         REFERENCES v2.mitogenome_data(og_id, tech, seq_date, code)
 );
 
-CREATE TABLE v2.lca_validation (
+CREATE TABLE IF NOT EXISTS v2.lca_validation (
     og_id text NOT NULL,
     tech text NOT NULL,
     validated_species_name text,
@@ -263,7 +269,7 @@ CREATE TABLE v2.lca_validation (
         REFERENCES v2.mitogenome_data(og_id, tech, seq_date, code)
 );
 
-CREATE TABLE v2.lca_raw_results (
+CREATE TABLE IF NOT EXISTS v2.lca_raw_results (
     og_id text NOT NULL,
     tech text NOT NULL,
     seq_date text NOT NULL,
@@ -314,7 +320,7 @@ CREATE TABLE v2.lca_raw_results (
         REFERENCES v2.mitogenome_data(og_id, tech, seq_date, code)
 );
 
-CREATE TABLE v2.blast_filtered_lca (
+CREATE TABLE IF NOT EXISTS v2.blast_filtered_lca (
     og_id text NOT NULL,
     tech text NOT NULL,
     seq_date text NOT NULL,
@@ -356,13 +362,13 @@ CREATE TABLE v2.blast_filtered_lca (
 -- Indexes on the foreign keys (F7 / database_review.md Finding 4)
 -- ---------------------------------------------------------------------------------------
 
-CREATE INDEX mitogenome_data_og_id_idx   ON v2.mitogenome_data   (og_id);
-CREATE INDEX lca_og_id_idx               ON v2.lca               (og_id);
-CREATE INDEX lca_mitogenome_idx          ON v2.lca               (og_id, tech, seq_date, code);
-CREATE INDEX lca_validation_og_id_idx    ON v2.lca_validation    (og_id);
-CREATE INDEX lca_raw_results_og_id_idx   ON v2.lca_raw_results   (og_id);
-CREATE INDEX lca_raw_results_mito_idx    ON v2.lca_raw_results   (og_id, tech, seq_date, code);
-CREATE INDEX blast_filtered_lca_og_id_idx ON v2.blast_filtered_lca (og_id);
+CREATE INDEX IF NOT EXISTS mitogenome_data_og_id_idx   ON v2.mitogenome_data   (og_id);
+CREATE INDEX IF NOT EXISTS lca_og_id_idx               ON v2.lca               (og_id);
+CREATE INDEX IF NOT EXISTS lca_mitogenome_idx          ON v2.lca               (og_id, tech, seq_date, code);
+CREATE INDEX IF NOT EXISTS lca_validation_og_id_idx    ON v2.lca_validation    (og_id);
+CREATE INDEX IF NOT EXISTS lca_raw_results_og_id_idx   ON v2.lca_raw_results   (og_id);
+CREATE INDEX IF NOT EXISTS lca_raw_results_mito_idx    ON v2.lca_raw_results   (og_id, tech, seq_date, code);
+CREATE INDEX IF NOT EXISTS blast_filtered_lca_og_id_idx ON v2.blast_filtered_lca (og_id);
 
 -- ---------------------------------------------------------------------------------------
 -- Documentation (Finding 9: 0 of 42 live objects carried a comment)
@@ -395,7 +401,7 @@ COMMENT ON TABLE v2.lca_raw_results IS
 -- Note the function hashes to_jsonb(NEW) minus three keys. Subtracting a key a row
 -- does not have is a no-op in jsonb, so dropping og_num (F2) needs no change here.
 
-CREATE FUNCTION v2.lca_set_content_hash() RETURNS trigger
+CREATE OR REPLACE FUNCTION v2.lca_set_content_hash() RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = v2, pg_temp
 AS $$
@@ -406,13 +412,24 @@ BEGIN
     RETURN NEW;
 END $$;
 
-CREATE TRIGGER lca_content_hash
-    BEFORE INSERT OR UPDATE ON v2.lca
-    FOR EACH ROW EXECUTE FUNCTION v2.lca_set_content_hash();
-
-CREATE TRIGGER lca_raw_results_content_hash
-    BEFORE INSERT OR UPDATE ON v2.lca_raw_results
-    FOR EACH ROW EXECUTE FUNCTION v2.lca_set_content_hash();
+-- CREATE TRIGGER has no IF NOT EXISTS on PostgreSQL 14, so each is guarded on pg_trigger
+-- (the 033 pattern) to keep a replay a no-op.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger
+                   WHERE tgrelid = 'v2.lca'::regclass AND tgname = 'lca_content_hash') THEN
+        CREATE TRIGGER lca_content_hash
+            BEFORE INSERT OR UPDATE ON v2.lca
+            FOR EACH ROW EXECUTE FUNCTION v2.lca_set_content_hash();
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger
+                   WHERE tgrelid = 'v2.lca_raw_results'::regclass
+                     AND tgname = 'lca_raw_results_content_hash') THEN
+        CREATE TRIGGER lca_raw_results_content_hash
+            BEFORE INSERT OR UPDATE ON v2.lca_raw_results
+            FOR EACH ROW EXECUTE FUNCTION v2.lca_set_content_hash();
+    END IF;
+END $$;
 
 COMMENT ON FUNCTION v2.lca_set_content_hash() IS
     'Maintains content_hash on v2.lca and v2.lca_raw_results. Pinned search_path so the '
@@ -434,5 +451,119 @@ COMMENT ON COLUMN v2.lca_raw_results.content_hash IS
     'See v2.lca.content_hash. Part of the key here because one BLAST accession can yield '
     'several HSPs in a single run, which share accession and run date but differ in '
     'percent_match -- 33 such rows exist in live today.';
+
+-- ---------------------------------------------------------------------------------------
+-- Verification (ported from design/v2/verify/create_v2_lca_tables.sql)
+-- ---------------------------------------------------------------------------------------
+--
+-- The emptiness assertions hold only at creation. A replay after the V.4 backfill fails
+-- here, loudly, which is the intended outcome: these files must not be re-run then.
+
+DO $$
+DECLARE
+  tbl text;
+  n   bigint;
+  rec record;
+BEGIN
+  FOREACH tbl IN ARRAY ARRAY[
+    'mitogenome_data', 'lca', 'lca_validation', 'lca_raw_results', 'blast_filtered_lca'
+  ] LOOP
+    IF NOT EXISTS (SELECT 1 FROM information_schema.tables
+                   WHERE table_schema = 'v2' AND table_name = tbl) THEN
+      RAISE EXCEPTION 'Missing expected table: v2.%', tbl;
+    END IF;
+
+    EXECUTE format('SELECT count(*) FROM v2.%I', tbl) INTO n;
+    IF n <> 0 THEN
+      RAISE EXCEPTION 'Expected v2.% to be empty, found % rows', tbl, n;
+    END IF;
+
+    -- Every one of them must now reach sample by a real foreign key (none of the live tables does).
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint c
+      JOIN pg_namespace ns ON ns.oid = c.connamespace AND ns.nspname = 'v2'
+      WHERE c.contype = 'f'
+        AND c.conrelid = format('v2.%I', tbl)::regclass
+        AND c.confrelid = 'v2.sample'::regclass
+    ) THEN
+      RAISE EXCEPTION 'v2.% has no foreign key to v2.sample', tbl;
+    END IF;
+
+    -- A real primary key, not just a unique constraint.
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint c
+                   WHERE c.contype = 'p' AND c.conrelid = format('v2.%I', tbl)::regclass) THEN
+      RAISE EXCEPTION 'v2.% has no primary key', tbl;
+    END IF;
+
+    IF obj_description(format('v2.%I', tbl)::regclass, 'pg_class') IS NULL THEN
+      RAISE EXCEPTION 'Table v2.% has no COMMENT (Finding 9)', tbl;
+    END IF;
+  END LOOP;
+
+  -- The og_num generated column must not have come across (F2).
+  FOR rec IN
+    SELECT c.table_name FROM information_schema.columns c
+    WHERE c.table_schema = 'v2' AND c.column_name = 'og_num'
+      AND c.table_name IN ('mitogenome_data','lca','lca_validation','lca_raw_results','blast_filtered_lca')
+  LOOP
+    RAISE EXCEPTION 'v2.%.og_num exists; it raises on a non-parsing og_id and is available from sample (F2)', rec.table_name;
+  END LOOP;
+
+  -- lca_run_date must agree between the two tables that key on it (F8).
+  IF (SELECT data_type FROM information_schema.columns
+       WHERE table_schema='v2' AND table_name='lca' AND column_name='lca_run_date')
+     IS DISTINCT FROM
+     (SELECT data_type FROM information_schema.columns
+       WHERE table_schema='v2' AND table_name='lca_raw_results' AND column_name='lca_run_date') THEN
+    RAISE EXCEPTION 'lca.lca_run_date and lca_raw_results.lca_run_date still disagree on type (F8)';
+  END IF;
+
+  -- No character varying anywhere (F8).
+  FOR rec IN
+    SELECT c.table_name, c.column_name FROM information_schema.columns c
+    WHERE c.table_schema = 'v2' AND c.data_type = 'character varying'
+      AND c.table_name IN ('mitogenome_data','lca','lca_validation','lca_raw_results','blast_filtered_lca')
+  LOOP
+    RAISE EXCEPTION 'v2.%.% is character varying; v2 standardises on text (F8)', rec.table_name, rec.column_name;
+  END LOOP;
+
+  -- The *_new check this used to carry is gone, not relaxed. It guarded against touching
+  -- `lca_new` and its siblings while the LCA rebuild was concurrent work. That rebuild has
+  -- landed and those tables are now the live LCA tables themselves, so the check tested a
+  -- condition that can no longer occur. Corrected 2026-10-05, Phase V.1 item 1.
+  --
+  -- What is worth asserting instead: the columns migrations 017, 022 and 024 added, which
+  -- this file omitted for three months, and the content-addressed keys.
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema = 'v2' AND table_name = 'lca'
+                   AND column_name = 'content_hash') THEN
+    RAISE EXCEPTION 'v2.lca.content_hash is missing (migration 017)';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema = 'v2' AND table_name = 'lca_validation'
+                   AND column_name = 'validated_rank') THEN
+    RAISE EXCEPTION 'v2.lca_validation.validated_rank is missing (migration 024)';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema = 'v2' AND table_name = 'mitogenome_data'
+                   AND column_name = 'annotation_integrity_status') THEN
+    RAISE EXCEPTION 'v2.mitogenome_data is missing the migration 026 annotation columns';
+  END IF;
+
+  -- The key must include content_hash, not lca_run_date: 33 live lca_raw_results rows
+  -- collide under a run_date key (several HSPs per accession in one run).
+  IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        WHERE c.conrelid = 'v2.lca_raw_results'::regclass AND c.contype = 'p'
+          AND pg_get_constraintdef(c.oid) LIKE '%content_hash%') THEN
+    RAISE EXCEPTION 'v2.lca_raw_results primary key does not include content_hash; it is not satisfiable by live data';
+  END IF;
+
+  -- content_hash is NOT NULL and in the key, so the trigger that fills it must exist.
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger
+                 WHERE tgrelid = 'v2.lca'::regclass AND NOT tgisinternal) THEN
+    RAISE EXCEPTION 'v2.lca has no content_hash trigger; every insert would violate NOT NULL';
+  END IF;
+END $$;
 
 COMMIT;

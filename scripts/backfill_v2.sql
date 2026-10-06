@@ -7,12 +7,12 @@
 --
 -- Usage:
 --     python3 import_v2.py --stage-attempt-keys -e <workbook>     # OceanOmics-Database; required
---     psql -h <host> -U <user> -d oceanomics_genomes -v ON_ERROR_STOP=1 -f design/v2/backfill_v2.sql
+--     psql -h <host> -U <user> -d oceanomics_genomes -v ON_ERROR_STOP=1 -f scripts/backfill_v2.sql
 --
 --   The staging step records which side of each attempt-key tie the workbook still carries;
 --   this script refuses to run without it (Phase V.2).
 --
---   Deliberately NOT a Sqitch change. It is data movement, not schema, and it is designed to
+--   Deliberately NOT a numbered migration (Phase V.3 decision 1). It is data movement, not schema, and it is designed to
 --   be run repeatedly: each pass re-reads live, inserts what now passes, and refreshes the
 --   quarantine. That is what you want while the lab is fixing rows at source — run it, hand
 --   the lab v2.v_quarantine_open, wait, run it again.

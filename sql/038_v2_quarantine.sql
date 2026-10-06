@@ -1,6 +1,12 @@
--- Deploy genomes_db:create_v2_quarantine to pg
--- requires: create_v2_lab_tables
-
+-- 038_v2_quarantine.sql -- Phase V.3: The import quarantine and the workbook attempt-key staging table.
+--
+-- Ported 2026-10-06 from design/v2/deploy/create_v2_quarantine.sql, re-reviewed in Phase V.1 and
+-- rehearsed on a restore of live in V.2. Run after 037_v2_browse_views.sql. Idempotent: every CREATE
+-- is guarded (IF NOT EXISTS / OR REPLACE; triggers by a pg_trigger check), so the
+-- crash-recovery replay in bin/apply_migrations.py is a no-op. The former Sqitch verify
+-- script runs at the end INSIDE this transaction: a failed check rolls the whole
+-- migration back, which Sqitch (verify after commit) could not do.
+--
 -- Purpose: Give rows that violate the new NOT NULL / FK / type / uniqueness contracts somewhere
 --   to go, so they can be fixed at source rather than silently dropped or silently weakening
 --   the schema (decision 6, §5 step 9).
@@ -16,7 +22,7 @@
 
 BEGIN;
 
-CREATE TABLE v2.import_quarantine (
+CREATE TABLE IF NOT EXISTS v2.import_quarantine (
     quarantine_id    bigint GENERATED ALWAYS AS IDENTITY,
     source_table     text        NOT NULL,
     source_sheet     text,
@@ -48,11 +54,11 @@ CREATE TABLE v2.import_quarantine (
 -- One open row per (table, key, violation). A nightly import that keeps hitting the same bad
 -- spreadsheet row bumps last_seen instead of adding 400 duplicates over a year. Resolved rows
 -- are excluded so the same problem recurring after a fix opens a fresh record.
-CREATE UNIQUE INDEX import_quarantine_open_key
+CREATE UNIQUE INDEX IF NOT EXISTS import_quarantine_open_key
     ON v2.import_quarantine (source_table, coalesce(source_row_key, ''), violation_type)
     WHERE resolved_at IS NULL;
 
-CREATE INDEX import_quarantine_open_idx ON v2.import_quarantine (source_table, last_seen DESC)
+CREATE INDEX IF NOT EXISTS import_quarantine_open_idx ON v2.import_quarantine (source_table, last_seen DESC)
     WHERE resolved_at IS NULL;
 
 COMMENT ON TABLE v2.import_quarantine IS
@@ -69,7 +75,7 @@ COMMENT ON COLUMN v2.import_quarantine.last_seen IS 'Bumped each time the same u
 -- Recording helper — used by the backfill and by the importer so both behave identically
 -- ---------------------------------------------------------------------------------------
 
-CREATE FUNCTION v2.quarantine(
+CREATE OR REPLACE FUNCTION v2.quarantine(
     p_source_table     text,
     p_source_row_key   text,
     p_violation_type   text,
@@ -100,7 +106,7 @@ COMMENT ON FUNCTION v2.quarantine(text, text, text, text, jsonb, text) IS
 -- What is blocked right now
 -- ---------------------------------------------------------------------------------------
 
-CREATE VIEW v2.v_quarantine_open AS
+CREATE OR REPLACE VIEW v2.v_quarantine_open AS
 SELECT source_table,
        violation_type,
        count(*)      AS rows_blocked,
@@ -124,7 +130,7 @@ COMMENT ON VIEW v2.v_quarantine_open IS 'One line per (table, violation) still b
 -- so it is left out of v_quarantine_open; resolve it once someone has confirmed the
 -- replacement was right.
 
-CREATE VIEW v2.v_quarantine_displaced AS
+CREATE OR REPLACE VIEW v2.v_quarantine_displaced AS
 SELECT source_table,
        source_row_key   AS displaced_key,
        violation_detail AS replaced_by,
@@ -147,7 +153,7 @@ COMMENT ON VIEW v2.v_quarantine_displaced IS 'Seated rows import_v2.py deleted b
 -- tied row only when it is the one row of its tie that appears. The backfill refuses to run
 -- while this table is empty.
 
-CREATE TABLE v2.workbook_attempt_keys (
+CREATE TABLE IF NOT EXISTS v2.workbook_attempt_keys (
     source_table  text        NOT NULL,
     row_key       text        NOT NULL,
     parent_key    text,
@@ -160,5 +166,115 @@ CREATE TABLE v2.workbook_attempt_keys (
 );
 
 COMMENT ON TABLE v2.workbook_attempt_keys IS 'Attempt-keyed rows of the lab workbook, staged by import_v2.py --stage-attempt-keys so backfill_v2.sql can prefer the workbook''s side of a tie. Replaced wholesale on each staging run; workbook_file records which workbook.';
+
+-- ---------------------------------------------------------------------------------------
+-- Verification (ported from design/v2/verify/create_v2_quarantine.sql)
+-- ---------------------------------------------------------------------------------------
+-- Beyond existence, this exercises the idempotency the nightly import depends on: the same
+-- unresolved violation recorded twice must update one row, not create two.
+
+-- These checks WRITE test rows through v2.quarantine(). The savepoint discards them so they
+-- never commit. The identity sequence still advances by a few values: harmless, and not a
+-- reason to restructure this. The row-count assertions assume an empty quarantine, so like
+-- 036 and 039 this must not be replayed after the V.4 backfill.
+SAVEPOINT v3_verify;
+
+DO $$
+DECLARE
+  id1 bigint;
+  id2 bigint;
+  n   bigint;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables
+                 WHERE table_schema = 'v2' AND table_name = 'import_quarantine') THEN
+    RAISE EXCEPTION 'Missing table v2.import_quarantine';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.views
+                 WHERE table_schema = 'v2' AND table_name = 'v_quarantine_open') THEN
+    RAISE EXCEPTION 'Missing view v2.v_quarantine_open';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.views
+                 WHERE table_schema = 'v2' AND table_name = 'v_quarantine_displaced') THEN
+    RAISE EXCEPTION 'Missing view v2.v_quarantine_displaced';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables
+                 WHERE table_schema = 'v2' AND table_name = 'workbook_attempt_keys') THEN
+    RAISE EXCEPTION 'Missing table v2.workbook_attempt_keys';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_proc p
+                 JOIN pg_namespace n2 ON n2.oid = p.pronamespace
+                 WHERE n2.nspname = 'v2' AND p.proname = 'quarantine') THEN
+    RAISE EXCEPTION 'Missing function v2.quarantine()';
+  END IF;
+
+  -- Recording the same violation twice must collapse to one open row.
+  SELECT v2.quarantine('dna_extraction', 'OG1G_D', 'type_cast',
+                       'status_overwrite = 8621', '{"dna_id":"OG1G_D"}'::jsonb) INTO id1;
+  SELECT v2.quarantine('dna_extraction', 'OG1G_D', 'type_cast',
+                       'status_overwrite = 8621 (seen again)', '{"dna_id":"OG1G_D"}'::jsonb) INTO id2;
+
+  IF id1 IS DISTINCT FROM id2 THEN
+    RAISE EXCEPTION 'v2.quarantine() created a second row (% then %) for one unresolved violation', id1, id2;
+  END IF;
+
+  SELECT count(*) INTO n FROM v2.import_quarantine WHERE resolved_at IS NULL;
+  IF n <> 1 THEN
+    RAISE EXCEPTION 'Expected 1 open quarantine row, found %', n;
+  END IF;
+
+  -- A different violation on the same row is a separate record.
+  PERFORM v2.quarantine('dna_extraction', 'OG1G_D', 'foreign_key',
+                        'tissue_id not found', '{"dna_id":"OG1G_D"}'::jsonb);
+  SELECT count(*) INTO n FROM v2.import_quarantine WHERE resolved_at IS NULL;
+  IF n <> 2 THEN
+    RAISE EXCEPTION 'Expected 2 open quarantine rows for two distinct violations, found %', n;
+  END IF;
+
+  -- Once resolved, the same violation recurring opens a fresh record rather than reviving one.
+  UPDATE v2.import_quarantine SET resolved_at = now(), resolution_note = 'fixed in workbook'
+   WHERE violation_type = 'type_cast';
+  PERFORM v2.quarantine('dna_extraction', 'OG1G_D', 'type_cast',
+                        'regressed', '{"dna_id":"OG1G_D"}'::jsonb);
+  SELECT count(*) INTO n FROM v2.import_quarantine WHERE violation_type = 'type_cast';
+  IF n <> 2 THEN
+    RAISE EXCEPTION 'Expected a fresh record after resolution, found % type_cast rows', n;
+  END IF;
+
+  -- A resolution note without a resolution date must be rejected.
+  BEGIN
+    UPDATE v2.import_quarantine SET resolution_note = 'note with no date', resolved_at = NULL
+     WHERE violation_type = 'foreign_key';
+    RAISE EXCEPTION 'import_quarantine_resolution_check did not fire';
+  EXCEPTION WHEN check_violation THEN
+    NULL;
+  END;
+
+  -- A displaced row is a record, not a blocker: listed by v_quarantine_displaced and kept
+  -- out of v_quarantine_open.
+  PERFORM v2.quarantine('dna_extraction', 'OG2111E_D', 'displaced',
+                        'replaced by workbook row OG2111G_D for (OG2111G, 1)',
+                        '{"dna_id":"OG2111E_D"}'::jsonb);
+  IF EXISTS (SELECT 1 FROM v2.v_quarantine_open WHERE violation_type = 'displaced') THEN
+    RAISE EXCEPTION 'v_quarantine_open lists displaced rows';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM v2.v_quarantine_displaced WHERE displaced_key = 'OG2111E_D') THEN
+    RAISE EXCEPTION 'v_quarantine_displaced does not list a displaced row';
+  END IF;
+
+  -- An unknown violation type must be rejected.
+  BEGIN
+    PERFORM v2.quarantine('dna_extraction', 'X', 'vibes', 'nope', '{}'::jsonb);
+    RAISE EXCEPTION 'import_quarantine_violation_type_check did not fire';
+  EXCEPTION WHEN check_violation THEN
+    NULL;
+  END;
+END $$;
+
+ROLLBACK TO SAVEPOINT v3_verify;
+RELEASE SAVEPOINT v3_verify;
 
 COMMIT;

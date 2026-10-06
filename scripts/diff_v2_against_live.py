@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Diff the `v2` scaffold DDL in design/v2/ against the live `public` catalog.
+"""Diff the `v2` DDL in sql/035-040 against the live `public` catalog.
 
 Why this exists
 ---------------
@@ -57,7 +57,10 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-DEPLOY = REPO / "design" / "v2" / "deploy"
+# The v2 DDL lives in the numbered migrations since Phase V.3 (2026-10-06); design/v2/deploy
+# was deleted then, so there is one copy to diff.
+SQL_DIR = REPO / "sql"
+V2_MIGRATIONS = re.compile(r"^\d{3}_v2_.*\.sql$")
 
 _spec = importlib.util.spec_from_file_location(
     "apply_migrations", REPO / "bin" / "apply_migrations.py")
@@ -202,7 +205,7 @@ RETYPE_INTENDED_COLUMN: dict[str, str] = {
     "rna_extraction.rna_rack": "Finding 7 + F8, aligning with the other three tables",
 }
 
-CREATE_RE = re.compile(r"^CREATE TABLE v2\.(\w+)", re.I)
+CREATE_RE = re.compile(r"^CREATE TABLE (?:IF NOT EXISTS )?v2\.(\w+)", re.I)
 COL_RE = re.compile(
     # Quoted identifiers matter here: lca."order" is a reserved word, and an
     # unquoted pattern silently reads it as absent from the v2 DDL.
@@ -216,9 +219,9 @@ NOT_A_COL = {"constraint", "primary", "foreign", "unique", "check",
 
 
 def parse_v2_ddl() -> dict[str, dict[str, str]]:
-    """Declared columns per v2 table, read from the deploy DDL."""
+    """Declared columns per v2 table, read from the v2 migrations."""
     tables: dict[str, dict[str, str]] = {}
-    for path in sorted(DEPLOY.glob("create_v2_*.sql")):
+    for path in sorted(p for p in SQL_DIR.glob("*.sql") if V2_MIGRATIONS.match(p.name)):
         current = None
         for line in path.read_text().splitlines():
             if line.lstrip().startswith("--"):
@@ -266,7 +269,7 @@ def main() -> int:
 
     v2 = parse_v2_ddl()
     if not v2:
-        sys.exit(f"No CREATE TABLE v2.* found under {DEPLOY}")
+        sys.exit(f"No CREATE TABLE v2.* found in {SQL_DIR}/NNN_v2_*.sql")
 
     wanted = LAB_TABLES + LCA_TABLES
     if args.table:

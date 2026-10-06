@@ -1,6 +1,12 @@
--- Deploy genomes_db:create_v2_browse_views to pg
--- requires: create_v2_lab_tables
-
+-- 037_v2_browse_views.sql -- Phase V.3: The twelve browse views (og_id and is_latest).
+--
+-- Ported 2026-10-06 from design/v2/deploy/create_v2_browse_views.sql, re-reviewed in Phase V.1 and
+-- rehearsed on a restore of live in V.2. Run after 036_v2_lab_tables.sql. Idempotent: every CREATE
+-- is guarded (IF NOT EXISTS / OR REPLACE; triggers by a pg_trigger check), so the
+-- crash-recovery replay in bin/apply_migrations.py is a no-op. The former Sqitch verify
+-- script runs at the end INSIDE this transaction: a failed check rolls the whole
+-- migration back, which Sqitch (verify after commit) could not do.
+--
 -- Purpose: Provide the ancestor context and the "is this the current attempt" flag that the
 --   v2 tables deliberately do not store, per docs/lab_key_strategy.md §7 (Option B) and
 --   docs/v2_scaffold_design_review.md §5 step 5.
@@ -31,7 +37,7 @@ BEGIN;
 -- Tissue and extractions
 -- ---------------------------------------------------------------------------------------
 
-CREATE VIEW v2.v_tissue_browse AS
+CREATE OR REPLACE VIEW v2.v_tissue_browse AS
 SELECT s.og_id,
        s.og_num,
        s.nominal_species_id,
@@ -48,7 +54,7 @@ SELECT s.og_id,
 FROM v2.tissue t
 JOIN v2.sample s ON s.og_id = t.og_id;
 
-CREATE VIEW v2.v_dna_extraction_browse AS
+CREATE OR REPLACE VIEW v2.v_dna_extraction_browse AS
 SELECT t.og_id,
        d.tissue_id,
        d.dna_id,
@@ -69,7 +75,7 @@ SELECT t.og_id,
 FROM v2.dna_extraction d
 JOIN v2.tissue t ON t.tissue_id = d.tissue_id;
 
-CREATE VIEW v2.v_rna_extraction_browse AS
+CREATE OR REPLACE VIEW v2.v_rna_extraction_browse AS
 SELECT t.og_id,
        r.tissue_id,
        r.rna_id,
@@ -90,7 +96,7 @@ SELECT t.og_id,
 FROM v2.rna_extraction r
 JOIN v2.tissue t ON t.tissue_id = r.tissue_id;
 
-CREATE VIEW v2.v_hic_lysate_browse AS
+CREATE OR REPLACE VIEW v2.v_hic_lysate_browse AS
 SELECT t.og_id,
        y.tissue_id,
        y.lysate_id,
@@ -117,7 +123,7 @@ JOIN v2.tissue t ON t.tissue_id = y.tissue_id;
 
 -- Identity across all six technologies, with og_id resolved through whichever parent chain
 -- applies. This is the view that makes the registry usable for browsing.
-CREATE VIEW v2.v_library_browse AS
+CREATE OR REPLACE VIEW v2.v_library_browse AS
 SELECT t.og_id,
        t.tissue_id,
        l.library_tube_id,
@@ -132,7 +138,7 @@ LEFT JOIN v2.rna_extraction r ON r.rna_id    = l.rna_id
 LEFT JOIN v2.hic_lysate     y ON y.lysate_id = l.lysate_id
 JOIN v2.tissue t ON t.tissue_id = coalesce(d.tissue_id, r.tissue_id, y.tissue_id);
 
-CREATE VIEW v2.v_illumina_library_browse AS
+CREATE OR REPLACE VIEW v2.v_illumina_library_browse AS
 SELECT t.og_id,
        d.tissue_id,
        i.dna_id,
@@ -156,7 +162,7 @@ FROM v2.illumina_library i
 JOIN v2.dna_extraction d ON d.dna_id    = i.dna_id
 JOIN v2.tissue         t ON t.tissue_id = d.tissue_id;
 
-CREATE VIEW v2.v_pacbio_library_browse AS
+CREATE OR REPLACE VIEW v2.v_pacbio_library_browse AS
 SELECT t.og_id,
        d.tissue_id,
        p.dna_id,
@@ -185,7 +191,7 @@ FROM v2.pacbio_library p
 JOIN v2.dna_extraction d ON d.dna_id    = p.dna_id
 JOIN v2.tissue         t ON t.tissue_id = d.tissue_id;
 
-CREATE VIEW v2.v_ont_library_browse AS
+CREATE OR REPLACE VIEW v2.v_ont_library_browse AS
 SELECT t.og_id,
        d.tissue_id,
        o.dna_id,
@@ -204,7 +210,7 @@ FROM v2.ont_library o
 JOIN v2.dna_extraction d ON d.dna_id    = o.dna_id
 JOIN v2.tissue         t ON t.tissue_id = d.tissue_id;
 
-CREATE VIEW v2.v_hic_library_browse AS
+CREATE OR REPLACE VIEW v2.v_hic_library_browse AS
 SELECT t.og_id,
        y.tissue_id,
        h.lysate_id,
@@ -236,7 +242,7 @@ FROM v2.hic_library h
 JOIN v2.hic_lysate y ON y.lysate_id = h.lysate_id
 JOIN v2.tissue     t ON t.tissue_id = y.tissue_id;
 
-CREATE VIEW v2.v_rna_library_ilmn_browse AS
+CREATE OR REPLACE VIEW v2.v_rna_library_ilmn_browse AS
 SELECT t.og_id,
        r.tissue_id,
        x.rna_id,
@@ -263,7 +269,7 @@ FROM v2.rna_library_ilmn x
 JOIN v2.rna_extraction r ON r.rna_id    = x.rna_id
 JOIN v2.tissue         t ON t.tissue_id = r.tissue_id;
 
-CREATE VIEW v2.v_rna_library_kinx_browse AS
+CREATE OR REPLACE VIEW v2.v_rna_library_kinx_browse AS
 SELECT t.og_id,
        r.tissue_id,
        k.rna_id,
@@ -295,7 +301,7 @@ JOIN v2.tissue         t ON t.tissue_id = r.tissue_id;
 -- Sequencing
 -- ---------------------------------------------------------------------------------------
 
-CREATE VIEW v2.v_sequencing_browse AS
+CREATE OR REPLACE VIEW v2.v_sequencing_browse AS
 SELECT b.og_id,
        b.tissue_id,
        b.parent_id,
@@ -338,5 +344,65 @@ COMMENT ON COLUMN v2.v_dna_extraction_browse.is_latest IS
     'True when this row has the highest ext_num for its tissue. A faithful translation of the '
     'workbook''s Latest formula, MAX(#) per parent — including its behaviour on ties, which is '
     'why unique(tissue_id, ext_num) matters.';
+
+-- ---------------------------------------------------------------------------------------
+-- Verification (ported from design/v2/verify/create_v2_browse_views.sql)
+-- ---------------------------------------------------------------------------------------
+-- Asserts the views exist, are documented, and — more usefully — that they are actually
+-- selectable and expose the two columns they exist to provide.
+
+DO $$
+DECLARE
+  v   text;
+  rec record;
+BEGIN
+  FOREACH v IN ARRAY ARRAY[
+    'v_tissue_browse', 'v_dna_extraction_browse', 'v_rna_extraction_browse',
+    'v_hic_lysate_browse', 'v_library_browse', 'v_illumina_library_browse',
+    'v_pacbio_library_browse', 'v_ont_library_browse', 'v_hic_library_browse',
+    'v_rna_library_ilmn_browse', 'v_rna_library_kinx_browse', 'v_sequencing_browse'
+  ] LOOP
+    IF NOT EXISTS (SELECT 1 FROM information_schema.views
+                   WHERE table_schema = 'v2' AND table_name = v) THEN
+      RAISE EXCEPTION 'Missing expected view: v2.%', v;
+    END IF;
+
+    -- Executes the view, so a column that does not exist on the base table fails here rather
+    -- than on first use.
+    EXECUTE format('SELECT 1 FROM v2.%I LIMIT 1', v);
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema = 'v2' AND table_name = v AND column_name = 'og_id') THEN
+      RAISE EXCEPTION 'v2.% does not expose og_id, which is the point of it (F1)', v;
+    END IF;
+
+    IF obj_description(format('v2.%I', v)::regclass, 'pg_class') IS NULL THEN
+      RAISE EXCEPTION 'View v2.% has no COMMENT (Finding 9)', v;
+    END IF;
+  END LOOP;
+
+  -- Every view over a table with an attempt number recovers `latest` (F4a).
+  FOREACH v IN ARRAY ARRAY[
+    'v_dna_extraction_browse', 'v_rna_extraction_browse', 'v_hic_lysate_browse',
+    'v_illumina_library_browse', 'v_pacbio_library_browse', 'v_ont_library_browse',
+    'v_hic_library_browse', 'v_rna_library_ilmn_browse', 'v_rna_library_kinx_browse'
+  ] LOOP
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema = 'v2' AND table_name = v AND column_name = 'is_latest') THEN
+      RAISE EXCEPTION 'v2.% does not expose is_latest (F4a)', v;
+    END IF;
+  END LOOP;
+
+  -- The Hi-C library view must keep the live and legacy proximity-ligation values apart (F13).
+  FOR rec IN
+    SELECT unnest(ARRAY['prox_ligation_conc', 'prox_ligation_conc_legacy']) AS col
+  LOOP
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema = 'v2' AND table_name = 'v_hic_library_browse'
+                     AND column_name = rec.col) THEN
+      RAISE EXCEPTION 'v2.v_hic_library_browse is missing % (F13)', rec.col;
+    END IF;
+  END LOOP;
+END $$;
 
 COMMIT;

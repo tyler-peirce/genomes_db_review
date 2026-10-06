@@ -1,5 +1,11 @@
--- Revert genomes_db:create_v2_lab_tables from pg
-
+-- Revert 036_v2_lab_tables.sql.
+--
+-- Ported from design/v2/revert/create_v2_lab_tables.sql. Run the v2 reverts in reverse order, 040 down
+-- to 035. Like the other files in sql/revert/ this does not touch the ledger; afterwards
+-- remove the row by hand:
+--
+--     DELETE FROM schema_migrations WHERE filename = '036_v2_lab_tables.sql';
+--
 -- Rollback notes: safe at any point before the (future, separate) import/backfill work starts
 -- populating these tables — they hold no data until then.
 --

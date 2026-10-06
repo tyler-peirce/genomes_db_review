@@ -62,6 +62,9 @@ them would duplicate DDL that is already written, reviewed, constraint-tested an
 end to end by `import_v2.py`, and would be wasted if cutover proceeds. That DDL now lives in
 `design/v2/` as reference material — see `design/v2/README.md`.
 
+**Update 2026-10-06 (Phase V.3):** that DDL is now numbered migrations `sql/035`–`040`;
+`design/v2/` keeps only its design history, and the backfill is `scripts/backfill_v2.sql`.
+
 ## Consequences
 
 - `deploy/`, `revert/`, `verify/` and `scripts/backfill_v2.sql` moved to `design/v2/`,

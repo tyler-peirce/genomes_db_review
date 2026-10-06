@@ -1,85 +1,40 @@
-# `v2` redesign — reference DDL, not a migration
+# `v2` redesign — design history; the DDL has moved to `sql/`
 
-Status: **written, re-reviewed 2026-10-05 against the live catalog, constraint-tested, not deployed.**
-Nothing in this directory is applied by any tool. There is no `v2` schema on the live database.
+Status: **promoted to numbered migrations 2026-10-06 (Phase V.3).** The DDL that used to live
+here is now `sql/035`–`040`, with reverts in `sql/revert/`, applied with
+`bin/apply_migrations.py`. The `deploy/`, `verify/` and `revert/` copies were deleted so there
+is one copy to edit and to diff; git history has them. **Do not re-create them here.**
 
-These files were authored as a Sqitch project at the repo root. Sqitch was retired as a tool
-on 2026-10-05 (`docs/migration_system_decision.md`), so they moved here rather than being
-deleted.
+| Migration | Was | Content |
+|---|---|---|
+| `035_v2_schema.sql` | `deploy/create_v2_schema.sql` | the empty `v2` schema |
+| `036_v2_lab_tables.sql` | `deploy/create_v2_lab_tables.sql` | 12 lab tables, the library registry, `prep_automation` |
+| `037_v2_browse_views.sql` | `deploy/create_v2_browse_views.sql` | the 12 browse views |
+| `038_v2_quarantine.sql` | `deploy/create_v2_quarantine.sql` | quarantine and `workbook_attempt_keys` |
+| `039_v2_lca_tables.sql` | `deploy/create_v2_lca_tables.sql` | the 5 LCA / mitogenome tables and their `content_hash` trigger |
+| `040_v2_summary_view.sql` | `deploy/create_v2_summary_view.sql` | `v2.summary`, `v2.goat_species_v1` |
 
-## The direction is approved; this DDL is not yet cleared to deploy
+What changed in the port, and nothing else did: every `CREATE` is guarded so a replay is a
+no-op; the `prep_automation` seed is `ON CONFLICT DO NOTHING`; the two triggers are guarded on
+`pg_trigger`; and each former verify script now runs inside its migration's transaction, so a
+failed check rolls the deploy back. The emptiness and quarantine-count assertions hold only
+at creation — these migrations must not be replayed after the V.4 backfill.
 
-**2026-10-05: `v2` is the agreed foundation for the schema** and the project is going ahead
-with it (`database_review.md` open question 8). That is a decision about direction, not a
-green light for these files. Two gates stand in front of them, tracked as **Phase V** in
-`database_review.md` §9:
+**The backfill is not a migration.** It moved to `scripts/backfill_v2.sql`: it needs
+`import_v2.py --stage-attempt-keys` first, which `bin/apply_migrations.py` cannot run, and it
+is designed to be re-run while the lab fixes rows, which a ledgered file cannot be. Phase V.4
+runs it.
 
-- ~~**Phase V.0 — open question 7 is the hard blocker.**~~ **Dropped 2026-10-05 at the
-  owner's direction.** The fortnight of statement logging will not be run. Consumers that
-  hardcode `public.` prefixes in their own queries are accepted breakage, to be fixed when
-  they fail after cutover. See "Why it is no longer parked" below for what that trades away.
-- **Phase V.1 — this DDL must be re-reviewed before any of it becomes a migration.**
-  **Done 2026-10-05.** See `docs/v2_scaffold_design_review.md` revision 2. It found 40
-  columns added by migrations `017`-`026` that this DDL had silently dropped, three types
-  reverted to pre-migration-`022` definitions (two of which made the backfill *abort*), one
-  primary key that live data cannot satisfy, two triggers dropped on the floor, and 100 rows
-  the lab backfill was discarding without a quarantine record.
+`scripts/diff_v2_against_live.py` now reads the `sql/NNN_v2_*.sql` files.
 
-## Why it is no longer parked
+Rehearsed 2026-10-06 on a fresh restore of live before promotion: apply, replay (ledger rows
+deleted, re-applied as no-ops), revert `040`→`035` and re-apply, then stage, backfill twice
+and import twice from `OceanGenomes_Database_261006.xlsx` — identical to the V.2 rehearsal (65
+tied rows quarantined, 1,333 open quarantine, `rna_library_ilmn` / `ont_library` 389 / 98).
+See `docs/phase_v3_plan.md`.
 
-Open question 7 — which downstream users and scripts query this database from outside
-`genomes_db_review` and `OceanOmics-Database` — is **closed by decision rather than answered**,
-2026-10-05. The fortnight of `log_statement = 'all'` logging will not be run. A consumer with
-hardcoded `public.` prefixes will break at cutover and be fixed then.
-
-**What that trades away, stated plainly:** the logging was the only proposed way to find a
-broken consumer *before* breaking it. Without it the first signal is someone reporting a
-failure. That is the accepted cost, and Phase V.5's design is what makes it tolerable —
-superseded tables are renamed so they fail loudly rather than serving stale data.
-
-**What it does not trade away, which is most of it.** Everything *inside* the database was
-always discoverable from the catalog without waiting two weeks, and
-`scripts/audit_v2_dependents.py` now does it in a second: ten dependent views, seven triggers,
-and eleven functions that follow the `search_path` silently — including six
-`build_*_samplesheet*` functions feeding Nextflow that nobody had looked at. V.0 would have
-added only the external clients, which is exactly the category being accepted as breakage. So
-dropping it costs considerably less than the "hard blocker" framing suggested, provided the
-catalog sweep actually gets run.
-
-Consequence for coverage: **17 live objects have no catch-up migration and will not get one
-before cutover** — the 12 lab tables, the four live LCA tables, and `goat_species_v1`. Their
-DDL is here, so writing `public` catch-up migrations for them would duplicate it and be thrown
-away.
-
-## When Phase V.1 clears them
-
-These become numbered migrations in `sql/`, in plan order, applied with
-`bin/apply_migrations.py`. Do not resurrect Sqitch to deploy them. Original plan order:
-
-| # | File |
-|---|---|
-| 1 | `deploy/create_v2_schema.sql` |
-| 2 | `deploy/create_v2_lab_tables.sql` |
-| 3 | `deploy/create_v2_browse_views.sql` |
-| 4 | `deploy/create_v2_quarantine.sql` |
-| 5 | `deploy/create_v2_lca_tables.sql` |
-| 6 | `deploy/create_v2_summary_view.sql` |
-| 7 | `import_v2.py --stage-attempt-keys -e <workbook>` (in `OceanOmics-Database`) |
-| 8 | `backfill_v2.sql` (data load, not DDL; re-runnable and idempotent) |
-
-**Step 7 added 2026-10-06 (Phase V.2).** When two tubes in live share a
-`(parent, attempt number)`, the backfill keeps the one the workbook carries. If the workbook
-carries neither, or both, it keeps neither and quarantines them all. It used to keep the
-alphabetically-first tube ID. Step 7 copies the workbook's attempt keys into
-`v2.workbook_attempt_keys`, and the backfill refuses to run while that table is empty.
-
-**Steps 5 and 6 swapped on 2026-10-05.** `v2.summary` now reads `v2.lca_validation` rather
-than `public.lca_validation` (Phase V.1 item 3), so the LCA tables have to exist before the
-summary view. The `-- requires:` headers carry the same dependency.
-
-The `revert/` and `verify/` pairs are retained. The verify scripts are executable checks worth
-porting into the migrations' own verification; Sqitch ran them automatically after each deploy
-and `bin/apply_migrations.py` does not.
+The sections below are the pre-promotion history of this DDL, kept because they record why it
+looks the way it does. File paths in them refer to the deleted `deploy/` copies.
 
 ## Known defects — all three closed 2026-10-05, and six more found
 
