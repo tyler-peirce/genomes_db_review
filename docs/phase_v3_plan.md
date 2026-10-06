@@ -1,6 +1,6 @@
 # Phase V.3 plan — promote the `v2` DDL to numbered migrations
 
-Status: **executed 2026-10-06 through step 3 (pre-flight, port, rehearsal) and step 5 (docs); step 4, the live apply, is pending.** Results are recorded under V.3 in `database_review.md`. Source step: `database_review.md` §9,
+Status: **executed 2026-10-06, all five steps; `035`–`040` are applied to live.** Results are recorded under V.3 in `database_review.md`. Source step: `database_review.md` §9,
 Phase V.3. Previous step: V.2, done 2026-10-06. Next step: V.4 (backfill and reconcile).
 
 ## What V.3 is, and what it is not
