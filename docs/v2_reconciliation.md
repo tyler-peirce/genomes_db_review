@@ -67,6 +67,62 @@ the `og_workflow_*` three) are unchanged.
   rewrite rows already loaded, which is `ON CONFLICT DO NOTHING` by design. Once the nightly
   `import_v2.py` runs, the workbook is the source for those rows.
 
+## Follow-up, same day: converting the easy values by rule
+
+Of the values in the table above that would not convert, the mechanical ones are now converted
+by rule. The rules live in `OceanOmics-Database/v2_value_rules.py`, with unit tests built from
+every distinct failing value on live. They run in two places:
+- `import_v2.py`, every night
+- `scripts/apply_value_rules.py`, once, for rows the workbook no longer carries
+
+Every conversion is logged with its raw text in `v2.value_conversions` (migration `041`).
+
+**Owner decisions, 2026-10-06:**
+- **Bounds are stored as numbers.** `>1.8` becomes 1.8 and `<1.0` becomes 1.0; each is logged
+  as rule `bound`, which makes the decision reversible.
+- **`pooled library = 2.60ng/ul` is not converted.** It is the pool's concentration, not each
+  library's.
+- **No-value words count as blank** (`Unknown`, `TBA`, `MISSING`, `None`).
+- **Depth `Surface` is 0 m; `on land` is not converted.**
+
+**Results on live:**
+
+| | |
+|---|---|
+| Values converted | 925: Excel-formatted coordinates 308, lengths 197, DMS coordinates 162, bounds 136, no-value words 46, `Surface` 46, units 30 |
+| Open quarantine | 1,352 → **869** (`type_cast` 1,167 → 684) |
+| Records resolved | 483, closed automatically by the importer, which now does this whenever a row's problem is gone |
+| Logged values not matching their cell | 0 |
+
+**The coordinate rule was wrong on the first rehearsal, and the neighbour check is what caught
+it.** Latitudes stored as text like `26/11/1899 11:00:00 PM` are negative spreadsheet serials,
+and whatever wrote that text **truncated** rather than floored:
+- **Truncated:** `26/11 11 PM` is −34.958.
+- **Floored:** the same text would be −33.042, about 2° north. For Albany samples at longitude
+  118 that is inland.
+
+Checked against the 30 converted latitudes that have already-numeric samples at the same
+location:
+- truncation is within 0.44° of every one;
+- flooring put 18 of them more than 0.5° out.
+
+Midnight-only date coordinates are refused. That is where a day/month swap hides: `OG1990`'s
+longitude reads 6 Feb 1900 (37) where its Coral Sea neighbours are at 154 (2 June 1900).
+
+On live, every converted coordinate is within 0.5° of its location's median, except one
+longitude at 0.67°. That is within a port's fishing grounds.
+
+**Still the lab's to fix: 869 open.** These are what the rules deliberately leave alone:
+- ranges, two measurements in one cell, and other measures (CCL, disk width)
+- words in numeric columns (`pup`, `Adult`, `on land`)
+- partial dates
+- coordinates with no hemisphere letter or sign
+- midnight-only date coordinates
+- the 84 `pooled library` rows
+- plus every non-cast class (attempt-key ties, missing parents, sequencing rows with no library)
+
+When a cell is fixed in the workbook, the next import closes its record.
+
 ## Live reconcile output
 
 ```
