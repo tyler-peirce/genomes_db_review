@@ -152,6 +152,12 @@ EXPLAINED: dict[str, str] = {
         "the set_updated_at trigger -- see revision 2, do not let it lapse unnoticed",
     "rna_library_kinx.updated_at": "deliberate, see created_at",
 
+    # Migration 042 (owner decision 2026-10-06): one text cell held more than one fact.
+    "sample.lengthtl_and_lengthfl":
+        "042 split into length_tl_mm / length_fl_mm / length_unspecified_mm (parsed by "
+        "import_v2.py; '120 TL, 105 FL' fills two)",
+    "sample.depth_collection": "042 split into depth_min_m / depth_max_m (ranges such as '330-730')",
+
     # F6 / decision 4 -- the five nullable polymorphic library columns are
     # replaced by a single FK into the v2.library registry.
     "sequencing.illumina_library_tube_id": "F6 replaced by v2.library registry",

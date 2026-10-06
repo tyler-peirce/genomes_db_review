@@ -92,6 +92,9 @@ def main() -> int:
     sql, closed, rewritten = [], 0, 0
     for table, recs in records.items():
         types = {c: k for c, k in nc.COLUMN_TYPES.get(table, {}).items() if k in TYPED}
+        # Split columns (migration 042) are filled by import_v2.py only, but a record whose
+        # split cell still cannot be parsed is still open -- it must not be closed from here.
+        splits = [c for c, k in nc.COLUMN_TYPES.get(table, {}).items() if k == "split"]
         pk = nc.PRIMARY_KEYS.get(table)
         if not types or not pk:
             continue
@@ -127,12 +130,22 @@ def main() -> int:
                     "ON CONFLICT (source_table, row_key, column_name) DO UPDATE SET "
                     "raw_value = EXCLUDED.raw_value, stored_value = EXCLUDED.stored_value, "
                     "rule = EXCLUDED.rule, converted_by = EXCLUDED.converted_by, last_seen = now();")
+            for col in splits:
+                raw = raw_row.get(col)
+                if blank(raw):
+                    continue
+                try:
+                    rules.split(table, col, raw)
+                except ValueError:
+                    still_failing.append(f"{col} = {raw}")
+            if not converted_any:
+                continue                    # nothing done here: leave the record as it is
             if not still_failing:
                 closed += 1
                 sql.append("UPDATE v2.import_quarantine SET resolved_at = now(), "
                            "resolution_note = 'converted by rule, apply_value_rules.py ' || current_date "
                            f"WHERE quarantine_id = {qid} AND resolved_at IS NULL;")
-            elif converted_any:
+            else:
                 rewritten += 1
                 detail = "; ".join(still_failing) + " -- did not convert; loaded as null"
                 sql.append(f"UPDATE v2.import_quarantine SET violation_detail = {lit(detail)} "

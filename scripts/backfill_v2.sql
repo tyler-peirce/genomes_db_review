@@ -30,6 +30,13 @@
 --
 -- Covers all seventeen tables. The LCA half was added 2026-10-05; see its own header below.
 --
+-- Re-running this AFTER import_v2.py has run: quarantine keeps one open record per (table, key,
+-- type), so this script's type_cast records overwrite the importer's details for the same rows
+-- until the next import. Those are narrower -- this script does not see length or depth
+-- (migration 042) or apply the value rules -- so a record can briefly read 'weight=Adult'
+-- where the importer said 'weight=...; depth_collection=on land'. Nothing is lost; the next
+-- import_v2.py run rewrites them.
+--
 -- Not covered here, because they need decisions the data cannot supply:
 --   - the 226 legacy hic_library.prox_ligation_conc values (F13) are copied as-is into the
 --     legacy column and NOT promoted to hic_lysate; the 10 conflicting lysates are quarantined
@@ -196,8 +203,8 @@ ANALYZE attempt_tie_losers;
 
 INSERT INTO v2.sample (
     og_id, project_id, field_id, nominal_species_id, common_name, collector, contact,
-    date_collected, sex, weight, lengthtl_and_lengthfl, country, state, location,
-    latitude_collection, longitude_collection, depth_collection, collection_method,
+    date_collected, sex, weight, country, state, location,
+    latitude_collection, longitude_collection, collection_method,
     preservation_method, sample_condition, photo_voucher, photo_id, specimen_voucher,
     voucher_id, comments, workflow, priority, ilmn, hifi, hic, nano, rna, ilrna,
     assigned_species, eschmeyer_id, ncbi_sample_name, ncbi_biosample_id, hifi_lca_outcome,
@@ -207,11 +214,15 @@ INSERT INTO v2.sample (
     draft_sra_accessions, draft_assembly_accession, embargo_status)
 SELECT s.og_id, s.project_id, s.field_id, s.nominal_species_id, s.common_name, s.collector,
        s.contact, s.date_collected, s.sex,
-       pg_temp.try_real(s.weight), pg_temp.try_real(s.lengthtl_and_lengthfl),
+       pg_temp.try_real(s.weight),
        s.country, s.state, s.location,
        pg_temp.try_real(s.latitude_collection)::double precision,
        pg_temp.try_real(s.longitude_collection)::double precision,
-       pg_temp.try_real(s.depth_collection),
+       -- Length and depth are NOT loaded here (migration 042): each is parsed out of one text
+       -- cell into several columns (length_tl_mm / length_fl_mm / length_unspecified_mm,
+       -- depth_min_m / depth_max_m) by OceanOmics-Database/v2_value_rules.py, and every sample
+       -- row comes through import_v2.py, which does that. Duplicating the parser in SQL would
+       -- give two versions of one rule.
        s.collection_method, s.preservation_method, s.sample_condition, s.photo_voucher,
        s.photo_id, s.specimen_voucher, s.voucher_id, s.comments,
        s.workflow::text, s.priority,
@@ -240,10 +251,6 @@ SELECT v2.quarantine('sample', s.og_id, 'type_cast',
                      concat_ws('; ',
                        CASE WHEN pg_temp.cast_failed(s.weight, pg_temp.try_real(s.weight))
                             THEN 'weight=' || s.weight END,
-                       CASE WHEN pg_temp.cast_failed(s.lengthtl_and_lengthfl, pg_temp.try_real(s.lengthtl_and_lengthfl))
-                            THEN 'lengthtl_and_lengthfl=' || s.lengthtl_and_lengthfl END,
-                       CASE WHEN pg_temp.cast_failed(s.depth_collection, pg_temp.try_real(s.depth_collection))
-                            THEN 'depth_collection=' || s.depth_collection END,
                        CASE WHEN pg_temp.cast_failed(s.latitude_collection, pg_temp.try_real(s.latitude_collection))
                             THEN 'latitude_collection=' || s.latitude_collection END,
                        CASE WHEN pg_temp.cast_failed(s.longitude_collection, pg_temp.try_real(s.longitude_collection))
@@ -251,8 +258,6 @@ SELECT v2.quarantine('sample', s.og_id, 'type_cast',
                      to_jsonb(s), '1.MetaData')
 FROM public.sample s
 WHERE pg_temp.cast_failed(s.weight, pg_temp.try_real(s.weight))
-   OR pg_temp.cast_failed(s.lengthtl_and_lengthfl, pg_temp.try_real(s.lengthtl_and_lengthfl))
-   OR pg_temp.cast_failed(s.depth_collection, pg_temp.try_real(s.depth_collection))
    OR pg_temp.cast_failed(s.latitude_collection, pg_temp.try_real(s.latitude_collection))
    OR pg_temp.cast_failed(s.longitude_collection, pg_temp.try_real(s.longitude_collection));
 
