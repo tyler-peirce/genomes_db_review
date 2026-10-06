@@ -151,6 +151,7 @@ CREATE TABLE v2.workbook_attempt_keys (
     source_table  text        NOT NULL,
     row_key       text        NOT NULL,
     parent_key    text,
+    attempt_scope text,       -- the prep method, on the two tables numbered per method
     attempt_num   integer,
     workbook_file text        NOT NULL,
     staged_at     timestamptz NOT NULL DEFAULT now(),

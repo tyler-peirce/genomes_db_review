@@ -282,6 +282,12 @@ BEGIN
     JOIN pg_namespace n ON n.oid = c.connamespace AND n.nspname = 'v2'
     WHERE c.conname LIKE '%\_attempt\_key'
   LOOP
+    IF rec.conname IN ('rna_library_ilmn_attempt_key', 'ont_library_attempt_key')
+       AND NOT EXISTS (SELECT 1 FROM pg_constraint c2
+                        JOIN pg_attribute a ON a.attrelid = c2.conrelid AND a.attnum = ANY (c2.conkey)
+                       WHERE c2.conname = rec.conname AND a.attname = 'library_method') THEN
+      RAISE EXCEPTION '% must include library_method: these sheets number attempts per method', rec.conname;
+    END IF;
     IF NOT rec.condeferrable OR rec.condeferred THEN
       RAISE EXCEPTION '% must be DEFERRABLE INITIALLY IMMEDIATE (import_v2.py defers it per table step)',
         rec.conname;

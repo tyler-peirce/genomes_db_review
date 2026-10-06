@@ -119,56 +119,63 @@ END $$;
 
 CREATE TEMP TABLE attempt_rows ON COMMIT DROP AS
 SELECT 'dna_extraction'::text AS tbl, d.dna_id::text AS row_key, d.tissue_id::text AS parent,
-       d.ext_num::text AS num, '3.DNAExtractions'::text AS sheet, to_jsonb(d) AS row_json
+       ''::text AS scope, d.ext_num::text AS num, '3.DNAExtractions'::text AS sheet,
+       to_jsonb(d) AS row_json
   FROM public.dna_extraction d
 UNION ALL
-SELECT 'rna_extraction', r.rna_id, r.tissue_id, r.ext_num::text, '3.RNAExtractions', to_jsonb(r)
+SELECT 'rna_extraction', r.rna_id, r.tissue_id, '', r.ext_num::text, '3.RNAExtractions', to_jsonb(r)
   FROM public.rna_extraction r
 UNION ALL
-SELECT 'hic_lysate', y.lysate_id, y.tissue_id, y.lysate_num::text, '4.HiCLysate', to_jsonb(y)
+SELECT 'hic_lysate', y.lysate_id, y.tissue_id, '', y.lysate_num::text, '4.HiCLysate', to_jsonb(y)
   FROM public.hic_lysate y
 UNION ALL
-SELECT 'illumina_library', i.illumina_library_tube_id, i.dna_id, i.ilmn_num::text, '4.Illumina', to_jsonb(i)
+SELECT 'illumina_library', i.illumina_library_tube_id, i.dna_id, '', i.ilmn_num::text, '4.Illumina', to_jsonb(i)
   FROM public.illumina_library i
 UNION ALL
-SELECT 'pacbio_library', p.pacbio_library_tube_id, p.dna_id, p.pacb_num::text, '4.PacBio', to_jsonb(p)
+SELECT 'pacbio_library', p.pacbio_library_tube_id, p.dna_id, '', p.pacb_num::text, '4.PacBio', to_jsonb(p)
   FROM public.pacbio_library p
 UNION ALL
-SELECT 'ont_library', o.ont_library_tube_id, o.dna_id, o.ont_num::text, '4.ONT', to_jsonb(o)
+SELECT 'ont_library', o.ont_library_tube_id, o.dna_id, btrim(o.library_method), o.ont_num::text, '4.ONT', to_jsonb(o)
   FROM public.ont_library o
 UNION ALL
-SELECT 'hic_library', h.hic_library_tube_id, h.lysate_id, h.hic_num::text, '4.HiCLibrary', to_jsonb(h)
+SELECT 'hic_library', h.hic_library_tube_id, h.lysate_id, '', h.hic_num::text, '4.HiCLibrary', to_jsonb(h)
   FROM public.hic_library h
 UNION ALL
-SELECT 'rna_library_ilmn', x.rna_library_tube_id, x.rna_id, x.rna_num::text, '4.RNAIllumina', to_jsonb(x)
+SELECT 'rna_library_ilmn', x.rna_library_tube_id, x.rna_id, btrim(x.library_method), x.rna_num::text, '4.RNAIllumina', to_jsonb(x)
   FROM public.rna_library_ilmn x
 UNION ALL
-SELECT 'rna_library_kinx', k.rna_library_tube_id, k.rna_id, k.rna_num::text, '4.RNAkinnex', to_jsonb(k)
+SELECT 'rna_library_kinx', k.rna_library_tube_id, k.rna_id, '', k.rna_num::text, '4.RNAkinnex', to_jsonb(k)
   FROM public.rna_library_kinx k;
 
--- A NULL parent or attempt number never ties: the UNIQUE constraint does not compare NULLs.
--- A row counts as "in the workbook" only under the same (parent, attempt) -- a tube the lab
--- has since moved to another tissue or renumbered does not vouch for this slot.
+-- The attempt key is (parent, num) on seven tables and (parent, method, num) on
+-- rna_library_ilmn and ont_library, which the lab numbers per prep method (name_convert_v2.py
+-- ATTEMPT_KEYS). `scope` carries the method there and '' elsewhere. A NULL in any part never
+-- ties: the UNIQUE constraint does not compare NULLs. A row counts as "in the workbook" only
+-- under the same key -- a tube the lab has since moved to another tissue or renumbered does
+-- not vouch for this slot.
 CREATE TEMP TABLE attempt_tie_losers ON COMMIT DROP AS
 WITH tied AS (
     SELECT a.*,
            EXISTS (SELECT 1 FROM v2.workbook_attempt_keys w
                     WHERE w.source_table = a.tbl AND w.row_key = a.row_key
-                      AND w.parent_key = a.parent AND w.attempt_num::text = a.num) AS in_workbook
+                      AND w.parent_key = a.parent AND w.attempt_num::text = a.num
+                      AND coalesce(btrim(w.attempt_scope), '') = a.scope) AS in_workbook
     FROM attempt_rows a
-    WHERE a.row_key IS NOT NULL AND a.parent IS NOT NULL AND a.num IS NOT NULL
+    WHERE a.row_key IS NOT NULL AND a.parent IS NOT NULL AND a.scope IS NOT NULL
+      AND a.num IS NOT NULL
 ),
 grp AS (
-    SELECT tbl, parent, num,
+    SELECT tbl, parent, scope, num,
            count(DISTINCT row_key) FILTER (WHERE in_workbook) AS n_workbook,
            min(row_key) FILTER (WHERE in_workbook)            AS workbook_key,
            string_agg(DISTINCT row_key, ', ' ORDER BY row_key) AS tied_keys
     FROM tied
-    GROUP BY tbl, parent, num
+    GROUP BY tbl, parent, scope, num
     HAVING count(DISTINCT row_key) > 1
 )
 SELECT t.tbl, t.row_key, t.sheet, t.row_json,
-       format('(%s, %s) is shared by %s; ', t.parent, t.num, g.tied_keys) ||
+       format('(%s) is shared by %s; ',
+              concat_ws(', ', t.parent, nullif(t.scope, ''), t.num), g.tied_keys) ||
        CASE WHEN g.n_workbook = 1
             THEN format('the workbook carries %s for this attempt, so this row was not loaded',
                         g.workbook_key)
@@ -177,7 +184,7 @@ SELECT t.tbl, t.row_key, t.sheet, t.row_json,
             ELSE 'the workbook carries more than one, so none was loaded; renumber one at source'
        END AS detail
 FROM tied t
-JOIN grp g USING (tbl, parent, num)
+JOIN grp g USING (tbl, parent, scope, num)
 WHERE NOT (g.n_workbook = 1 AND t.in_workbook);
 
 CREATE INDEX ON attempt_tie_losers (tbl, row_key);

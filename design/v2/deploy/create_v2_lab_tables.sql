@@ -277,8 +277,10 @@ COMMENT ON COLUMN v2.dna_extraction.status_overwrite IS
     'v2_scaffold_design_review.md F4a.';
 COMMENT ON CONSTRAINT dna_extraction_attempt_key ON v2.dna_extraction IS
     'The spreadsheet''s own "Latest" formula, MAX(#) per parent, is only correct if this holds - '
-    'a tie marks two rows as latest. It fails on 5 of 2,223 rows here (and on 53 of 321 on '
-    '4.RNAIllumina, the worst case); those rows quarantine for the lab to renumber. '
+    'a tie marks two rows as latest. It fails on 5 of 2,223 rows here; those rows quarantine '
+    'for the lab to renumber. (The "53 of 321 on 4.RNAIllumina" once cited as the worst case '
+    'were not ties: that sheet numbers attempts per library method -- see '
+    'rna_library_ilmn_attempt_key.) '
     'DEFERRABLE INITIALLY IMMEDIATE, as are all nine attempt keys: every statement still '
     'checks it, but import_v2.py defers it within one table step so that a renumber or a swap '
     'of two attempt numbers -- legitimate edits -- can land in a single upsert.';
@@ -529,10 +531,14 @@ CREATE TABLE v2.ont_library (
     CONSTRAINT ont_library_dna_id_fkey FOREIGN KEY (dna_id) REFERENCES v2.dna_extraction(dna_id),
     CONSTRAINT ont_library_registry_fkey FOREIGN KEY (ont_library_tube_id, dna_id)
         REFERENCES v2.library(library_tube_id, dna_id),
-    CONSTRAINT ont_library_attempt_key UNIQUE (dna_id, ont_num) DEFERRABLE INITIALLY IMMEDIATE
+    CONSTRAINT ont_library_attempt_key UNIQUE (dna_id, library_method, ont_num) DEFERRABLE INITIALLY IMMEDIATE
 );
 
 COMMENT ON TABLE  v2.ont_library IS 'One row per Oxford Nanopore library. Source: the 4.ONT sheet.';
+COMMENT ON CONSTRAINT ont_library_attempt_key ON v2.ont_library IS
+    'Per method, not per DNA: the lab numbers each kit separately (Ligation Kit LSK, Ultra Long '
+    'Kit ULK), so both are #1. True of all 3 DNAs with both in OceanGenomes_Database_261006.xlsx '
+    '(Phase V.2, 2026-10-06). A NULL library_method never collides.';
 COMMENT ON COLUMN v2.ont_library.library_type IS 'The ONT kit type from the "Library Type" header. Unrelated to library.library_type, which names the technology.';
 
 -- ---------------------------------------------------------------------------------------
@@ -608,7 +614,7 @@ CREATE TABLE v2.rna_library_ilmn (
     CONSTRAINT rna_library_ilmn_rna_id_fkey FOREIGN KEY (rna_id) REFERENCES v2.rna_extraction(rna_id),
     CONSTRAINT rna_library_ilmn_registry_fkey FOREIGN KEY (rna_library_tube_id, rna_id)
         REFERENCES v2.library(library_tube_id, rna_id),
-    CONSTRAINT rna_library_ilmn_attempt_key UNIQUE (rna_id, rna_num) DEFERRABLE INITIALLY IMMEDIATE
+    CONSTRAINT rna_library_ilmn_attempt_key UNIQUE (rna_id, library_method, rna_num) DEFERRABLE INITIALLY IMMEDIATE
 );
 
 -- DROPPED: og_id (F1); kinnex_primers and kinnex_barcode (F4, §6.4) — Kinnex protocol fields
@@ -617,6 +623,13 @@ CREATE TABLE v2.rna_library_ilmn (
 --   that is misplaced Kinnex data and belongs in rna_library_kinx.
 
 COMMENT ON TABLE  v2.rna_library_ilmn IS 'One row per Illumina RNA library. Source: the 4.RNAIllumina sheet.';
+COMMENT ON CONSTRAINT rna_library_ilmn_attempt_key ON v2.rna_library_ilmn IS
+    'Per method, not per RNA: the lab restarts # at 1 for each library method, so the first '
+    'stranded-mRNA library (_IL) and the first ribosomal-depletion library (_dIL) from one RNA '
+    'are both #1. True of all 51 RNAs with both in OceanGenomes_Database_261006.xlsx (Phase V.2, '
+    '2026-10-06). Keyed on (rna_id, rna_num) those were 56 false ties, and in 31 of the 59 '
+    'across this table and ont_library the import kept a failed library over a sequenced one. '
+    'A NULL library_method never collides.';
 COMMENT ON COLUMN v2.rna_library_ilmn.library_size IS
     'Historical values only. The "cDNA Library Size (bp)" header was removed from 4.RNAIllumina '
     'between the 260804 and 261006 workbooks, so nothing writes this column after the backfill.';

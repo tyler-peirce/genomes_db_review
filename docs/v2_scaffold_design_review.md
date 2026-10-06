@@ -406,6 +406,16 @@ this document:
   - `v_hic_library_browse` already keeps the two apart as `prox_ligation_conc` and
     `prox_ligation_conc_legacy`.
 
+- **F7's attempt key was wrong on two tables, and this changes a claim made since August.**
+  - `4.RNAIllumina` and `4.ONT` number attempts per prep method, not per parent. On every
+    parent with more than one method, `#` restarts at 1 for each method (51 RNAs; 3 DNAs).
+  - The "53 of 321 on 4.RNAIllumina, the worst case" cited for the attempt key since revision 1,
+    and the 107 live "ties" in §0.5, were these pairs, not numbering mistakes.
+  - Both keys are now `(parent, library_method, #)`. On the other seven tables the key stands as
+    designed: every parent with several methods keeps counting across them.
+  - On a copy of live, tied rows quarantined by the backfill fell from 235 to 65, and every one
+    that remains is a tube renamed or mistyped in live.
+
 ## 1. Summary
 
 The Phase 0 work is solid — baseline export, live inventories, Sqitch adoption, gap analysis.

@@ -191,7 +191,7 @@ SELECT t.og_id,
        o.dna_id,
        o.ont_library_tube_id,
        o.ont_num,
-       (o.ont_num = max(o.ont_num) OVER (PARTITION BY o.dna_id)) AS is_latest,
+       (o.ont_num = max(o.ont_num) OVER (PARTITION BY o.dna_id, o.library_method)) AS is_latest,
        o.ont_status,
        o.status_overwrite,
        o.library_method,
@@ -242,7 +242,7 @@ SELECT t.og_id,
        x.rna_id,
        x.rna_library_tube_id,
        x.rna_num,
-       (x.rna_num = max(x.rna_num) OVER (PARTITION BY x.rna_id)) AS is_latest,
+       (x.rna_num = max(x.rna_num) OVER (PARTITION BY x.rna_id, x.library_method)) AS is_latest,
        x.rna_status,
        x.status_overwrite,
        x.library_method,
@@ -328,9 +328,9 @@ COMMENT ON VIEW v2.v_hic_lysate_browse        IS 'Hi-C lysates with og_id and is
 COMMENT ON VIEW v2.v_library_browse           IS 'All libraries of every technology, one row each, with og_id resolved through whichever parent chain applies. The registry made browsable.';
 COMMENT ON VIEW v2.v_illumina_library_browse  IS 'Illumina DNA libraries with og_id and is_latest.';
 COMMENT ON VIEW v2.v_pacbio_library_browse    IS 'PacBio HiFi libraries with og_id and is_latest.';
-COMMENT ON VIEW v2.v_ont_library_browse       IS 'ONT libraries with og_id and is_latest.';
+COMMENT ON VIEW v2.v_ont_library_browse       IS 'ONT libraries with og_id and is_latest. is_latest is per kit (library_method), because the lab numbers attempts per kit.';
 COMMENT ON VIEW v2.v_hic_library_browse       IS 'Hi-C libraries with og_id and is_latest. Exposes the lysate proximity-ligation value as prox_ligation_conc and the legacy library-level one separately.';
-COMMENT ON VIEW v2.v_rna_library_ilmn_browse  IS 'Illumina RNA libraries with og_id and is_latest.';
+COMMENT ON VIEW v2.v_rna_library_ilmn_browse  IS 'Illumina RNA libraries with og_id and is_latest. is_latest is per library_method, because the lab numbers attempts per method (mRNA _IL and ribosomal-depletion _dIL each start at #1).';
 COMMENT ON VIEW v2.v_rna_library_kinx_browse  IS 'PacBio Kinnex RNA libraries with og_id and is_latest.';
 COMMENT ON VIEW v2.v_sequencing_browse        IS 'Sequencing records with the full ancestor chain, through the library registry.';
 
