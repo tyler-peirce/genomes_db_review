@@ -240,6 +240,8 @@ SELECT v2.quarantine('sample', s.og_id, 'type_cast',
                      concat_ws('; ',
                        CASE WHEN pg_temp.cast_failed(s.weight, pg_temp.try_real(s.weight))
                             THEN 'weight=' || s.weight END,
+                       CASE WHEN pg_temp.cast_failed(s.lengthtl_and_lengthfl, pg_temp.try_real(s.lengthtl_and_lengthfl))
+                            THEN 'lengthtl_and_lengthfl=' || s.lengthtl_and_lengthfl END,
                        CASE WHEN pg_temp.cast_failed(s.depth_collection, pg_temp.try_real(s.depth_collection))
                             THEN 'depth_collection=' || s.depth_collection END,
                        CASE WHEN pg_temp.cast_failed(s.latitude_collection, pg_temp.try_real(s.latitude_collection))
@@ -249,6 +251,7 @@ SELECT v2.quarantine('sample', s.og_id, 'type_cast',
                      to_jsonb(s), '1.MetaData')
 FROM public.sample s
 WHERE pg_temp.cast_failed(s.weight, pg_temp.try_real(s.weight))
+   OR pg_temp.cast_failed(s.lengthtl_and_lengthfl, pg_temp.try_real(s.lengthtl_and_lengthfl))
    OR pg_temp.cast_failed(s.depth_collection, pg_temp.try_real(s.depth_collection))
    OR pg_temp.cast_failed(s.latitude_collection, pg_temp.try_real(s.latitude_collection))
    OR pg_temp.cast_failed(s.longitude_collection, pg_temp.try_real(s.longitude_collection));
@@ -306,7 +309,8 @@ INSERT INTO v2.dna_extraction (
     dna_id, tissue_id, ext_num, status, extraction_method, extraction_date,
     extraction_batch_id, final_buffer, volume, qubit_conc, nano_drop_conc, ratio_260_280,
     ratio_260_230, total_yield, gdna_femtol_id, av_size, extraction_qc, comment,
-    dna_freezer, dna_shelf, dna_rack, dna_level, dna_box, dna_notes, status_overwrite)
+    dna_freezer, dna_shelf, dna_rack, dna_level, dna_box, dna_notes, status_overwrite,
+    ratioqubit_nanodrop)
 SELECT DISTINCT ON (d.dna_id)
        d.dna_id, d.tissue_id, d.ext_num, d.status, d.extraction_method,
        pg_temp.try_date(d.extraction_date), d.extraction_batch_id, d.final_buffer, d.volume,
@@ -314,7 +318,11 @@ SELECT DISTINCT ON (d.dna_id)
        pg_temp.try_real(d.ratio_260_280), pg_temp.try_real(d.ratio_260_230),
        pg_temp.try_real(d.total_yield), d.gdna_femtol_id, pg_temp.try_real(d.av_size),
        d.extraction_qc, d.comment, d.dna_freezer, d.dna_shelf, d.dna_rack, d.dna_level,
-       d.dna_box, d.dna_notes, pg_temp.try_flag(d.status_overwrite::text)
+       d.dna_box, d.dna_notes, pg_temp.try_flag(d.status_overwrite::text),
+       -- 987 hand-entered measurements (V.1 item 4). The column was kept in the DDL so this
+       -- script would carry them, and until Phase V.4's reconciliation it did not: every
+       -- value would have loaded as null. Same type on both sides; copied as-is.
+       d.ratioqubit_nanodrop
 FROM public.dna_extraction d
 WHERE d.dna_id IS NOT NULL AND btrim(d.dna_id) <> ''
   AND EXISTS (SELECT 1 FROM v2.tissue t WHERE t.tissue_id = d.tissue_id)
@@ -333,23 +341,8 @@ WHERE d.dna_id IS NOT NULL AND btrim(d.dna_id) <> ''
 
 -- Attempt-key ties are quarantined once, for all nine tables, at the end of the lab half.
 
--- F4a. The workbook holds only 'Y' here, so this should match nothing. It is kept as a guard:
--- status_overwrite is now a boolean the summary view filters on, and a value that is neither
--- Y nor N should surface rather than silently becoming null.
-SELECT v2.quarantine('dna_extraction', d.dna_id, 'type_cast',
-                     'status_overwrite = ' || d.status_overwrite
-                       || ' — expected Y or N (F4a)',
-                     to_jsonb(d), '3.DNAExtractions')
-FROM public.dna_extraction d
-WHERE d.status_overwrite IS NOT NULL
-  AND btrim(d.status_overwrite::text) <> ''
-  AND pg_temp.try_flag(d.status_overwrite::text) IS NULL;
-
-SELECT v2.quarantine('dna_extraction', d.dna_id, 'type_cast',
-                     'extraction_date = ' || d.extraction_date || ' did not parse; loaded as null',
-                     to_jsonb(d), '3.DNAExtractions')
-FROM public.dna_extraction d
-WHERE pg_temp.cast_failed(d.extraction_date, pg_temp.try_date(d.extraction_date));
+-- Cast failures (extraction_date, the ratios, total_yield, av_size, status_overwrite) are
+-- recorded with every other table's, in 'Cast failures' at the end of the lab half.
 
 -- ---------------------------------------------------------------------------------------
 -- 4. rna_extraction
@@ -733,6 +726,131 @@ WHERE num_nonnulls(nullif(q.illumina_library_tube_id, ''), nullif(q.pacbio_libra
                    WHERE l.library_tube_id = coalesce(q.illumina_library_tube_id,
                             q.pacbio_library_tube_id, q.ont_library_tube_id,
                             q.hic_library_tube_id, q.rna_library_tube_id));
+
+-- ---------------------------------------------------------------------------------------
+-- Cast failures: one type_cast record per row, naming every field that did not convert
+-- ---------------------------------------------------------------------------------------
+--
+-- Added 2026-10-06 (Phase V.4). The header has always promised that a value which will not
+-- cast loads as null WITH a quarantine record naming the field. Until scripts/reconcile_v2.py
+-- compared the tables, only sample and dna_extraction.extraction_date did: every other cast
+-- above nulled its value silently -- '>1.8', 'pooled library = 2.60ng/ul', '7.0 and 5.8' and
+-- the rest -- which is the outcome decision 6 exists to prevent.
+--
+-- ONE statement per table, aggregating every failed field into one detail, because
+-- v2.quarantine() keeps a single open row per (table, key, violation_type): two type_cast
+-- statements for the same row overwrite each other's detail, which is what dna_extraction's
+-- extraction_date and status_overwrite statements used to do.
+--
+-- The field lists mirror the pg_temp.try_* casts in the inserts above. Keep them in step:
+-- reconcile_v2.py section 3 reports any nulled value that has no record here.
+
+SELECT v2.quarantine('dna_extraction', d.dna_id, 'type_cast',
+                     string_agg(f.col || ' = ' || f.raw, '; ' ORDER BY f.col) || ' -- did not convert; loaded as null',
+                     (array_agg(to_jsonb(d)))[1], '3.DNAExtractions')
+FROM public.dna_extraction d
+CROSS JOIN LATERAL (VALUES
+    ('extraction_date', d.extraction_date::text, pg_temp.cast_failed(d.extraction_date::text, pg_temp.try_date(d.extraction_date::text))),
+    ('ratio_260_280', d.ratio_260_280::text, pg_temp.cast_failed(d.ratio_260_280::text, pg_temp.try_real(d.ratio_260_280::text))),
+    ('ratio_260_230', d.ratio_260_230::text, pg_temp.cast_failed(d.ratio_260_230::text, pg_temp.try_real(d.ratio_260_230::text))),
+    ('total_yield', d.total_yield::text, pg_temp.cast_failed(d.total_yield::text, pg_temp.try_real(d.total_yield::text))),
+    ('av_size', d.av_size::text, pg_temp.cast_failed(d.av_size::text, pg_temp.try_real(d.av_size::text))),
+    ('status_overwrite', d.status_overwrite::text, pg_temp.cast_failed(d.status_overwrite::text, pg_temp.try_flag(d.status_overwrite::text)))
+) AS f(col, raw, failed)
+WHERE f.failed
+GROUP BY d.dna_id;
+
+SELECT v2.quarantine('rna_extraction', r.rna_id, 'type_cast',
+                     string_agg(f.col || ' = ' || f.raw, '; ' ORDER BY f.col) || ' -- did not convert; loaded as null',
+                     (array_agg(to_jsonb(r)))[1], '3.RNAExtractions')
+FROM public.rna_extraction r
+CROSS JOIN LATERAL (VALUES
+    ('ratio_260_280', r.ratio_260_280::text, pg_temp.cast_failed(r.ratio_260_280::text, pg_temp.try_real(r.ratio_260_280::text))),
+    ('ratio_260_230', r.ratio_260_230::text, pg_temp.cast_failed(r.ratio_260_230::text, pg_temp.try_real(r.ratio_260_230::text))),
+    ('rin', r.rin::text, pg_temp.cast_failed(r.rin::text, pg_temp.try_real(r.rin::text))),
+    ('rna_shelf', r.rna_shelf::text, pg_temp.cast_failed(r.rna_shelf::text, pg_temp.try_int(r.rna_shelf::text))),
+    ('rna_rack', r.rna_rack::text, pg_temp.cast_failed(r.rna_rack::text, pg_temp.try_int(r.rna_rack::text))),
+    ('status_overwrite', r.status_overwrite::text, pg_temp.cast_failed(r.status_overwrite::text, pg_temp.try_flag(r.status_overwrite::text)))
+) AS f(col, raw, failed)
+WHERE f.failed
+GROUP BY r.rna_id;
+
+SELECT v2.quarantine('illumina_library', i.illumina_library_tube_id, 'type_cast',
+                     string_agg(f.col || ' = ' || f.raw, '; ' ORDER BY f.col) || ' -- did not convert; loaded as null',
+                     (array_agg(to_jsonb(i)))[1], '4.Illumina')
+FROM public.illumina_library i
+CROSS JOIN LATERAL (VALUES
+    ('library_date', i.library_date::text, pg_temp.cast_failed(i.library_date::text, pg_temp.try_date(i.library_date::text))),
+    ('library_qubit_conc', i.library_qubit_conc::text, pg_temp.cast_failed(i.library_qubit_conc::text, pg_temp.try_real(i.library_qubit_conc::text))),
+    ('status_overwrite', i.status_overwrite::text, pg_temp.cast_failed(i.status_overwrite::text, pg_temp.try_flag(i.status_overwrite::text)))
+) AS f(col, raw, failed)
+WHERE f.failed
+GROUP BY i.illumina_library_tube_id;
+
+SELECT v2.quarantine('pacbio_library', p.pacbio_library_tube_id, 'type_cast',
+                     string_agg(f.col || ' = ' || f.raw, '; ' ORDER BY f.col) || ' -- did not convert; loaded as null',
+                     (array_agg(to_jsonb(p)))[1], '4.PacBio')
+FROM public.pacbio_library p
+CROSS JOIN LATERAL (VALUES
+    ('library_date', p.library_date::text, pg_temp.cast_failed(p.library_date::text, pg_temp.try_date(p.library_date::text))),
+    ('status_overwrite', p.status_overwrite::text, pg_temp.cast_failed(p.status_overwrite::text, pg_temp.try_flag(p.status_overwrite::text)))
+) AS f(col, raw, failed)
+WHERE f.failed
+GROUP BY p.pacbio_library_tube_id;
+
+SELECT v2.quarantine('ont_library', o.ont_library_tube_id, 'type_cast',
+                     string_agg(f.col || ' = ' || f.raw, '; ' ORDER BY f.col) || ' -- did not convert; loaded as null',
+                     (array_agg(to_jsonb(o)))[1], '4.ONT')
+FROM public.ont_library o
+CROSS JOIN LATERAL (VALUES
+    ('library_date', o.library_date::text, pg_temp.cast_failed(o.library_date::text, pg_temp.try_date(o.library_date::text))),
+    ('status_overwrite', o.status_overwrite::text, pg_temp.cast_failed(o.status_overwrite::text, pg_temp.try_flag(o.status_overwrite::text)))
+) AS f(col, raw, failed)
+WHERE f.failed
+GROUP BY o.ont_library_tube_id;
+
+SELECT v2.quarantine('hic_library', h.hic_library_tube_id, 'type_cast',
+                     string_agg(f.col || ' = ' || f.raw, '; ' ORDER BY f.col) || ' -- did not convert; loaded as null',
+                     (array_agg(to_jsonb(h)))[1], '4.HiCLibrary')
+FROM public.hic_library h
+CROSS JOIN LATERAL (VALUES
+    ('library_date', h.library_date::text, pg_temp.cast_failed(h.library_date::text, pg_temp.try_date(h.library_date::text))),
+    ('status_overwrite', h.status_overwrite::text, pg_temp.cast_failed(h.status_overwrite::text, pg_temp.try_flag(h.status_overwrite::text)))
+) AS f(col, raw, failed)
+WHERE f.failed
+GROUP BY h.hic_library_tube_id;
+
+SELECT v2.quarantine('rna_library_ilmn', x.rna_library_tube_id, 'type_cast',
+                     string_agg(f.col || ' = ' || f.raw, '; ' ORDER BY f.col) || ' -- did not convert; loaded as null',
+                     (array_agg(to_jsonb(x)))[1], '4.RNAIllumina')
+FROM public.rna_library_ilmn x
+CROSS JOIN LATERAL (VALUES
+    ('library_date', x.library_date::text, pg_temp.cast_failed(x.library_date::text, pg_temp.try_date(x.library_date::text))),
+    ('library_molarity', x.library_molarity::text, pg_temp.cast_failed(x.library_molarity::text, pg_temp.try_real(x.library_molarity::text))),
+    ('status_overwrite', x.status_overwrite::text, pg_temp.cast_failed(x.status_overwrite::text, pg_temp.try_flag(x.status_overwrite::text)))
+) AS f(col, raw, failed)
+WHERE f.failed
+GROUP BY x.rna_library_tube_id;
+
+SELECT v2.quarantine('rna_library_kinx', k.rna_library_tube_id, 'type_cast',
+                     string_agg(f.col || ' = ' || f.raw, '; ' ORDER BY f.col) || ' -- did not convert; loaded as null',
+                     (array_agg(to_jsonb(k)))[1], '4.RNAkinnex')
+FROM public.rna_library_kinx k
+CROSS JOIN LATERAL (VALUES
+    ('status_overwrite', k.status_overwrite::text, pg_temp.cast_failed(k.status_overwrite::text, pg_temp.try_flag(k.status_overwrite::text)))
+) AS f(col, raw, failed)
+WHERE f.failed
+GROUP BY k.rna_library_tube_id;
+
+SELECT v2.quarantine('sequencing', q.sequencing_id, 'type_cast',
+                     string_agg(f.col || ' = ' || f.raw, '; ' ORDER BY f.col) || ' -- did not convert; loaded as null',
+                     (array_agg(to_jsonb(q)))[1], '5.Sequencing')
+FROM public.sequencing q
+CROSS JOIN LATERAL (VALUES
+    ('run_date', q.run_date::text, pg_temp.cast_failed(q.run_date::text, pg_temp.try_date(q.run_date::text)))
+) AS f(col, raw, failed)
+WHERE f.failed
+GROUP BY q.sequencing_id;
 
 -- =======================================================================================
 -- LCA / mitogenome tables
