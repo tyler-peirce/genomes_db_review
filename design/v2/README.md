@@ -23,7 +23,8 @@ at creation — these migrations must not be replayed after the V.4 backfill.
 **The backfill is not a migration.** It moved to `scripts/backfill_v2.sql`: it needs
 `import_v2.py --stage-attempt-keys` first, which `bin/apply_migrations.py` cannot run, and it
 is designed to be re-run while the lab fixes rows, which a ledgered file cannot be. Phase V.4
-runs it.
+runs it. **It ran on live 2026-10-06 (V.4)**, after two silent-loss fixes found by
+`scripts/reconcile_v2.py`; see `docs/v2_reconciliation.md`.
 
 `scripts/diff_v2_against_live.py` now reads the `sql/NNN_v2_*.sql` files.
 
