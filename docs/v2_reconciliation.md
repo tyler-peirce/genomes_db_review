@@ -123,6 +123,43 @@ longitude at 0.67°. That is within a port's fishing grounds.
 
 When a cell is fixed in the workbook, the next import closes its record.
 
+## Follow-up: length and depth split; no-hemisphere coordinates (migration `042`)
+
+Two `v2.sample` columns each held more than one fact. Owner decisions, 2026-10-06:
+
+- **Length** (`Length (TL or FL mm)`) is now three columns: `length_tl_mm`, `length_fl_mm`
+  and `length_unspecified_mm`.
+  - `120 TL, 105 FL` fills both TL and FL.
+  - A bare number goes to unspecified. Nothing is guessed.
+  - On live: 178 TL, 107 FL (48 rows have both) and 1,311 unspecified.
+  - Still quarantined: curved carapace length (CCL), disk width, ranges, `300++`, words, and 3
+    cells where a measurement is followed by a free-text note.
+- **Depth** (`Depth_Collection (m)`) is now `depth_min_m` / `depth_max_m`, the Darwin Core
+  minimum/maximum depth.
+  - A single depth sets both.
+  - Every range spelling (`330-730`, `5 to 15`, `5.9 - 9.5`) becomes the same pair of numbers.
+  - `<1` is 0–1, and `Surface` is 0.
+  - On live: 1,751 filled, 77 of them ranges.
+  - Still quarantined: `on land` (149) and 2 dates.
+- **Coordinates with no hemisphere letter and no sign**, inside the Australian range only, are
+  taken as south and east under their own rule, `dms_assumed_hemisphere` (96 values).
+  - On live only 2 coordinates are left: the two midnight-only date values.
+
+The workbook keeps its single columns; `import_v2.py` parses them. On live:
+- no length or depth value went unaccounted for;
+- every logged value matches its cell;
+- open quarantine is down to **702**.
+
+The rehearsal caught two bugs, both fixed before live:
+- **A date in a depth cell was read as blank.** That would have closed `OG1414`'s record
+  silently.
+- **The one-off fill would have closed 22 records** whose only problem was an unparseable length
+  or depth cell.
+
+The no-hemisphere latitudes agree with the other samples at their location, except at Ningaloo
+Reef, which spans about 300 km. The check also found an existing error: one Lord Howe Island
+sample is stored at latitude +31.52, which is missing its minus sign.
+
 ## Live reconcile output
 
 ```
