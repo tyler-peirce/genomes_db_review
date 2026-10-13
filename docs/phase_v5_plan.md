@@ -1,6 +1,6 @@
 # Phase V.5 plan — cut over to `v2`
 
-Status: **written and rehearsed 2026-10-13; not applied to live.** Source step:
+Status: **applied to live 2026-10-13 06:06:49–06:07:00 UTC as migration `045_v2_cutover.sql`.** Pre-flight, rehearsal on a fresh copy of live, and post-checks all passed; see the record at the end. Source step:
 `database_review.md` §9, Phase V.5. Previous step: V.4 and migration `043`, done. Next step:
 V.6 (move `v2` into `public`), after a quiet period.
 
@@ -224,3 +224,18 @@ The rehearsals found three defects in the first draft of the cutover, and all th
 The opt-in guard was added after the full rehearsal. It was tested on its own: it refuses
 without the setting, and with the setting it goes on to the normal precondition checks. Each
 cutover-morning rehearsal therefore covers the final file.
+
+## Cutover record — 2026-10-13
+
+| Step | Result |
+|---|---|
+| Pre-flight: drift, ledger | No drift; 45 applied, nothing pending |
+| Pre-flight: dependents | The same 10 views; every function has a disposition |
+| Pre-flight: import | `out.261013.txt` complete; no `fetch_excel.FAILING` |
+| Pre-flight: sessions | 4, all idle: two `oceangenom_web` pool connections, one `postgres` session from 130.95.189.83 with `application_name` `oceangenom_web`, and this host |
+| Rehearsal on a 06:05 UTC dump of live | Applied in about 10 s; all post-checks passed; revert identical (`pg_dump -s`); re-apply clean |
+| **Applied to live** | `045_v2_cutover.sql`, 06:06:49–06:07:00 UTC. 20 objects renamed, 7 views rebound, 0 `workflow` values to carry |
+| Post-checks on live | `search_path` `v2, public`; `sample` is `v2.sample` (3,401); both write paths land in `v2`; `readonly` reads `sample` and `summary`; `oceangenom_web` can update `workflow` only; `public.sample` gone; test writes rolled back (0 left) |
+| View row counts | Unchanged except `embargo_assignment_view`, 3,294 to 3,401: it now reads `v2.sample` |
+| Drift baseline | Exactly the 20 renames (+20 / -20), accepted; the cron wrapper passes |
+

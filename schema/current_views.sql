@@ -185,8 +185,8 @@ CREATE OR REPLACE VIEW public.goat_project_metadata_v1 AS
     CURRENT_DATE AS date_of_last_update,
     'ebp_species_goat_3.0'::text AS schema_version;;
 
--- View: public.goat_species_v1
-CREATE OR REPLACE VIEW public.goat_species_v1 AS
+-- View: public.goat_species_v1_pre_v2
+CREATE OR REPLACE VIEW public.goat_species_v1_pre_v2 AS
  SELECT s.ncbi_taxon_id,
     s.family,
     s.species,
@@ -197,20 +197,20 @@ CREATE OR REPLACE VIEW public.goat_species_v1 AS
         END AS target_list_status,
         CASE
             WHEN (EXISTS ( SELECT 1
-               FROM sample samp
+               FROM sample_pre_v2 samp
               WHERE samp.nominal_species_id = s.species)) THEN 'sample_collected'::text
             ELSE NULL::text
         END AS sampling_status,
         CASE
             WHEN (EXISTS ( SELECT 1
-               FROM sample samp
+               FROM sample_pre_v2 samp
               WHERE samp.nominal_species_id = s.species AND samp.ncbi_bioproject_id_lvl_3_hifi IS NOT NULL)) THEN 'submitted'::text
             WHEN (EXISTS ( SELECT 1
-               FROM sample samp
+               FROM sample_pre_v2 samp
                  JOIN ref_genomes rg ON rg.og_id = samp.og_id
               WHERE samp.nominal_species_id = s.species)) THEN 'in_assembly'::text
             WHEN (EXISTS ( SELECT 1
-               FROM sample samp
+               FROM sample_pre_v2 samp
               WHERE samp.nominal_species_id = s.species AND (samp.pb_status = ANY (ARRAY['Library Prep - PacBio SMRTbell'::text, 'QC - Femto'::text, 'Sequenced'::text, 'Sequenced, SRE'::text, 'Sequence - PacBio'::text, 'Shearing'::text, 'SRE'::text, 'SRE - ULI'::text, 'ULI'::text])))) THEN 'in_lab'::text
             ELSE NULL::text
         END AS sequencing_status,
@@ -221,7 +221,7 @@ CREATE OR REPLACE VIEW public.goat_species_v1 AS
         CASE
             WHEN s.species = ANY (ARRAY['Neophoca cinerea'::text, 'Careproctus sp.'::text, 'Lethrinus punctulatus'::text, 'Siphonognathus radiatus'::text, 'Dascyllus aruanus'::text, 'Carcharhinus galapagensis'::text]) THEN 'data_conflict'::text
             ELSE ( SELECT samp.collector
-               FROM sample samp
+               FROM sample_pre_v2 samp
               WHERE samp.nominal_species_id = s.species AND samp.workflow::text = 'Reference'::text AND samp.collector IS NOT NULL
              LIMIT 1)
         END AS collected_by,
@@ -296,7 +296,7 @@ CREATE OR REPLACE VIEW public."lca_results_view_SS260818" AS
             ELSE 'INVESTIGATE'::text
         END AS validation_status
    FROM "lca_pivot_view_SS260818" lp
-     JOIN sample s ON lp.og_id_lp = s.og_id;;
+     JOIN sample_pre_v2 s ON lp.og_id_lp = s.og_id;;
 
 -- View: public.lca_validation_report_view
 CREATE OR REPLACE VIEW public.lca_validation_report_view AS
@@ -334,9 +334,9 @@ CREATE OR REPLACE VIEW public.lca_validation_report_view AS
     sv.specimen_vouch_sv,
     sv.vouch_id_sv
    FROM lca_validation lv
-     LEFT JOIN lca_pivot_view lp ON lp.og_id_lp = lv.og_id AND lp.tech = lv.tech AND lp.seq_date = lv.seq_date AND lp.code = lv.code::text AND lp.annotation = lv.annotation::text
-     LEFT JOIN lca_results_view lr ON lr.og_id_lr = lv.og_id AND lr.tech = lv.tech AND lr.seq_date = lv.seq_date AND lr.code = lv.code::text AND lr.annotation = lv.annotation::text
-     LEFT JOIN filtered_lca_view flv ON flv.og_id_flv = lv.og_id AND flv.tech = lv.tech AND flv.seq_date = lv.seq_date AND flv.code = lv.code::text AND flv.annotation = lv.annotation::text
+     LEFT JOIN lca_pivot_view lp ON lp.og_id_lp = lv.og_id AND lp.tech = lv.tech AND lp.seq_date = lv.seq_date AND lp.code = lv.code AND lp.annotation = lv.annotation
+     LEFT JOIN lca_results_view lr ON lr.og_id_lr = lv.og_id AND lr.tech = lv.tech AND lr.seq_date = lv.seq_date AND lr.code = lv.code AND lr.annotation = lv.annotation
+     LEFT JOIN filtered_lca_view flv ON flv.og_id_flv = lv.og_id AND flv.tech = lv.tech AND flv.seq_date = lv.seq_date AND flv.code = lv.code AND flv.annotation = lv.annotation
      LEFT JOIN ( SELECT lca.og_id,
             lca.tech,
             lca.seq_date,
@@ -348,7 +348,7 @@ CREATE OR REPLACE VIEW public.lca_validation_report_view AS
             string_agg(DISTINCT lca.genus, ', '::text ORDER BY lca.genus) AS lca_genera,
             string_agg(DISTINCT lca.specific_epiphet, ', '::text ORDER BY lca.specific_epiphet) AS lca_specific_epiphets
            FROM lca
-          GROUP BY lca.og_id, lca.tech, lca.seq_date, lca.code, lca.annotation) lca_tax ON lca_tax.og_id = lv.og_id AND lca_tax.tech = lv.tech AND lca_tax.seq_date = lv.seq_date AND lca_tax.code = lv.code::text AND lca_tax.annotation = lv.annotation::text
+          GROUP BY lca.og_id, lca.tech, lca.seq_date, lca.code, lca.annotation) lca_tax ON lca_tax.og_id = lv.og_id AND lca_tax.tech = lv.tech AND lca_tax.seq_date = lv.seq_date AND lca_tax.code = lv.code AND lca_tax.annotation = lv.annotation
      LEFT JOIN sample_view sv ON lv.og_id = sv.og_id_sv;;
 
 -- View: public."lca_validation_report_view_SS260818"
@@ -404,8 +404,8 @@ CREATE OR REPLACE VIEW public."lca_validation_report_view_SS260818" AS
           GROUP BY "lca_SS260818".og_id, "lca_SS260818".tech, "lca_SS260818".seq_date, "lca_SS260818".code, "lca_SS260818".annotation) lca_tax ON lca_tax.og_id = lv.og_id AND lca_tax.tech = lv.tech AND lca_tax.seq_date = lv.seq_date AND lca_tax.code = lv.code::text AND lca_tax.annotation = lv.annotation::text
      LEFT JOIN sample_view sv ON lv.og_id = sv.og_id_sv;;
 
--- View: public.mitogenome_submission_view
-CREATE OR REPLACE VIEW public.mitogenome_submission_view AS
+-- View: public.mitogenome_submission_view_pre_v2
+CREATE OR REPLACE VIEW public.mitogenome_submission_view_pre_v2 AS
  SELECT m.og_num,
     m.og_id,
     m.tech,
@@ -430,9 +430,9 @@ CREATE OR REPLACE VIEW public.mitogenome_submission_view AS
     e.submission_ready,
     l.validated_species_name,
     l.validator
-   FROM mitogenome_data m
+   FROM mitogenome_data_pre_v2 m
      LEFT JOIN ena_validation_attempts e ON e.og_id = m.og_id AND e.tech = m.tech AND e.seq_date = m.seq_date AND e.code = m.code AND e.annotation = m.annotation::text
-     LEFT JOIN lca_validation l ON l.og_id = m.og_id AND l.tech = m.tech AND l.seq_date = m.seq_date AND l.code::text = m.code AND l.annotation::text = m.annotation::text;;
+     LEFT JOIN lca_validation_pre_v2 l ON l.og_id = m.og_id AND l.tech = m.tech AND l.seq_date = m.seq_date AND l.code::text = m.code AND l.annotation::text = m.annotation::text;;
 
 -- View: public.sample_view
 CREATE OR REPLACE VIEW public.sample_view AS
@@ -448,25 +448,25 @@ CREATE OR REPLACE VIEW public.sample_view AS
            FROM lca_validation lv
           WHERE lv.og_id = s.og_id));;
 
--- View: public.summary
-CREATE OR REPLACE VIEW public.summary AS
+-- View: public.summary_pre_v2
+CREATE OR REPLACE VIEW public.summary_pre_v2 AS
  SELECT regexp_replace(s.og_id, 'OG'::text, ''::text, 'g'::text)::integer AS og_num,
     s.og_id,
     s.project_id,
     s.workflow,
     s.priority,
     ( SELECT count(*) AS count
-           FROM tissue t
+           FROM tissue_pre_v2 t
           WHERE t.og_id = s.og_id) AS tissues,
     ( SELECT count(*) AS count
-           FROM dna_extraction d
+           FROM dna_extraction_pre_v2 d
           WHERE d.og_id = s.og_id AND d.status = 'Extracted'::text) AS extracted,
     COALESCE(( SELECT d.status
-           FROM dna_extraction d
+           FROM dna_extraction_pre_v2 d
           WHERE d.og_id = s.og_id AND d.status_overwrite::text = 'Y'::text
           ORDER BY d.ext_num DESC
          LIMIT 1), ( SELECT d.status
-           FROM dna_extraction d
+           FROM dna_extraction_pre_v2 d
           WHERE d.og_id = s.og_id
           ORDER BY d.ext_num DESC
          LIMIT 1), 'Awaiting Status'::text) AS dna_extraction_status,
@@ -474,11 +474,11 @@ CREATE OR REPLACE VIEW public.summary AS
         CASE
             WHEN s.illumina_sequencing = 'N'::text THEN ''::text
             ELSE COALESCE(( SELECT i.ilmn_status
-               FROM illumina_library i
+               FROM illumina_library_pre_v2 i
               WHERE i.og_id = s.og_id AND i.status_overwrite::text = 'Y'::text
               ORDER BY i.ilmn_num DESC
              LIMIT 1), ( SELECT i.ilmn_status
-               FROM illumina_library i
+               FROM illumina_library_pre_v2 i
               WHERE i.og_id = s.og_id
               ORDER BY i.ilmn_num DESC
              LIMIT 1), 'Awaiting Status'::text)
@@ -487,11 +487,11 @@ CREATE OR REPLACE VIEW public.summary AS
         CASE
             WHEN s.hifi_sequencing = 'N'::text THEN ''::text
             ELSE COALESCE(( SELECT p.pacb_status
-               FROM pacbio_library p
+               FROM pacbio_library_pre_v2 p
               WHERE p.og_id = s.og_id AND p.status_overwrite::text = 'Y'::text
               ORDER BY p.pacb_num DESC
              LIMIT 1), ( SELECT p.pacb_status
-               FROM pacbio_library p
+               FROM pacbio_library_pre_v2 p
               WHERE p.og_id = s.og_id
               ORDER BY p.pacb_num DESC
              LIMIT 1), 'Awaiting Status'::text)
@@ -500,11 +500,11 @@ CREATE OR REPLACE VIEW public.summary AS
         CASE
             WHEN s.hic_sequencing = 'N'::text THEN ''::text
             ELSE COALESCE(( SELECT h.hic_status
-               FROM hic_library h
+               FROM hic_library_pre_v2 h
               WHERE h.og_id = s.og_id AND h.status_overwrite::text = 'Y'::text
               ORDER BY h.hic_num DESC
              LIMIT 1), ( SELECT h.hic_status
-               FROM hic_library h
+               FROM hic_library_pre_v2 h
               WHERE h.og_id = s.og_id
               ORDER BY h.hic_num DESC
              LIMIT 1), 'Awaiting Status'::text)
@@ -513,11 +513,11 @@ CREATE OR REPLACE VIEW public.summary AS
         CASE
             WHEN s.nanopore_sequencing = 'N'::text THEN ''::text
             ELSE COALESCE(( SELECT o.ont_status
-               FROM ont_library o
+               FROM ont_library_pre_v2 o
               WHERE o.og_id = s.og_id AND o.status_overwrite::text = 'Y'::text
               ORDER BY o.ont_num DESC
              LIMIT 1), ( SELECT o.ont_status
-               FROM ont_library o
+               FROM ont_library_pre_v2 o
               WHERE o.og_id = s.og_id
               ORDER BY o.ont_num DESC
              LIMIT 1), 'Awaiting Status'::text)
@@ -526,11 +526,11 @@ CREATE OR REPLACE VIEW public.summary AS
         CASE
             WHEN s.rna_extraction = 'N'::text THEN ''::text
             ELSE COALESCE(( SELECT r.status
-               FROM rna_extraction r
+               FROM rna_extraction_pre_v2 r
               WHERE r.og_id = s.og_id AND r.status_overwrite::text = 'Y'::text
               ORDER BY r.ext_num DESC
              LIMIT 1), ( SELECT r.status
-               FROM rna_extraction r
+               FROM rna_extraction_pre_v2 r
               WHERE r.og_id = s.og_id
               ORDER BY r.ext_num DESC
              LIMIT 1), 'Awaiting Status'::text)
@@ -539,11 +539,11 @@ CREATE OR REPLACE VIEW public.summary AS
         CASE
             WHEN s.rna_ilmn_sequencing = 'N'::text THEN ''::text
             ELSE COALESCE(( SELECT ri.rna_status
-               FROM rna_library_ilmn ri
+               FROM rna_library_ilmn_pre_v2 ri
               WHERE ri.og_id = s.og_id AND ri.status_overwrite::text = 'Y'::text
               ORDER BY ri.rna_num DESC
              LIMIT 1), ( SELECT ri.rna_status
-               FROM rna_library_ilmn ri
+               FROM rna_library_ilmn_pre_v2 ri
               WHERE ri.og_id = s.og_id
               ORDER BY ri.rna_num DESC
              LIMIT 1), 'Awaiting Status'::text)
@@ -552,23 +552,23 @@ CREATE OR REPLACE VIEW public.summary AS
         CASE
             WHEN s.rna_kinnex_sequencing = 'N'::text THEN ''::character varying
             ELSE COALESCE(( SELECT rk.rna_status
-               FROM rna_library_kinx rk
+               FROM rna_library_kinx_pre_v2 rk
               WHERE rk.og_id = s.og_id AND rk.status_overwrite::text = 'Y'::text
               ORDER BY rk.rna_num DESC
              LIMIT 1), ( SELECT rk.rna_status
-               FROM rna_library_kinx rk
+               FROM rna_library_kinx_pre_v2 rk
               WHERE rk.og_id = s.og_id
               ORDER BY rk.rna_num DESC
              LIMIT 1), 'Awaiting Status'::character varying)
         END AS rna_kinnex_status,
     ( SELECT string_agg(DISTINCT lv.validated_species_name, ', '::text ORDER BY lv.validated_species_name) AS string_agg
-           FROM lca_validation lv
+           FROM lca_validation_pre_v2 lv
           WHERE lv.og_id = s.og_id AND lv.tech = 'ilmn'::text AND lv.validated_species_name IS NOT NULL AND lv.validated_species_name <> ''::text) AS ilmn_validated_species_name,
     ( SELECT string_agg(DISTINCT lv.validated_species_name, ', '::text ORDER BY lv.validated_species_name) AS string_agg
-           FROM lca_validation lv
+           FROM lca_validation_pre_v2 lv
           WHERE lv.og_id = s.og_id AND lv.tech = 'hifi'::text AND lv.validated_species_name IS NOT NULL AND lv.validated_species_name <> ''::text) AS hifi_validated_species_name,
     ( SELECT string_agg(DISTINCT lv.validated_species_name, ', '::text ORDER BY lv.validated_species_name) AS string_agg
-           FROM lca_validation lv
+           FROM lca_validation_pre_v2 lv
           WHERE lv.og_id = s.og_id AND lv.tech = 'hic'::text AND lv.validated_species_name IS NOT NULL AND lv.validated_species_name <> ''::text) AS hic_validated_species_name,
     s.field_id,
     s.nominal_species_id,
@@ -576,7 +576,7 @@ CREATE OR REPLACE VIEW public.summary AS
     s.collector,
     s.contact,
     s.summary_comments
-   FROM sample s;;
+   FROM sample_pre_v2 s;;
 
 -- View: public.v_genome_size_comparison
 CREATE OR REPLACE VIEW public.v_genome_size_comparison AS
