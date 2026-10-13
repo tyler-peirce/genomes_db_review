@@ -145,6 +145,15 @@ BEGIN
     END IF;
   END LOOP;
 
+  -- sample.workflow is owned by OceanGenom_Web (owner decision 2026-10-13), which writes it in
+  -- public until this moment, while import_v2.py sets it in v2 only when a sample is created.
+  -- So public holds any assignment made before the cutover; carry it across.
+  UPDATE v2.sample v SET workflow = p.workflow
+    FROM public.sample p
+   WHERE p.og_id = v.og_id AND p.workflow IS DISTINCT FROM v.workflow;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  RAISE NOTICE '044: carried % sample.workflow value(s) from public to v2', n;
+
   -- -------------------------------------------------------------------------------------
   -- 2. Capture the seven definitions, unqualified, and what a DROP would lose
   -- -------------------------------------------------------------------------------------

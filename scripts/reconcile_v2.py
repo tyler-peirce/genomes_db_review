@@ -77,7 +77,15 @@ ALSO_BLOCKED_UNDER = {"rna_library_ilmn": ["library"], "rna_library_kinx": ["lib
 # Value differences on unchanged columns that are deliberate. Key is table.column; the value
 # is (SQL predicate over p.<col> and v.<col> that every differing row must satisfy, reason).
 # A difference is only explained if EVERY differing row matches the predicate.
-VALUE_EXPLAINED: dict[str, tuple[str, str]] = {}
+VALUE_EXPLAINED: dict[str, tuple[str, str]] = {
+    # Owner decision 2026-10-13: OceanGenom_Web owns sample.workflow. Until the cutover it
+    # writes public.sample, and import_v2.py sets the column in v2 only on INSERT, so the two
+    # diverge wherever the web app has assigned a workflow. 044 carries public's value across.
+    # Explained only where the app logged that assignment.
+    "sample.workflow": (
+        "EXISTS (SELECT 1 FROM public.og_workflow_assignment_log a WHERE a.og_id = p.og_id)",
+        "assigned in OceanGenom_Web (web-owned; 044 carries it to v2)"),
+}
 
 # Every open quarantine class needs a recorded cause. Keyed (table, violation_type).
 QUARANTINE_CAUSES: dict[tuple[str, str], str] = {

@@ -70,6 +70,12 @@ BEGIN
     EXECUTE format('COMMENT ON %s public.%I IS %L', kind, t, nullif(c, ''));
   END LOOP;
 
+  -- sample.workflow is web-owned and written in v2 after the cutover; carry it back, as 044
+  -- carried it forward. Nothing else written to v2 is copied back (see the header).
+  UPDATE public.sample p SET workflow = v.workflow
+    FROM v2.sample v
+   WHERE v.og_id = p.og_id AND v.workflow IS DISTINCT FROM p.workflow;
+
   -- Rebind to public.
   PERFORM set_config('search_path', 'public', true);
   FOREACH t IN ARRAY rebind_views LOOP

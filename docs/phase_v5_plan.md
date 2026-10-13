@@ -84,11 +84,14 @@ After `044`:
 
      Its owner should run its queries against `v2` before the date: a session with
      `SET search_path = v2, public` sees exactly what the app will see.
-   - **An existing conflict that the cutover does not cause:** both importers overwrite
-     `sample.workflow` from the workbook's Workflow column every night. A workflow assigned
-     in the web app is reverted by the next import unless the lab sheet is changed too. It has
-     been hidden since 2026-10-05 because the imports stopped. Decide which side owns
-     `workflow` before the imports resume.
+   - **`sample.workflow` is owned by the web app** (owner decision 2026-10-13). Both
+     importers now set it only when a sample is first created and never overwrite it
+     afterwards (`INSERT_ONLY` in `import_v2.py`; `queries.upsert_sample` for
+     `import_data.py`). Until the cutover the app writes `public.sample`, so `044` copies any
+     differing `workflow` from `public` to `v2`, and the revert copies it back.
+     `scripts/reconcile_v2.py` treats a difference as explained only where the app logged an
+     assignment. **Tell the lab** that changing the Workflow column in the workbook no longer
+     changes an existing sample; it is only used for new ones.
 6. **DBeaver users are told**, in the same message, that most fixes are one word:
    `illumina_library` becomes `v_illumina_library_browse`, which brings back `og_id`.
 
