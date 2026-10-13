@@ -49,7 +49,7 @@ autocommit.
   apart. It also refuses to do anything if an already-applied file's hash no
   longer matches the tree. Applying by hand still works and still risks the
   `026` failure mode — use the script.
-- **Reverts are partial.** `sql/revert/` covers `027`–`040` only. `001`–`026` have
+- **Reverts are partial.** `sql/revert/` covers `027`–`044` only. `001`–`026` have
   no rollback scripts and will not get them retroactively — they are applied
   history.
 - **Catch-up migrations have no-op reverts.** `033` and `034` describe objects
@@ -63,6 +63,12 @@ autocommit.
   tables and the quarantine are empty. That holds at creation, so the crash-recovery replay is
   safe, but a replay after `scripts/backfill_v2.sql` has run fails — loudly, and rolled back.
   Once V.6 consolidates `v2` into `public`, fix forward rather than replaying.
+- **`044` is the `v2` cutover and is not an ordinary migration.** Applying it changes what
+  every unqualified table name resolves to, for every client. `bin/apply_migrations.py` will
+  try it like any pending file, so `044` refuses to run unless the operator opts in with
+  `PGOPTIONS="-c oceanomics.v2_cutover=go"`; follow `docs/phase_v5_plan.md`. Until the cutover,
+  every runner invocation will report `044` as failed, and any later migration waits behind it.
+  Its replay is a no-op once applied.
 - **`000` cannot ledger itself.** The bootstrap file creates
   `schema_migrations`, and a file cannot contain its own SHA-256. On the live
   database it applies as a guarded no-op and is ledgered normally. On an empty
