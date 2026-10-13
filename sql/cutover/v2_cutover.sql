@@ -1,8 +1,11 @@
--- 044_v2_cutover.sql -- Phase V.5: make v2 the schema unqualified names resolve to, and make
+-- sql/cutover/v2_cutover.sql -- Phase V.5: make v2 the schema unqualified names resolve to, and make
 -- the superseded public objects fail loudly instead of serving stale data.
 --
--- Run after 043_v2_mitogenome_submission_view.sql, during a quiet window, after the pre-flight
--- in docs/phase_v5_plan.md. This is the cutover. Read that plan before applying it.
+-- Kept OUTSIDE the numbered sequence until the day: bin/apply_migrations.py applies pending
+-- files in order, so a numbered cutover waiting for its window would block every migration
+-- after it. On the day it is moved to sql/NNN_v2_cutover.sql, NNN being the next free number,
+-- and applied like any other migration. Run during a quiet window, after the pre-flight in
+-- docs/phase_v5_plan.md. Read that plan before applying it.
 --
 -- What it does, in order, in one transaction:
 --
@@ -59,7 +62,7 @@
 -- Opt-in: refuses to run unless PGOPTIONS="-c oceanomics.v2_cutover=go" is set, so an
 -- unrelated bin/apply_migrations.py run cannot cut over by accident.
 --
--- Rollback: sql/revert/044_v2_cutover_revert.sql. Instant: renames, rebinding and grants only.
+-- Rollback: sql/cutover/v2_cutover_revert.sql (moved to sql/revert/NNN_v2_cutover_revert.sql on the day). Instant: renames, rebinding and grants only.
 
 BEGIN;
 
@@ -87,13 +90,13 @@ DECLARE
   trigs jsonb := '{}';
   comments jsonb := '{}';
   g record;
-  stamp text := 'DEPRECATED ' || current_date || ' by migration 044 (v2 cutover): superseded by v2.';
+  stamp text := 'DEPRECATED ' || current_date || ' by the v2 cutover migration: superseded by v2.';
 BEGIN
   replaced := replaced_tables || replaced_views;
 
   -- Replay guard.
   IF to_regclass('public.sample') IS NULL AND to_regclass('public.sample_pre_v2') IS NOT NULL THEN
-    RAISE NOTICE '044: cutover already in place, nothing to do';
+    RAISE NOTICE 'v2 cutover: cutover already in place, nothing to do';
     RETURN;
   END IF;
 
@@ -101,8 +104,8 @@ BEGIN
   -- runs bin/apply_migrations.py, so it refuses unless the operator asks for it by name.
   -- PGOPTIONS reaches psql through the runner's environment.
   IF coalesce(current_setting('oceanomics.v2_cutover', true), '') <> 'go' THEN
-    RAISE EXCEPTION '044 is the v2 cutover and runs only on purpose. Follow docs/phase_v5_plan.md, '
-      'then: PGOPTIONS="-c oceanomics.v2_cutover=go" bin/apply_migrations.py --target 044';
+    RAISE EXCEPTION 'The v2 cutover runs only on purpose. Follow docs/phase_v5_plan.md, '
+      'then: PGOPTIONS="-c oceanomics.v2_cutover=go" bin/apply_migrations.py';
   END IF;
 
   -- -------------------------------------------------------------------------------------
@@ -110,18 +113,18 @@ BEGIN
   -- -------------------------------------------------------------------------------------
   FOREACH t IN ARRAY replaced LOOP
     IF to_regclass('public.' || quote_ident(t)) IS NULL THEN
-      RAISE EXCEPTION '044: public.% is missing; the cutover expects every replaced object in place', t;
+      RAISE EXCEPTION 'v2 cutover: public.% is missing; the cutover expects every replaced object in place', t;
     END IF;
     IF to_regclass('public.' || quote_ident(t || '_pre_v2')) IS NOT NULL THEN
-      RAISE EXCEPTION '044: public.%_pre_v2 already exists', t;
+      RAISE EXCEPTION 'v2 cutover: public.%_pre_v2 already exists', t;
     END IF;
     IF to_regclass('v2.' || quote_ident(t)) IS NULL THEN
-      RAISE EXCEPTION '044: v2.% is missing; apply 035-043 first', t;
+      RAISE EXCEPTION 'v2 cutover: v2.% is missing; apply 035-043 first', t;
     END IF;
   END LOOP;
   FOREACH t IN ARRAY rebind_views LOOP
     IF to_regclass('public.' || quote_ident(t)) IS NULL THEN
-      RAISE EXCEPTION '044: dependent view public.% is missing', t;
+      RAISE EXCEPTION 'v2 cutover: dependent view public.% is missing', t;
     END IF;
   END LOOP;
 
@@ -140,7 +143,7 @@ BEGIN
       ' UNION ALL (SELECT %1$s FROM v2.%2$I EXCEPT ALL SELECT %1$s FROM public.%2$I)) d', cols, t)
       INTO n;
     IF n > 0 THEN
-      RAISE EXCEPTION '044: v2.% differs from public.% in % rows. The backfill is insert-only, so '
+      RAISE EXCEPTION 'v2 cutover: v2.% differs from public.% in % rows. The backfill is insert-only, so '
         'pipeline writes since it ran are missing from v2. Re-sync before cutting over.', t, t, n;
     END IF;
   END LOOP;
@@ -152,7 +155,7 @@ BEGIN
     FROM public.sample p
    WHERE p.og_id = v.og_id AND p.workflow IS DISTINCT FROM v.workflow;
   GET DIAGNOSTICS n = ROW_COUNT;
-  RAISE NOTICE '044: carried % sample.workflow value(s) from public to v2', n;
+  RAISE NOTICE 'v2 cutover: carried % sample.workflow value(s) from public to v2', n;
 
   -- -------------------------------------------------------------------------------------
   -- 2. Capture the seven definitions, unqualified, and what a DROP would lose
@@ -161,7 +164,7 @@ BEGIN
   FOREACH t IN ARRAY rebind_views LOOP
     defs := defs || jsonb_build_object(t, pg_get_viewdef(('public.' || quote_ident(t))::regclass));
     IF defs->>t ~* '\mv2\.' THEN
-      RAISE EXCEPTION '044: public.% already names v2 explicitly; review it by hand', t;
+      RAISE EXCEPTION 'v2 cutover: public.% already names v2 explicitly; review it by hand', t;
     END IF;
     acls := acls || jsonb_build_object(t,
       (SELECT coalesce(relacl::text, '') FROM pg_class WHERE oid = ('public.' || quote_ident(t))::regclass));
@@ -174,7 +177,7 @@ BEGIN
       obj_description(('public.' || quote_ident(t))::regclass, 'pg_class'));
     IF EXISTS (SELECT 1 FROM pg_description
                 WHERE objoid = ('public.' || quote_ident(t))::regclass AND objsubid > 0) THEN
-      RAISE EXCEPTION '044: public.% has column comments, which this migration does not restore', t;
+      RAISE EXCEPTION 'v2 cutover: public.% has column comments, which this migration does not restore', t;
     END IF;
   END LOOP;
 
@@ -213,7 +216,7 @@ BEGIN
     LOOP
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                       WHERE table_schema = 'v2' AND table_name = t AND column_name = g.col) THEN
-        RAISE EXCEPTION '044: % holds % on public.%.%, which v2 removes; decide what replaces it first',
+        RAISE EXCEPTION 'v2 cutover: % holds % on public.%.%, which v2 removes; decide what replaces it first',
           g.grantee, g.privs, t, g.col;
       END IF;
       EXECUTE format('GRANT %s (%I) ON v2.%I TO %I', g.privs, g.col, t, g.grantee);
@@ -299,7 +302,7 @@ BEGIN
    WHERE r.relname LIKE '%\_pre\_v2' AND r.relnamespace = 'public'::regnamespace
      AND v.relname NOT LIKE '%\_pre\_v2' AND v.relname NOT LIKE '%SS260818%';
   IF n > 0 THEN
-    RAISE EXCEPTION '044: still reading superseded objects: %', cols;
+    RAISE EXCEPTION 'v2 cutover: still reading superseded objects: %', cols;
   END IF;
 
   FOREACH t IN ARRAY rebind_views LOOP
@@ -310,11 +313,11 @@ BEGIN
         JOIN pg_class r ON r.oid = d.refobjid
        WHERE rw.ev_class = ('public.' || quote_ident(t))::regclass
          AND r.relnamespace = 'v2'::regnamespace) THEN
-      RAISE EXCEPTION '044: public.% does not read anything in v2 after rebinding', t;
+      RAISE EXCEPTION 'v2 cutover: public.% does not read anything in v2 after rebinding', t;
     END IF;
     IF (SELECT coalesce(relacl::text, '') FROM pg_class
          WHERE oid = ('public.' || quote_ident(t))::regclass) <> acls->>t THEN
-      RAISE EXCEPTION '044: grants on public.% changed: % -> %', t, acls->>t,
+      RAISE EXCEPTION 'v2 cutover: grants on public.% changed: % -> %', t, acls->>t,
         (SELECT relacl::text FROM pg_class WHERE oid = ('public.' || quote_ident(t))::regclass);
     END IF;
   END LOOP;
@@ -323,7 +326,7 @@ BEGIN
     IF (SELECT count(*) FROM pg_trigger
          WHERE tgrelid = ('public.' || quote_ident(t))::regclass AND NOT tgisinternal)
        <> jsonb_array_length(trigs->t) THEN
-      RAISE EXCEPTION '044: public.% lost a trigger in the rebuild', t;
+      RAISE EXCEPTION 'v2 cutover: public.% lost a trigger in the rebuild', t;
     END IF;
   END LOOP;
 
@@ -339,7 +342,7 @@ BEGIN
   LOOP
     IF NOT has_column_privilege(g.grantee, 'v2.' || quote_ident(regexp_replace(g.tbl, '_pre_v2$', '')),
                                 g.col, g.priv) THEN
-      RAISE EXCEPTION '044: % lost % on %.% in v2', g.grantee, g.priv, g.tbl, g.col;
+      RAISE EXCEPTION 'v2 cutover: % lost % on %.% in v2', g.grantee, g.priv, g.tbl, g.col;
     END IF;
   END LOOP;
 
@@ -347,10 +350,10 @@ BEGIN
        has_schema_privilege('readonly', 'v2', 'USAGE')
        AND has_table_privilege('readonly', 'v2.sample', 'SELECT')
        AND has_table_privilege('readonly', 'v2.summary', 'SELECT')) THEN
-    RAISE EXCEPTION '044: readonly cannot read v2';
+    RAISE EXCEPTION 'v2 cutover: readonly cannot read v2';
   END IF;
 
-  RAISE NOTICE '044: cutover complete; % objects renamed to _pre_v2, % views rebound',
+  RAISE NOTICE 'v2 cutover: cutover complete; % objects renamed to _pre_v2, % views rebound',
     array_length(replaced, 1), array_length(rebind_views, 1);
 END
 $cutover$;

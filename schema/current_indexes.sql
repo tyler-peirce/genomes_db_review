@@ -43,6 +43,11 @@ CREATE INDEX mitogenome_data_depth_method_idx ON public."mitogenome_data_SS26081
 CREATE UNIQUE INDEX mitogenome_data_pkey ON public."mitogenome_data_SS260818" USING btree (og_id, tech, seq_date, code);
 CREATE UNIQUE INDEX mitogenome_data_unique ON public."mitogenome_data_SS260818" USING btree (og_id, tech, seq_date, code, annotation);
 CREATE UNIQUE INDEX ncbi_genome_assemblies_assembly_accession_key ON public.ncbi_genome_assemblies USING btree (assembly_accession);
+CREATE INDEX og_workflow_assignment_log_assigned_at_idx ON public.og_workflow_assignment_log USING btree (assigned_at);
+CREATE UNIQUE INDEX og_workflow_assignment_log_pkey ON public.og_workflow_assignment_log USING btree (id);
+CREATE INDEX og_workflow_notification_created_at_idx ON public.og_workflow_notification USING btree (created_at DESC);
+CREATE UNIQUE INDEX og_workflow_notification_pkey ON public.og_workflow_notification USING btree (id);
+CREATE UNIQUE INDEX og_workflow_recommendation_pkey ON public.og_workflow_recommendation USING btree (og_id);
 CREATE UNIQUE INDEX "ONT_Library_pkey" ON public.ont_library USING btree (ont_library_tube_id);
 CREATE INDEX idx_ont_library_dna_id ON public.ont_library USING btree (dna_id);
 CREATE INDEX idx_ont_library_og_id ON public.ont_library USING btree (og_id);

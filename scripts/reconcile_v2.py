@@ -80,11 +80,11 @@ ALSO_BLOCKED_UNDER = {"rna_library_ilmn": ["library"], "rna_library_kinx": ["lib
 VALUE_EXPLAINED: dict[str, tuple[str, str]] = {
     # Owner decision 2026-10-13: OceanGenom_Web owns sample.workflow. Until the cutover it
     # writes public.sample, and import_v2.py sets the column in v2 only on INSERT, so the two
-    # diverge wherever the web app has assigned a workflow. 044 carries public's value across.
+    # diverge wherever the web app has assigned a workflow. The cutover migration carries public's value across.
     # Explained only where the app logged that assignment.
     "sample.workflow": (
         "EXISTS (SELECT 1 FROM public.og_workflow_assignment_log a WHERE a.og_id = p.og_id)",
-        "assigned in OceanGenom_Web (web-owned; 044 carries it to v2)"),
+        "assigned in OceanGenom_Web (web-owned; the cutover carries it to v2)"),
 }
 
 # Every open quarantine class needs a recorded cause. Keyed (table, violation_type).

@@ -1,0 +1,21 @@
+-- Revert for 044_catchup_og_workflow_tables.sql
+--
+-- THIS IS A DELIBERATE NO-OP. Do not replace it with DROP TABLE.
+--
+-- 044 is a catch-up migration. The three og_workflow_* tables, their sequences, indexes,
+-- comments and grants were created by OceanGenom_Web's owner before 044 existed; 044 created
+-- none of them. It recorded what was already there so a rebuild would not lose it.
+--
+-- Dropping them here would destroy a live application's data -- its workflow recommendations,
+-- assignment audit log and notification feed -- that this migration never created. Removing
+-- them is a decision for the application's owner, in a forward migration.
+--
+-- To undo 044's effect on this repository: delete its ledger row
+--
+--     DELETE FROM schema_migrations WHERE filename = '044_catchup_og_workflow_tables.sql';
+--
+-- and remove the file. The database is untouched either way.
+--
+-- This no-op revert is the standing pattern for catch-up migrations -- see sql/README.md.
+
+\echo '044 is a catch-up migration. Its revert is intentionally a no-op; see this file.'

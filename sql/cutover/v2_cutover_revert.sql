@@ -1,17 +1,18 @@
--- Revert 044_v2_cutover.sql: point unqualified names back at public.
+-- Revert the v2 cutover (sql/cutover/v2_cutover.sql): point unqualified names back at public.
 --
--- Mirrors 044 in reverse: capture the seven rebound views' definitions while they read v2,
+-- Mirrors the cutover in reverse: capture the seven rebound views' definitions while they read v2,
 -- rename the _pre_v2 objects back, rebind the views to public (the same two DROP + CREATE,
 -- restoring triggers, grants and comments), unpin the two functions, reset the database
--- search_path, strip 044's deprecation stamp from the comments, and revoke the v2 grants
--- 044 added. Nothing written to v2 after the cutover is copied back to public: if the
+-- search_path, strip the cutover's deprecation stamp from the comments, and revoke the v2 grants
+-- the cutover added. sample.workflow, which the web application owns, is copied back. Nothing
+-- else written to v2 after the cutover is copied back to public: if the
 -- importer or the pipelines have written since, those writes exist only in v2 and must be
 -- carried over by hand before or after running this.
 --
 -- New sessions pick up the reset search_path; open sessions keep v2 first until they
 -- reconnect. Does not touch the ledger; afterwards:
 --
---     DELETE FROM schema_migrations WHERE filename = '044_v2_cutover.sql';
+--     DELETE FROM schema_migrations WHERE filename LIKE '%\_v2\_cutover.sql';
 
 BEGIN;
 
@@ -40,7 +41,7 @@ BEGIN
   replaced := replaced_tables || replaced_views;
 
   IF to_regclass('public.sample_pre_v2') IS NULL THEN
-    RAISE EXCEPTION '044 revert: public.sample_pre_v2 is missing; 044 is not applied';
+    RAISE EXCEPTION 'v2 cutover revert: public.sample_pre_v2 is missing; the cutover is not applied';
   END IF;
 
   -- Capture while the views read v2: under search_path = v2, public the v2 names print
@@ -59,18 +60,18 @@ BEGIN
       obj_description(('public.' || quote_ident(t))::regclass, 'pg_class'));
   END LOOP;
 
-  -- Rename back, restoring each comment to what it was before 044 stamped it.
+  -- Rename back, restoring each comment to what it was before the cutover stamped it.
   FOREACH t IN ARRAY replaced LOOP
     kind := CASE WHEN t = ANY (replaced_views) THEN 'VIEW' ELSE 'TABLE' END;
     EXECUTE format('ALTER %s public.%I RENAME TO %I', kind, t || '_pre_v2', t);
     c := regexp_replace(
       obj_description(('public.' || quote_ident(t))::regclass, 'pg_class'),
-      '^DEPRECATED \S+ by migration 044 \(v2 cutover\): superseded by v2\.\S+\. Kept for rollback until V\.6\. ',
+      '^DEPRECATED \S+ by the v2 cutover migration: superseded by v2\.\S+\. Kept for rollback until V\.6\. ',
       '');
     EXECUTE format('COMMENT ON %s public.%I IS %L', kind, t, nullif(c, ''));
   END LOOP;
 
-  -- sample.workflow is web-owned and written in v2 after the cutover; carry it back, as 044
+  -- sample.workflow is web-owned and written in v2 after the cutover; carry it back, as the cutover
   -- carried it forward. Nothing else written to v2 is copied back (see the header).
   UPDATE public.sample p SET workflow = v.workflow
     FROM v2.sample v
@@ -107,12 +108,12 @@ BEGIN
 
   EXECUTE format('ALTER DATABASE %I RESET search_path', current_database());
 
-  -- Revoke the v2 grants 044 added. Before 044 no role but the owner had any.
+  -- Revoke the v2 grants the cutover added. Before the cutover no role but the owner had any.
   FOR g IN
     SELECT pg_get_userbyid(a.grantee) AS grantee
       FROM pg_class cl, aclexplode(cl.relacl) a
      WHERE cl.relnamespace = 'v2'::regnamespace AND a.grantee <> cl.relowner AND a.grantee <> 0
-    UNION   -- roles holding only column grants (044 mirrors oceangenom_web's UPDATE (workflow))
+    UNION   -- roles holding only column grants (the cutover mirrors oceangenom_web's UPDATE (workflow))
     SELECT pg_get_userbyid(a.grantee)
       FROM pg_attribute at JOIN pg_class cl ON cl.oid = at.attrelid, aclexplode(at.attacl) a
      WHERE cl.relnamespace = 'v2'::regnamespace AND at.attacl IS NOT NULL
@@ -125,7 +126,7 @@ BEGIN
                     aclexplode(at.attacl) a
               WHERE cl.relnamespace = 'v2'::regnamespace AND at.attacl IS NOT NULL
                 AND a.grantee <> cl.relowner AND a.grantee <> 0) THEN
-    RAISE EXCEPTION '044 revert: column grants remain on v2';
+    RAISE EXCEPTION 'v2 cutover revert: column grants remain on v2';
   END IF;
   FOR g IN
     SELECT pg_get_userbyid(a.grantee) AS grantee
@@ -138,7 +139,7 @@ BEGIN
     ALTER DEFAULT PRIVILEGES IN SCHEMA v2 REVOKE SELECT ON TABLES FROM readonly;
   END IF;
 
-  -- Same check as 044, the other way round: nothing may still read v2 except v2 itself.
+  -- Same check as the cutover, the other way round: nothing may still read v2 except v2 itself.
   IF EXISTS (
     SELECT 1 FROM pg_class v
       JOIN pg_rewrite rw ON rw.ev_class = v.oid
@@ -146,7 +147,7 @@ BEGIN
                       AND d.refclassid = 'pg_class'::regclass
       JOIN pg_class r ON r.oid = d.refobjid
      WHERE v.relnamespace = 'public'::regnamespace AND r.relnamespace = 'v2'::regnamespace) THEN
-    RAISE EXCEPTION '044 revert: a public view still reads v2';
+    RAISE EXCEPTION 'v2 cutover revert: a public view still reads v2';
   END IF;
 END
 $revert$;

@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict sIa8R2iPfrCZ7ZBL0Wv1VlT0HkqUw4DnCDQktsfBLQJMSpw00CZLepo8XBux3de
+\restrict vjl9zFG2omWbO8u8r4OxfKKCbhMHRWkeVizIMhTaRVteZUDKbyN5PuMcq1CI6tO
 
 -- Dumped from database version 14.24 (Ubuntu 14.24-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 14.24 (Ubuntu 14.24-0ubuntu0.22.04.1)
@@ -109,7 +109,7 @@ $$;
 -- Name: build_nfcore_samplesheet_rows(text[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.build_nfcore_samplesheet_rows(in_og_ids text[]) RETURNS TABLE(sample text, hifi_dir text, hic_dir text, version text, date text, tolid text, taxid bigint, species text, primary_assembly text, hap1_assembly text, hap2_assembly text)
+CREATE FUNCTION public.build_nfcore_samplesheet_rows(in_og_ids text[]) RETURNS TABLE(sample text, hifi_dir text, hic_dir text, assembly text, busco_genes text, bioproject_id text, version text, date text, tolid text, taxid bigint, species text)
     LANGUAGE sql
     AS $$
 WITH p AS (
@@ -121,46 +121,36 @@ latest_seq AS (
          seq.seq_date::date AS seq_date
   FROM sequencing seq
   JOIN p ON seq.og_id = p.og_id
-  WHERE seq.technology IN ('PacBio HIFI', 'PacBio')
+  WHERE seq.seq_type = 'PacBio'
   ORDER BY seq.og_id, seq.seq_date DESC
 ),
 smp AS (
   SELECT DISTINCT ON (s.og_id)
          s.og_id,
          s.nominal_species_id,
-         s.tol_id
+         s.tol_id,
+         s.ncbi_bioproject_id_lvl_3_hifi
   FROM sample s
   JOIN p ON s.og_id = p.og_id
   ORDER BY s.og_id
-),
--- One representative taxid per genus (for species-level fallback)
-genus_tax AS (
-  SELECT DISTINCT ON (genus)
-         genus,
-         ncbi_taxon_id
-  FROM species
-  WHERE ncbi_taxon_id IS NOT NULL
-    AND genus IS NOT NULL
-  ORDER BY genus, ncbi_taxon_id
 )
 SELECT DISTINCT ON (p.og_id)
   p.og_id AS sample,
-  '/scratch/pawsey0964/edejong/ref-gen/'||p.og_id||'/hifi' AS hifi_dir,
-  '/scratch/pawsey0964/edejong/ref-gen/'||p.og_id||'/hic'                  AS hic_dir,
+  '/scratch/pawsey0964/lhuet/genomenotes/'||p.og_id||'/hifi'     AS hifi_dir,
+  '/scratch/pawsey0964/lhuet/genomenotes/'||p.og_id||'/hic'      AS hic_dir,
+  '/scratch/pawsey0964/lhuet/genomenotes/'||p.og_id||'/assembly' AS assembly,
+  '/scratch/pawsey0964/lhuet/genomenotes/'||p.og_id||'/busco'    AS busco_genes,
+  smp.ncbi_bioproject_id_lvl_3_hifi AS bioproject_id,
   CASE WHEN rg.og_id IS NOT NULL THEN 'hic2' ELSE 'hic1' END AS version,
   CASE WHEN ls.seq_date IS NOT NULL THEN 'v'||to_char(ls.seq_date,'YYMMDD') END AS date,
-  COALESCE(smp.tol_id, p.og_id) AS tolid,
-  COALESCE(sp.ncbi_taxon_id, gt.ncbi_taxon_id) AS taxid,
-  smp.nominal_species_id AS species,
-  '' AS primary_assembly,
-  '' AS hap1_assembly,
-  '' AS hap2_assembly
+  smp.tol_id AS tolid,
+  sp.ncbi_taxon_id AS taxid,
+  sp.species
 FROM p
-LEFT JOIN ref_genomes rg ON rg.og_id = p.og_id AND rg.version LIKE 'hic%'
+LEFT JOIN ref_genomes rg ON rg.og_id = p.og_id
 LEFT JOIN latest_seq ls  ON ls.og_id = p.og_id
 LEFT JOIN smp ON smp.og_id = p.og_id
 LEFT JOIN species sp ON sp.species = smp.nominal_species_id
-LEFT JOIN genus_tax gt  ON gt.genus = split_part(smp.nominal_species_id, ' ', 1)
 ORDER BY p.og_id;
 $$;
 
@@ -175,24 +165,7 @@ CREATE FUNCTION public.build_postcuration_samplesheet_rows(in_og_ids text[]) RET
 WITH p AS (
   SELECT unnest(in_og_ids) AS og_id
 ),
-latest_seq AS (
-  SELECT DISTINCT ON (seq.og_id)
-         seq.og_id,
-         seq.seq_date::date AS seq_date
-  FROM sequencing seq
-  JOIN p ON seq.og_id = p.og_id
-  WHERE seq.seq_type = 'PacBio'
-  ORDER BY seq.og_id, seq.seq_date DESC
-),
-gen_sz AS (
-  SELECT rq.og_id, MAX(rq.genomesize) AS genome_size
-  FROM raw_qc rq
-  JOIN p ON rq.og_id = p.og_id
-  GROUP BY rq.og_id
-),
--- Highest hic version recorded for each OG (hic2 beats hic1, hic10 beats hic9).
--- seq_date is carried along so date and version always come from the same assembly.
-latest_hic AS (
+latest_asm AS (
   SELECT DISTINCT ON (rg.og_id)
          rg.og_id,
          rg.version,
@@ -200,9 +173,16 @@ latest_hic AS (
   FROM ref_genomes rg
   JOIN p ON rg.og_id = p.og_id
   WHERE rg.version ~ '^hic[0-9]+$'
+    AND rg.seq_date ~ '^[0-9]{6}$'
   ORDER BY rg.og_id,
-           substring(rg.version from '[0-9]+$')::int DESC,
+           substring(rg.version from '[0-9]+')::int DESC,
            rg.seq_date DESC
+),
+gen_sz AS (
+  SELECT rq.og_id, MAX(rq.genomesize) AS genome_size
+  FROM raw_qc rq
+  JOIN p ON rq.og_id = p.og_id
+  GROUP BY rq.og_id
 )
 SELECT DISTINCT ON (p.og_id)
   p.og_id                                 AS sample,
@@ -210,20 +190,14 @@ SELECT DISTINCT ON (p.og_id)
   '/scratch/pawsey0964/lhuet/post_curation/' || p.og_id || '/assembly' AS assembly,
   '/scratch/pawsey0964/lhuet/post_curation/' || p.og_id || '/meryl'    AS meryldb,
   '/scratch/pawsey0964/lhuet/post_curation/' || p.og_id || '/agp'      AS agp,
-  COALESCE(lh.version, 'hic1')            AS version,
-  COALESCE(
-    CASE
-      WHEN lh.seq_date ~ '^[0-9]{6}$' THEN 'v' || lh.seq_date
-    END,
-    CASE
-      WHEN ls.seq_date IS NOT NULL
-      THEN 'v' || to_char(ls.seq_date, 'YYMMDD')
-    END
-  )                                       AS date,
+  la.version                              AS version,
+  CASE
+    WHEN la.seq_date IS NOT NULL
+    THEN 'v' || la.seq_date
+  END                                     AS date,
   gs.genome_size                          AS genomesize
 FROM p
-LEFT JOIN latest_hic lh ON lh.og_id = p.og_id
-LEFT JOIN latest_seq ls ON ls.og_id = p.og_id
+LEFT JOIN latest_asm la ON la.og_id = p.og_id
 LEFT JOIN gen_sz gs     ON gs.og_id = p.og_id
 ORDER BY p.og_id;
 $_$;
@@ -592,6 +566,13 @@ CREATE TABLE public.design_description (
 
 
 --
+-- Name: TABLE design_description; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.design_description IS 'Lookup of sequencing design numbers to descriptions. Two rows, no foreign keys in or out, and no reference from either repository. Captured by 034_catchup_design_description.sql so it is not lost on a rebuild; a candidate for removal once open question 15 confirms no external consumer.';
+
+
+--
 -- Name: dna_extraction; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -749,7 +730,9 @@ CREATE TABLE public.draft_genomes (
     kmercov numeric(10,4),
     lambda_depth numeric(10,4),
     host_assembly_size bigint,
-    host_assembly_fraction numeric
+    host_assembly_fraction numeric,
+    host_haploid_size bigint,
+    partition_confidence text
 );
 
 
@@ -1410,7 +1393,7 @@ CREATE VIEW public.lca_results_view AS
     lp.co1_lca,
         CASE
             WHEN (s.nominal_species_id IS NULL) THEN 'MISSING NOMINAL ID'::text
-            WHEN (((s.nominal_species_id = lp.s12_lca) OR (s.nominal_species_id = lp.s16_lca)) OR (s.nominal_species_id = lp.co1_lca)) THEN s.nominal_species_id
+            WHEN ((s.nominal_species_id = lp.s12_lca) OR (s.nominal_species_id = lp.s16_lca) OR (s.nominal_species_id = lp.co1_lca)) THEN s.nominal_species_id
             ELSE 'INVESTIGATE'::text
         END AS validation_status
    FROM (public.lca_pivot_view lp
@@ -1488,7 +1471,7 @@ CREATE TABLE public.master_species (
     og_count integer,
     flash_frozen_count integer,
     archival_count integer,
-    aus_status_fishbase text,
+    aus_status text,
     cites_listing text,
     iucn_code text,
     epbc text,
@@ -1643,10 +1626,10 @@ COMMENT ON COLUMN public.master_species.archival_count IS 'Number of unique OG s
 
 
 --
--- Name: COLUMN master_species.aus_status_fishbase; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN master_species.aus_status; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.master_species.aus_status_fishbase IS 'Australian occurrence status (native/endemic/introduced/etc.), from the FishBase Australia checklist (https://www.fishbase.se), matched to master_species.species. Automatically update annually (2 January, 09:00).';
+COMMENT ON COLUMN public.master_species.aus_status IS 'Australian occurrence status (native/endemic/introduced/etc.). Primary source: FishBase Australia checklist (https://www.fishbase.se), matched to master_species.species. Species not listed in FishBase are filled from WoRMS distribution records (https://www.marinespecies.org) where WoRMS gives an Australian establishment status (Native - Endemic -> endemic, Native -> native, Alien -> introduced); WoRMS never overwrites an existing value. Automatically update annually (2 January, 09:00).';
 
 
 --
@@ -2542,6 +2525,114 @@ CREATE TABLE public.ncbi_genome_assemblies (
 
 
 --
+-- Name: og_workflow_assignment_log; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.og_workflow_assignment_log (
+    id bigint NOT NULL,
+    og_id text NOT NULL,
+    workflow text NOT NULL,
+    recommended_workflow text,
+    note text,
+    samples_updated integer NOT NULL,
+    assigned_by text NOT NULL,
+    assigned_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT og_workflow_assignment_log_workflow_check CHECK ((workflow = ANY (ARRAY['Reference'::text, 'Draft'::text])))
+);
+
+
+--
+-- Name: TABLE og_workflow_assignment_log; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.og_workflow_assignment_log IS 'Audit log of workflow assignments made with the Assign button in OceanGenom_Web: which OG, which workflow, the recommendation at the time, who and when.';
+
+
+--
+-- Name: og_workflow_assignment_log_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.og_workflow_assignment_log_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: og_workflow_assignment_log_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.og_workflow_assignment_log_id_seq OWNED BY public.og_workflow_assignment_log.id;
+
+
+--
+-- Name: og_workflow_notification; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.og_workflow_notification (
+    id bigint NOT NULL,
+    kind text NOT NULL,
+    og_id text NOT NULL,
+    workflow text,
+    recommended_workflow text,
+    actor text,
+    source text DEFAULT 'site'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT og_workflow_notification_kind_check CHECK ((kind = ANY (ARRAY['recommendation'::text, 'assigned'::text]))),
+    CONSTRAINT og_workflow_notification_source_check CHECK ((source = ANY (ARRAY['site'::text, 'database'::text])))
+);
+
+
+--
+-- Name: TABLE og_workflow_notification; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.og_workflow_notification IS 'Notification feed for OceanGenom_Web: new workflow recommendations and workflow assignments.';
+
+
+--
+-- Name: og_workflow_notification_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.og_workflow_notification_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: og_workflow_notification_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.og_workflow_notification_id_seq OWNED BY public.og_workflow_notification.id;
+
+
+--
+-- Name: og_workflow_recommendation; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.og_workflow_recommendation (
+    og_id text NOT NULL,
+    recommended_workflow text,
+    note text,
+    updated_by text,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT og_workflow_recommendation_recommended_workflow_check CHECK ((recommended_workflow = ANY (ARRAY['Reference'::text, 'Draft'::text])))
+);
+
+
+--
+-- Name: TABLE og_workflow_recommendation; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.og_workflow_recommendation IS 'Recommended sequencing workflow for OGs whose public.sample.workflow is still ''Not assigned''. Edited in the OceanGenom_Web Unassigned Workflows tab; a row is deleted when the workflow is assigned.';
+
+
+--
 -- Name: ont_library; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2747,6 +2838,13 @@ CREATE TABLE public.schema_migrations (
     sha256 text NOT NULL,
     applied_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+
+--
+-- Name: TABLE schema_migrations; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.schema_migrations IS 'Migration ledger for sql/. One row per applied file, with a SHA-256 of its contents so an applied migration cannot be edited unnoticed. Written by bin/apply_migrations.py; never populate it by hand. Created by 000_bootstrap_schema_migrations.sql, which must be run with psql before the first apply_migrations.py invocation on an empty database.';
 
 
 --
@@ -2990,6 +3088,20 @@ CREATE VIEW public.v_genome_size_comparison AS
      JOIN public.sample s ON ((s.og_id = d.og_id)))
      JOIN public.species sp ON ((s.nominal_species_id = sp.species)))
      LEFT JOIN public.species_ncbi_assembly a ON (((a.species = sp.species) AND a.is_chosen)));
+
+
+--
+-- Name: og_workflow_assignment_log id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.og_workflow_assignment_log ALTER COLUMN id SET DEFAULT nextval('public.og_workflow_assignment_log_id_seq'::regclass);
+
+
+--
+-- Name: og_workflow_notification id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.og_workflow_notification ALTER COLUMN id SET DEFAULT nextval('public.og_workflow_notification_id_seq'::regclass);
 
 
 --
@@ -3297,6 +3409,30 @@ ALTER TABLE ONLY public.ncbi_genome_assemblies
 
 
 --
+-- Name: og_workflow_assignment_log og_workflow_assignment_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.og_workflow_assignment_log
+    ADD CONSTRAINT og_workflow_assignment_log_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: og_workflow_notification og_workflow_notification_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.og_workflow_notification
+    ADD CONSTRAINT og_workflow_notification_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: og_workflow_recommendation og_workflow_recommendation_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.og_workflow_recommendation
+    ADD CONSTRAINT og_workflow_recommendation_pkey PRIMARY KEY (og_id);
+
+
+--
 -- Name: raw_data raw_data_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3593,6 +3729,20 @@ CREATE INDEX mitogenome_data_depth_method_idx_1 ON public.mitogenome_data USING 
 
 
 --
+-- Name: og_workflow_assignment_log_assigned_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX og_workflow_assignment_log_assigned_at_idx ON public.og_workflow_assignment_log USING btree (assigned_at);
+
+
+--
+-- Name: og_workflow_notification_created_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX og_workflow_notification_created_at_idx ON public.og_workflow_notification USING btree (created_at DESC);
+
+
+--
 -- Name: raw_qc_og_id_uq; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3843,5 +3993,5 @@ ALTER TABLE ONLY public.species_ncbi_assembly
 -- PostgreSQL database dump complete
 --
 
-\unrestrict sIa8R2iPfrCZ7ZBL0Wv1VlT0HkqUw4DnCDQktsfBLQJMSpw00CZLepo8XBux3de
+\unrestrict vjl9zFG2omWbO8u8r4OxfKKCbhMHRWkeVizIMhTaRVteZUDKbyN5PuMcq1CI6tO
 

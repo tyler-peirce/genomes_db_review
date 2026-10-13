@@ -4,13 +4,16 @@ Status: **written and rehearsed 2026-10-13; not applied to live.** Source step:
 `database_review.md` §9, Phase V.5. Previous step: V.4 and migration `043`, done. Next step:
 V.6 (move `v2` into `public`), after a quiet period.
 
-The cutover is migration `sql/044_v2_cutover.sql`, reversed by
-`sql/revert/044_v2_cutover_revert.sql`. Its header explains each step. This document covers
+The cutover is `sql/cutover/v2_cutover.sql`, reversed by
+`sql/cutover/v2_cutover_revert.sql`. Its header explains each step. It stays outside the
+numbered sequence until the day, because the migration runner applies pending files in order
+and a numbered cutover would block every migration written after it. It gets its number
+when it runs; see Apply. This document covers
 what has to be true before it runs, how to run it, and how to check it worked.
 
 ## What changes for everyone
 
-After `044`:
+After the cutover:
 
 - Unqualified names (`sample`, `sequencing`, `summary`, ...) resolve to `v2` for every new
   session, through a database-level `search_path = v2, public`.
@@ -37,11 +40,11 @@ After `044`:
    - Only `sample` and `sequencing` failed outright, on columns that `v2` removes.
    - **It exited 0.** A cron job would report success.
 
-   Remove it from `fetch_excel.sh` on Amphi before `044` runs, and confirm no other job
+   Remove it from `fetch_excel.sh` on Amphi before the cutover runs, and confirm no other job
    calls it. Better still, make it refuse to start when `public.sample_pre_v2` exists, so a
    forgotten copy cannot do this either.
 2. **Both nightly imports must be running again and caught up.** Since 2026-10-05,
-   `public.rna_library_kinx` has not changed (see the review, V.5). `044` checks that the
+   `public.rna_library_kinx` has not changed (see the review, V.5). The cutover checks that the
    five pipeline-fed tables match row for row and refuses if they do not. It cannot check
    the lab tables, so run `scripts/reconcile_v2.py` (pre-flight, below).
 3. **The three samplesheet scripts in `OceanOmics-OceanGenomes-ref-genomes` are updated**
@@ -63,7 +66,7 @@ After `044`:
      are all replaced. It also reads `draft_genomes`, `ena_submissions`, `master_species`,
      `ref_genomes` and `ref_genomes_assembly_uploads`, which are not.
    - **It writes one column of a replaced table: `sample.workflow`**, through a column-level
-     `UPDATE` grant. That is its "Unassigned Workflows" tab's Assign button. `044` carries
+     `UPDATE` grant. That is its "Unassigned Workflows" tab's Assign button. The cutover carries
      the grant over to `v2.sample.workflow` and checks it. The first draft did not, and the
      button would have failed with `permission denied`.
    - It also writes its three `og_workflow_*` tables and five `master_species` columns. None
@@ -87,7 +90,7 @@ After `044`:
    - **`sample.workflow` is owned by the web app** (owner decision 2026-10-13). Both
      importers now set it only when a sample is first created and never overwrite it
      afterwards (`INSERT_ONLY` in `import_v2.py`; `queries.upsert_sample` for
-     `import_data.py`). Until the cutover the app writes `public.sample`, so `044` copies any
+     `import_data.py`). Until the cutover the app writes `public.sample`, so the cutover copies any
      differing `workflow` from `public` to `v2`, and the revert copies it back.
      `scripts/reconcile_v2.py` treats a difference as explained only where the app logged an
      assignment. **Tell the lab** that changing the Workflow column in the workbook no longer
@@ -97,12 +100,12 @@ After `044`:
 
 ## Pre-flight — the morning of
 
-1. `bin/check_drift.py`. Expect only the three known `og_workflow_*` lines.
+1. `bin/check_drift.py`. Expect no drift. It has been clean since 2026-10-13, when the `og_workflow_*` tables were captured in `044`.
 2. `scripts/audit_v2_dependents.py`. Expect the seven views above plus `summary`,
    `goat_species_v1` and `mitogenome_submission_view`, and no function marked UNREVIEWED.
-   A new dependent view means `044`'s list needs updating first.
+   A new dependent view means the cutover's list needs updating first.
 3. `scripts/reconcile_v2.py`. Expect zero UNEXPLAINED.
-4. `pg_dump -Fc` of live. Restore it into a throwaway cluster and rehearse `044` there:
+4. `pg_dump -Fc` of live. Restore it into a throwaway cluster and rehearse the cutover there:
    apply, run the post-checks below, revert, re-apply. The 2026-10-12 rehearsal is not a
    substitute, because the point is to catch whatever has changed since.
    **Check disk first.** The host's root filesystem was at 100% during the 2026-10-13
@@ -115,10 +118,16 @@ After `044`:
 In a quiet window, with nobody mid-import:
 
 ```sh
-PGOPTIONS="-c oceanomics.v2_cutover=go" bin/apply_migrations.py --target 044
+N=$(ls sql | grep -E '^[0-9]{3}_' | tail -1 | cut -c1-3); N=$(printf '%03d' $((10#$N + 1)))
+git mv sql/cutover/v2_cutover.sql sql/${N}_v2_cutover.sql
+git mv sql/cutover/v2_cutover_revert.sql sql/revert/${N}_v2_cutover_revert.sql
+git commit -m "Number the v2 cutover as ${N}"
+PGOPTIONS="-c oceanomics.v2_cutover=go" bin/apply_migrations.py
 ```
 
-Without the `PGOPTIONS` opt-in, `044` refuses to run. That stops an unrelated
+Apply any other pending migration first, so the cutover is the only one pending.
+
+Without the `PGOPTIONS` opt-in, the cutover refuses to run. That stops an unrelated
 `apply_migrations.py` run from cutting over by accident. It takes about 10 seconds on current
 data. Most of that is the pipeline-table comparison. It holds exclusive locks on the renamed
 tables until it commits.
@@ -141,8 +150,8 @@ From a **new** session:
 ## Rollback
 
 ```sh
-psql ... -f sql/revert/044_v2_cutover_revert.sql
-psql ... -c "DELETE FROM schema_migrations WHERE filename = '044_v2_cutover.sql'"
+psql ... -f sql/revert/NNN_v2_cutover_revert.sql
+psql ... -c "DELETE FROM schema_migrations WHERE filename = 'NNN_v2_cutover.sql'"
 ```
 
 The rollback takes effect immediately. **Anything written to `v2` after the cutover is not
@@ -170,7 +179,7 @@ live's grants:
 | `import_v2.py` after cutover | Exit 0; same 702 open quarantine records |
 | `import_data.py` after cutover | **Exit 0 while writing into nine `v2` lab tables.** Prerequisite 1 exists because of this. |
 
-The rehearsals found three defects in the first draft of `044`, and all three are fixed:
+The rehearsals found three defects in the first draft of the cutover, and all three are fixed:
 
 - `embargo_assignment_view` and `lca_validation_report_view` cannot take
   `CREATE OR REPLACE`, because `v2` changes column types from `varchar` to `text`. They are

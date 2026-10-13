@@ -30,6 +30,9 @@ table	master_species_genome
 table	mitogenome_data
 table	mitogenome_data_SS260818
 table	ncbi_genome_assemblies
+table	og_workflow_assignment_log
+table	og_workflow_notification
+table	og_workflow_recommendation
 table	ont_library
 table	pacbio_library
 table	raw_data

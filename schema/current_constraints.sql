@@ -62,6 +62,13 @@ ALTER TABLE public.mitogenome_data ADD CONSTRAINT mitogenome_data_unique_1 UNIQU
 ALTER TABLE public."mitogenome_data_SS260818" ADD CONSTRAINT mitogenome_data_pkey PRIMARY KEY (og_id, tech, seq_date, code);
 ALTER TABLE public."mitogenome_data_SS260818" ADD CONSTRAINT mitogenome_data_unique UNIQUE (og_id, tech, seq_date, code, annotation);
 ALTER TABLE public.ncbi_genome_assemblies ADD CONSTRAINT ncbi_genome_assemblies_assembly_accession_key UNIQUE (assembly_accession);
+ALTER TABLE public.og_workflow_assignment_log ADD CONSTRAINT og_workflow_assignment_log_pkey PRIMARY KEY (id);
+ALTER TABLE public.og_workflow_assignment_log ADD CONSTRAINT og_workflow_assignment_log_workflow_check CHECK (workflow = ANY (ARRAY['Reference'::text, 'Draft'::text]));
+ALTER TABLE public.og_workflow_notification ADD CONSTRAINT og_workflow_notification_kind_check CHECK (kind = ANY (ARRAY['recommendation'::text, 'assigned'::text]));
+ALTER TABLE public.og_workflow_notification ADD CONSTRAINT og_workflow_notification_pkey PRIMARY KEY (id);
+ALTER TABLE public.og_workflow_notification ADD CONSTRAINT og_workflow_notification_source_check CHECK (source = ANY (ARRAY['site'::text, 'database'::text]));
+ALTER TABLE public.og_workflow_recommendation ADD CONSTRAINT og_workflow_recommendation_pkey PRIMARY KEY (og_id);
+ALTER TABLE public.og_workflow_recommendation ADD CONSTRAINT og_workflow_recommendation_recommended_workflow_check CHECK (recommended_workflow = ANY (ARRAY['Reference'::text, 'Draft'::text]));
 ALTER TABLE public.ont_library ADD CONSTRAINT "ONT_Library_pkey" PRIMARY KEY (ont_library_tube_id);
 ALTER TABLE public.ont_library ADD CONSTRAINT fk_dna_id FOREIGN KEY (dna_id) REFERENCES dna_extraction(dna_id);
 ALTER TABLE public.pacbio_library ADD CONSTRAINT "PacBio_Library_pkey" PRIMARY KEY (pacbio_library_tube_id);
