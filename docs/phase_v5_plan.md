@@ -31,31 +31,58 @@ After the cutover:
 
 ## Hard prerequisites — do not cut over until all are done
 
-1. **`import_data.py` must be switched off, and `import_v2.py` must be the only nightly
-   writer.** This is the most important item. The rehearsal ran `import_data.py` against a
-   cut-over copy. It does not fail cleanly:
-   - It commits row by row and catches every error, so it overwrote about 2,200
-     `v2.dna_extraction` rows and similar numbers in eight other lab tables with raw workbook
-     values. Those writes skip `import_v2.py`'s quarantine and its value-conversion rules.
-   - Only `sample` and `sequencing` failed outright, on columns that `v2` removes.
-   - **It exited 0.** A cron job would report success.
-
-   Remove it from `fetch_excel.sh` on Amphi before the cutover runs, and confirm no other job
-   calls it. Better still, make it refuse to start when `public.sample_pre_v2` exists, so a
-   forgotten copy cannot do this either.
-2. **Both nightly imports must be running again and caught up.** Since 2026-10-05,
-   `public.rna_library_kinx` has not changed (see the review, V.5). The cutover checks that the
-   five pipeline-fed tables match row for row and refuses if they do not. It cannot check
-   the lab tables, so run `scripts/reconcile_v2.py` (pre-flight, below).
+1. **Done 2026-10-13: `import_v2.py` is the only nightly writer.** `fetch_excel.sh` runs
+   `import_v2.py` alone, from the `tyler` crontab at 18:00 UTC, and the 2026-10-13 run exited 0.
+   `import_data.py` no longer runs. Kept for the record: the rehearsal ran `import_data.py`
+   against a cut-over copy, and it overwrote about 2,200 `v2.dna_extraction` rows and similar
+   numbers in eight other lab tables with raw workbook values, skipping quarantine and the
+   value rules, and **exited 0**. Do not reinstate it.
+2. **Since 2026-10-13, `public`'s lab tables are frozen and readers see stale data.** Nothing
+   writes them now, so DBeaver users, the web app and `public.summary` see the lab as it was on
+   2026-10-05 until the cutover. On 2026-10-13 `v2.sample` held 3,401 samples and
+   `public.sample` 3,294. **This argues for cutting over soon.** It also means
+   `scripts/reconcile_v2.py` no longer measures anything useful: it compares `v2` with a
+   `public` that has stopped moving, so it now reports new data as differences. The
+   pre-flight uses the import's own result instead.
 3. **The three samplesheet scripts in `OceanOmics-OceanGenomes-ref-genomes` are updated**
    (handed over 2026-10-13, `~/v2_samplesheet_updates/`). They are safe to deploy before the
    cutover. The post-curation, genome-notes and RNA Kinnex builders under
    `/scratch/pawsey0964/lhuet/` need their one-line changes too. Details are in
    `docs/v2_cutover_dependencies.md`, "Functions".
-4. **Whoever writes the mitogenome and LCA tables knows the date.** Those pipelines are not on
-   this host. After cutover their unqualified writes land in `v2`, where `og_num` no longer
-   exists on these tables and `content_hash` is set by `v2`'s own trigger. Confirm that their
-   `INSERT`s do not name `og_num`, or they fail after the cutover.
+4. **The mitogenome / LCA pipeline runs from branch `v2-cutover`** of
+   `Oceanomics-OceanGenomes-Mitogenomes` (commit `9d70d01`, local, not pushed). Checked
+   2026-10-13 by running `EXPLAIN` on every statement it sends against live under both
+   `search_path`s. Five fail under `v2`; the branch fixes all five, and they still work before
+   the cutover, so it can be deployed now:
+   - `sequencing` reads by `og_id` (`create_samplesheet.py`, `build_source_modifiers.py`, the
+     `HIFI_DATE_QUERY` module) and by `hic_library_tube_id` (`create_samplesheet.py`,
+     `HIC_DATE_QUERY`) use `v_sequencing_browse` when it is visible. On live, every OG's latest
+     PacBio date and every HiC tube's runs come out the same either way.
+   - The `lca` and `lca_raw_results` upserts named the constraints `lca_content_unique` and
+     `lca_raw_results_content_unique`, which `v2` does not have: it keys the same columns
+     under `lca_pkey` and `lca_raw_results_pkey`. They now name the columns. On a scratch
+     copy a repeated result refreshes one row's run date in either schema.
+   - Every column the pipeline writes exists in `v2`, none of them is `og_num`, and `v2`'s
+     content-hash trigger is identical to `public`'s.
+   - The pipeline has not written since 2026-10-05, before the backfill, so its five tables
+     match `v2` row for row and the cutover's precondition passes.
+
+   Found along the way, not cutover blockers:
+   - **The GenBank coordinates for OG835, OG836 (HiC and HiFi), OG840 and OG841 were wrong.**
+     `build_source_modifiers.py` read the Exmouth Gulf degree-minute values as
+     "22.00000 S 6.49300 E". Under `v2` it gets the converted decimals and produces the right
+     coordinates. If those records were submitted, they need correcting at ENA / GenBank. In
+     total, 46 samples whose coordinates Excel had turned into dates now produce coordinates,
+     where before they produced none.
+   - **OG184 (Elat) stops producing coordinates.** The workbook's "29° 33' N" becomes +29.55,
+     which the script deliberately refuses: the lab also types southern latitudes unsigned.
+     The original text, N included, is in `value_conversions`.
+   - The pipeline carries its own copy of `sql/001`–`026` and its own runner,
+     `bin/apply_ena_migrations.py`, which writes the same `schema_migrations` ledger. Its
+     `026` differs from this repository's ledgered one (`026` was amended before ledgering, in
+     Phase A), and several of its files name `public.` tables explicitly. Do not run it;
+     `docs/migration_system_decision.md` makes this repository's `sql/` the only migration
+     system.
 5. **The web application, OceanGenom_Web, is checked against `v2` before the date.** What
    the database shows about it (2026-10-13):
    - It runs on `146.118.122.158`, connects as `oceangenom_web` with
@@ -104,14 +131,17 @@ After the cutover:
 2. `scripts/audit_v2_dependents.py`. Expect the seven views above plus `summary`,
    `goat_species_v1` and `mitogenome_submission_view`, and no function marked UNREVIEWED.
    A new dependent view means the cutover's list needs updating first.
-3. `scripts/reconcile_v2.py`. Expect zero UNEXPLAINED.
+3. The previous night's import: `~/lab_db_updates/out.YYMMDD.txt` shows a completed run and
+   `~/log/fetch_excel.FAILING` does not exist. (`scripts/reconcile_v2.py` no longer applies;
+   see prerequisite 2.)
 4. `pg_dump -Fc` of live. Restore it into a throwaway cluster and rehearse the cutover there:
    apply, run the post-checks below, revert, re-apply. The 2026-10-12 rehearsal is not a
    substitute, because the point is to catch whatever has changed since.
    **Check disk first.** The host's root filesystem was at 100% during the 2026-10-13
    rehearsal (a restore plus WAL is about 1 GB), and that filesystem is shared with live
    tooling.
-5. Confirm `import_data.py` is disabled (prerequisite 1).
+5. Confirm `import_data.py` is still not scheduled (`crontab -l`), and the pipeline runs from
+   `v2-cutover` (prerequisite 4).
 
 ## Apply
 
