@@ -53,11 +53,42 @@ After `044`:
    this host. After cutover their unqualified writes land in `v2`, where `og_num` no longer
    exists on these tables and `content_hash` is set by `v2`'s own trigger. Confirm that their
    `INSERT`s do not name `og_num`, or they fail after the cutover.
-5. **The web application's owner knows the date.** `oceangenom_web` reads `sample`,
-   `sequencing`, `tissue`, `lca_validation` and `mitogenome_data`, all of which are replaced.
-   Its access carries over, but any query that uses a removed column breaks, for example
-   `sequencing.og_id` or the sixteen removed `sample` columns. Its `og_workflow_*` tables are
-   untouched.
+5. **The web application, OceanGenom_Web, is checked against `v2` before the date.** What
+   the database shows about it (2026-10-13):
+   - It runs on `146.118.122.158`, connects as `oceangenom_web` with
+     `application_name = 'oceangenom_web'`, and holds a pool of open connections. It
+     reconnects with the new `search_path` only when that pool recycles, so **restart it right
+     after the cutover**.
+   - It reads `sample`, `sequencing`, `tissue`, `lca_validation` and `mitogenome_data`, which
+     are all replaced. It also reads `draft_genomes`, `ena_submissions`, `master_species`,
+     `ref_genomes` and `ref_genomes_assembly_uploads`, which are not.
+   - **It writes one column of a replaced table: `sample.workflow`**, through a column-level
+     `UPDATE` grant. That is its "Unassigned Workflows" tab's Assign button. `044` carries
+     the grant over to `v2.sample.workflow` and checks it. The first draft did not, and the
+     button would have failed with `permission denied`.
+   - It also writes its three `og_workflow_*` tables and five `master_species` columns. None
+     of these is affected.
+   - **Its code is not on this host, so which columns it reads is unknown.** The ones that
+     disappear:
+     - `sequencing`: `og_id`, `og_num` and the five per-technology library tube IDs. Use
+       `v_sequencing_browse`, or join through `library_tube_id`.
+     - `sample`: `tissues`, `extracted`, `extraction_queue`, the eight `*_status` and
+       `*_sequencing` rollups, `summary_comments`, `ont_num`, `illumina_public`,
+       `depth_collection` and `lengthtl_and_lengthfl`. The last two became `depth_min_m` /
+       `depth_max_m` and `length_tl_mm` / `length_fl_mm` / `length_unspecified_mm`.
+     - `tissue`: `field_id` and `og_num`.
+     - `lca_validation`, `mitogenome_data`: `og_num`.
+
+     The rollups are available from the `summary` view, which the web role is not granted
+     today.
+
+     Its owner should run its queries against `v2` before the date: a session with
+     `SET search_path = v2, public` sees exactly what the app will see.
+   - **An existing conflict that the cutover does not cause:** both importers overwrite
+     `sample.workflow` from the workbook's Workflow column every night. A workflow assigned
+     in the web app is reverted by the next import unless the lab sheet is changed too. It has
+     been hidden since 2026-10-05 because the imports stopped. Decide which side owns
+     `workflow` before the imports resume.
 6. **DBeaver users are told**, in the same message, that most fixes are one word:
    `illumina_library` becomes `v_illumina_library_browse`, which brings back `og_id`.
 
@@ -130,12 +161,13 @@ live's grants:
 | Write through `lca_validation_report_view` | Landed in `v2.lca_validation`, not in `_pre_v2` |
 | `readonly`: `sample`, `summary`, `v_sequencing_browse`, `sample_view` | Readable |
 | `oceangenom_web`: its five tables | Readable; `og_workflow_*` still writable; no new access |
+| `oceangenom_web`: `UPDATE (workflow)` on `v2.sample` (re-test 2026-10-13, schema-only restore) | Granted. Updating any other column is still refused. Revert identical; re-apply clean |
 | Replay with the ledger row deleted | No-op |
 | Revert, then a full `pg_dump -s` against the pre-cutover copy | Identical, apart from `pg_dump`'s random session tokens |
 | `import_v2.py` after cutover | Exit 0; same 702 open quarantine records |
 | `import_data.py` after cutover | **Exit 0 while writing into nine `v2` lab tables.** Prerequisite 1 exists because of this. |
 
-The rehearsal found two defects in the first draft of `044`, and both are fixed:
+The rehearsals found three defects in the first draft of `044`, and all three are fixed:
 
 - `embargo_assignment_view` and `lca_validation_report_view` cannot take
   `CREATE OR REPLACE`, because `v2` changes column types from `varchar` to `text`. They are
@@ -143,6 +175,9 @@ The rehearsal found two defects in the first draft of `044`, and both are fixed:
   verified.
 - `readonly`'s `USAGE` on `v2` was only copied from `public`'s schema grants. It is now
   granted explicitly.
+- Column-level grants were not copied, because they live in `pg_attribute`, not in the table's
+  ACL. That would have broken the web app's Assign button. They are now copied and
+  verified, and a column grant on a column that `v2` removes stops the cutover.
 
 The opt-in guard was added after the full rehearsal. It was tested on its own: it refuses
 without the setting, and with the setting it goes on to the normal precondition checks. Each

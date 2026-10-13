@@ -184,6 +184,32 @@ BEGIN
       EXECUTE format('GRANT %s ON v2.%I TO %I', g.privs, t, g.grantee);
     END LOOP;
   END LOOP;
+  -- Column-level grants live in pg_attribute.attacl, not in the table's relacl, so the loop
+  -- above does not see them. The web application depends on one: oceangenom_web holds
+  -- UPDATE (workflow) ON sample and nothing else writable on it, which is how its Assign
+  -- button sets a sample's workflow. Missed in the first rehearsal, which ran without the
+  -- role's column grants. A grant on a column v2 removed has nowhere to go: refuse rather
+  -- than drop a privilege silently.
+  FOREACH t IN ARRAY replaced_tables LOOP
+    FOR g IN
+      SELECT pg_get_userbyid(a.grantee) AS grantee, at.attname::text AS col,
+             string_agg(a.privilege_type, ', ') AS privs
+        FROM pg_attribute at
+        JOIN pg_class c ON c.oid = at.attrelid,
+             aclexplode(at.attacl) a
+       WHERE at.attrelid = ('public.' || quote_ident(t))::regclass
+         AND at.attacl IS NOT NULL AND NOT at.attisdropped
+         AND a.grantee <> 0 AND a.grantee <> c.relowner
+       GROUP BY a.grantee, at.attname
+    LOOP
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                      WHERE table_schema = 'v2' AND table_name = t AND column_name = g.col) THEN
+        RAISE EXCEPTION '044: % holds % on public.%.%, which v2 removes; decide what replaces it first',
+          g.grantee, g.privs, t, g.col;
+      END IF;
+      EXECUTE format('GRANT %s (%I) ON v2.%I TO %I', g.privs, g.col, t, g.grantee);
+    END LOOP;
+  END LOOP;
   -- Schema access for every role that has it on public, and readonly's blanket SELECT.
   FOR g IN
     SELECT pg_get_userbyid(a.grantee) AS grantee
@@ -289,6 +315,22 @@ BEGIN
          WHERE tgrelid = ('public.' || quote_ident(t))::regclass AND NOT tgisinternal)
        <> jsonb_array_length(trigs->t) THEN
       RAISE EXCEPTION '044: public.% lost a trigger in the rebuild', t;
+    END IF;
+  END LOOP;
+
+  -- Every column grant on a renamed table must hold on its v2 column.
+  FOR g IN
+    SELECT pg_get_userbyid(a.grantee) AS grantee, c.relname AS tbl, at.attname::text AS col,
+           a.privilege_type AS priv
+      FROM pg_attribute at
+      JOIN pg_class c ON c.oid = at.attrelid,
+           aclexplode(at.attacl) a
+     WHERE c.relnamespace = 'public'::regnamespace AND c.relname LIKE '%\_pre\_v2'
+       AND at.attacl IS NOT NULL AND a.grantee <> 0 AND a.grantee <> c.relowner
+  LOOP
+    IF NOT has_column_privilege(g.grantee, 'v2.' || quote_ident(regexp_replace(g.tbl, '_pre_v2$', '')),
+                                g.col, g.priv) THEN
+      RAISE EXCEPTION '044: % lost % on %.% in v2', g.grantee, g.priv, g.tbl, g.col;
     END IF;
   END LOOP;
 

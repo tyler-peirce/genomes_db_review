@@ -103,12 +103,24 @@ BEGIN
 
   -- Revoke the v2 grants 044 added. Before 044 no role but the owner had any.
   FOR g IN
-    SELECT DISTINCT pg_get_userbyid(a.grantee) AS grantee
+    SELECT pg_get_userbyid(a.grantee) AS grantee
       FROM pg_class cl, aclexplode(cl.relacl) a
      WHERE cl.relnamespace = 'v2'::regnamespace AND a.grantee <> cl.relowner AND a.grantee <> 0
+    UNION   -- roles holding only column grants (044 mirrors oceangenom_web's UPDATE (workflow))
+    SELECT pg_get_userbyid(a.grantee)
+      FROM pg_attribute at JOIN pg_class cl ON cl.oid = at.attrelid, aclexplode(at.attacl) a
+     WHERE cl.relnamespace = 'v2'::regnamespace AND at.attacl IS NOT NULL
+       AND a.grantee <> cl.relowner AND a.grantee <> 0
   LOOP
     EXECUTE format('REVOKE ALL ON ALL TABLES IN SCHEMA v2 FROM %I', g.grantee);
   END LOOP;
+  -- REVOKE ALL on a table also revokes its column privileges; assert it.
+  IF EXISTS (SELECT 1 FROM pg_attribute at JOIN pg_class cl ON cl.oid = at.attrelid,
+                    aclexplode(at.attacl) a
+              WHERE cl.relnamespace = 'v2'::regnamespace AND at.attacl IS NOT NULL
+                AND a.grantee <> cl.relowner AND a.grantee <> 0) THEN
+    RAISE EXCEPTION '044 revert: column grants remain on v2';
+  END IF;
   FOR g IN
     SELECT pg_get_userbyid(a.grantee) AS grantee
       FROM pg_namespace n, aclexplode(n.nspacl) a
