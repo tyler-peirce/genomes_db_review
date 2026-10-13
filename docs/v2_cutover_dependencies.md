@@ -61,7 +61,7 @@ which would have caused a problem at cutover:
 |---|---|---|
 | `summary` | Joins eight lab tables on their `og_id` columns (F1, removed); guards on `s.illumina_sequencing` / `hifi_sequencing` / `hic_sequencing` / `nanopore_sequencing` / `rna_extraction` / `rna_ilmn_sequencing` / `rna_kinnex_sequencing` (F4, removed); selects `s.summary_comments` (F4, removed); tests `status_overwrite::text = 'Y'` (F4a, now boolean) | Rebuilt as `v2.summary` in `create_v2_summary_view` |
 | `goat_species_v1` | `samp.pb_status` (F5, removed — it was a Summary-sheet rollup) | Rebuilt as `v2.goat_species_v1`, reading the status from `v2.summary` |
-| `mitogenome_submission_view` | Selects `m.og_num` from `mitogenome_data` (F2, removed). **Added 2026-10-05; the August audit never covered it.** | Needs a `v2` equivalent or a rewrite to compute `og_num` from `og_id`. Not yet written — the only outstanding DDL gap left by Phase V.1. |
+| `mitogenome_submission_view` | Selects `m.og_num` from `mitogenome_data` (F2, removed). **Added 2026-10-05; the August audit never covered it.** | Rebuilt as `v2.mitogenome_submission_view` in `sql/043_v2_mitogenome_submission_view.sql` (applied 2026-10-13), taking `og_num` from `v2.sample`. Identical to the public view on live: 2,349 rows, 0 differing in either direction. |
 
 ## Views that are cutover-neutral
 

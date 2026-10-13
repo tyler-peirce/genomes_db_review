@@ -87,11 +87,10 @@ outright failure at cutover. Full account in `docs/v2_scaffold_design_review.md`
    no quarantine record, despite the DDL's own comment promising they "quarantine for the lab
    to renumber". Both fixed.
 
-**One gap left open, deliberately:** `mitogenome_submission_view` reads
-`mitogenome_data.og_num`, which `v2` removes, and the August cutover audit never covered it.
-It needs a `v2` equivalent or a rewrite. That is view-recreation work and belongs with the
-other ten at Phase V.5, not here — but it is DDL that does not exist yet, so it is called out
-rather than left to be discovered.
+**One gap left open, deliberately — closed 2026-10-13 by `sql/043`.** `mitogenome_submission_view`
+reads `mitogenome_data.og_num`, which `v2` removes, and the August cutover audit never covered it.
+`043_v2_mitogenome_submission_view.sql` adds `v2.mitogenome_submission_view`, which takes
+`og_num` from `v2.sample`; it is identical to the public view on live.
 
 ## Background
 
