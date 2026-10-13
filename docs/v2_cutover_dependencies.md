@@ -139,6 +139,69 @@ Known from the sibling repo:
   equal measure: it means the cutover moves the importer silently, so the importer changes of
   §5 step 10 must land *before* the swap, not after.
 
+## Functions — the six samplesheet builders (reviewed 2026-10-13)
+
+`scripts/audit_v2_dependents.py` flagged six `build_*` functions for review. The finding
+that matters most is not about columns: **these functions are owned by the scripts that call
+them, not by the database.** `create_samplesheet_hifi_hic.py`, `create_samplesheet_hifi_only.py`
+and `create_samplesheet_from_config.py` in `OceanOmics-OceanGenomes-ref-genomes` each run
+`DROP FUNCTION IF EXISTS build_nfcore_samplesheet_rows(text[])` and then `CREATE` their own
+body, unqualified, every time they run. The live body matches none of the three: it carries
+`/scratch/pawsey0964/lhuet/genomenotes/` paths and filters on `seq_type`, so it came from a
+fourth script that is not on this host. The `hicpost` and `postcuration` builders carry
+`lhuet/post_curation/` paths and are in the same position. A migration that rewrote any of
+them would be overwritten on the next pipeline run, so **the fix belongs in the calling
+scripts**.
+
+| Function | Verdict | Why |
+|---|---|---|
+| `build_final_data_compile` | follows unchanged | `sample` and `lca_validation` columns all survive; `ref_genomes` stays in `public` |
+| `build_postcuration_samplesheet_rows` | follows unchanged | reads only `ref_genomes` and `raw_qc`, neither replaced |
+| `build_rna_kinx_samplesheet_rows` | follows unchanged | every `rna_library_kinx` column survives |
+| `build_nfcore_samplesheet_rows` | **breaks** | `sequencing.og_id` is gone (F1) |
+| `build_hicpost_samplesheet_rows` | **breaks** | `sequencing.og_id` is gone (F1) |
+| `build_rna_kinx_samplesheet_from_run` | **breaks** | `sequencing.rna_library_tube_id` is gone (F6) |
+
+After the swap, the three that break fail loudly at `CREATE` time, because a SQL function
+body is checked against the tables it names. That is the failure mode V.5 wants, but it
+lands on a pipeline run, so the scripts should be changed on cutover day, not discovered.
+
+**The fixes, each a one-line change in the calling script.** Unqualified names, so the same
+text works after V.5 (resolved through the `search_path`) and after V.6 (everything in
+`public`). They do not work before V.5, because `v_sequencing_browse` is not on the
+`search_path` until then.
+
+- `nfcore` and `hicpost`, in the `latest_seq` CTE: `FROM sequencing seq` becomes
+  `FROM v_sequencing_browse seq`. Nothing else changes; the view exposes `og_id`,
+  `technology`, `seq_type` and `seq_date`.
+- `rna_kinx_from_run`: every `rna_library_tube_id` on `sequencing` becomes
+  `library_tube_id` (the `tubes` CTE, the join, and the `samples_in_pool` output). The
+  `rna_library_kinx` side keeps its `rna_library_tube_id`.
+
+**Checked against live 2026-10-13**, comparing the current CTE on `public` with the rewrite on
+`v2`:
+
+| Variant | Samples, old / new | Differences |
+|---|---|---|
+| `technology IN ('PacBio HIFI', 'PacBio')` (hifi_hic, hifi_only) | 260 / 260 | 0 |
+| `technology = 'PacBio'` (from_config, live hicpost) | 31 / 31 | 0 |
+| `seq_type = 'PacBio'` (live nfcore) | 260 / 260 | 0 |
+| `rna_kinx_from_run`, every run | 137 / 137 rows | 1 — `OG108G_R_KL`, where `public` holds blanks and `v2` holds the 2026-10-06 workbook's plate, pool and barcode. A freshness difference between the schemas, not the rewrite. |
+
+**Two existing inconsistencies to raise with the pipeline owner, and not fix here:**
+
+- **The scripts disagree on what counts as PacBio.** `from_config` and the live `hicpost`
+  filter `technology = 'PacBio'`, which matches 35 rows and misses the 308
+  `'PacBio HIFI'` rows. `hifi_hic` and `hifi_only` use `IN ('PacBio HIFI', 'PacBio')`, and
+  the live `nfcore` uses `seq_type = 'PacBio'`, which picks up one Kinnex row as well. For
+  31 samples against 260, the `date` column of a `from_config` or `hicpost` samplesheet can
+  come from a different run than the `nfcore` one.
+- **`seq.seq_date::date` raises on a malformed date**, aborting the whole samplesheet rather
+  than skipping the row. No PacBio row is malformed today: the 41 non-`YYMMDD` values are
+  39 `cDNA` rows with no technology and 2 Illumina `CSIRO` rows, all outside every filter
+  above. It is a latent failure, worth a `seq_date ~ '^[0-9]{6}$'` guard when the scripts are
+  next touched.
+
 Unknown and needing an answer from the team before cutover:
 
 - DBeaver saved queries and any hardcoded `public.` prefixes.

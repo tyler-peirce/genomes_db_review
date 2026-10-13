@@ -76,17 +76,29 @@ DISPOSITION = {
         "PIN to public. Its only trigger is on public.rna_library_kinx.updated_at, and v2 "
         "drops created_at/updated_at deliberately -- so this function has no v2 counterpart "
         "and must not follow the swap into a table without the column.",
+    # The six build_* functions were reviewed 2026-10-13. They are CLIENT-OWNED: the
+    # scripts that call them DROP and re-CREATE them, unqualified, on every run, so the
+    # live body is whatever ran last and a migration cannot fix them. The fix lives in
+    # the calling script, landed at cutover. Replacement SQL and equivalence results:
+    # docs/v2_cutover_dependencies.md, "Functions".
     "build_final_data_compile":
-        "REVIEW -- reads lca_validation and sample. Needs the column check below before "
-        "cutover; pipeline-facing, so it needs the pipeline owners' sign-off either way.",
+        "FOLLOW -- every column it reads (sample, lca_validation) survives into v2; "
+        "ref_genomes stays in public.",
     "build_nfcore_samplesheet_rows":
-        "REVIEW -- reads sample and sequencing. sequencing loses its five library tube-ID "
-        "columns under F6, so this is the most likely to need a rewrite.",
-    "build_hicpost_samplesheet_rows": "REVIEW -- as build_nfcore_samplesheet_rows.",
-    "build_postcuration_samplesheet_rows": "REVIEW -- as build_nfcore_samplesheet_rows.",
+        "CLIENT-OWNED, BREAKS -- reads sequencing.og_id, which v2 removes (F1). Recreated "
+        "by OceanOmics-OceanGenomes-ref-genomes/scripts/0_create_samplesheet/*.py and by a "
+        "genomenotes script not on this host. Fix: read v_sequencing_browse.",
+    "build_hicpost_samplesheet_rows":
+        "CLIENT-OWNED, BREAKS -- reads sequencing.og_id. Recreated by a post-curation script "
+        "not on this host. Fix: read v_sequencing_browse.",
+    "build_postcuration_samplesheet_rows":
+        "FOLLOW -- reads only ref_genomes and raw_qc, both staying in public. The audit "
+        "matched it on the output column named `sample`, not a table.",
     "build_rna_kinx_samplesheet_from_run":
-        "REVIEW -- reads rna_library_kinx and sequencing.",
-    "build_rna_kinx_samplesheet_rows": "REVIEW -- reads rna_library_kinx.",
+        "CLIENT-OWNED, BREAKS -- reads sequencing.rna_library_tube_id, which v2 replaces "
+        "with library_tube_id (F6). Fix: join and select s.library_tube_id.",
+    "build_rna_kinx_samplesheet_rows":
+        "FOLLOW -- every rna_library_kinx column it reads survives into v2.",
 }
 
 
