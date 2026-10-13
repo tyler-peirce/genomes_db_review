@@ -1453,7 +1453,7 @@ Both gates are now cleared. **V.0 was dropped by decision and V.1 is done**, bot
 
    **Run `scripts/audit_v2_dependents.py` on the morning of the cutover**, not from memory. It reports the dependent views, the triggers, and the eleven unpinned functions with their recorded dispositions. Two of those dispositions are `ALTER FUNCTION ... SET search_path` statements that belong in this step: `lca_set_content_hash` and `set_updated_at` must be pinned to `public` so they cannot follow the swap into `v2` tables that no longer have the columns they maintain.
 
-   Worth telling consumers in the same message that breaks them: most fixes are one word. The twelve **browse views** re-expose `og_id` and a derived `latest` on every child table and are inlined by the planner, so `illumina_library` → `v_illumina_library_browse` restores the removed join column at no cost. `summary` keeps all sixteen removed `sample` columns as derived output.
+   Worth telling consumers in the same message that breaks them: most fixes are one word. The twelve **browse views** re-expose `og_id` and a derived `latest` on every child table and are inlined by the planner, so `illumina_library` → `v_illumina_library_browse` restores the removed join column at no cost. `summary` keeps all sixteen removed `sample` columns as derived output. Since `046` (2026-10-13) every browse view starts `og_num, og_id`, so `ORDER BY og_num` sorts samples numerically (`og_id` is text and puts `OG1000` before `OG703`).
 
 **V.6 — Consolidate into `public` and retire the parallel schema.** After a quiet period with no new breakage. The tables already carry their final names — decision 3 ensured `v2.sample` is schema `v2`, table `sample`, never `v2_sample` — so **nothing is renamed here; objects are moved**:
 
@@ -1705,6 +1705,13 @@ As at 2026-10-05, after the Phase B close:
 | ~~Sqitch~~ | — | Retired. Project files deleted; the `v2` DDL it held is now `sql/035`–`040`. |
 | Direct DDL | 3 tables (`og_workflow_*`) | Unclaimed — open question 16 |
 
+As at 2026-10-13, after the cutover and `046`:
+
+| System | Changes | Applied |
+|---|---:|---:|
+| `sql/` + `schema_migrations` | 47 (`000`–`046`) | 47 applied, 47 ledgered, all hashes match |
+| Direct DDL | — | None. The `og_workflow_*` tables were captured in `044`; drift check clean. |
+
 ### Orphan and blank `og_id`
 
 | Table | Blank | Orphan |
@@ -1805,5 +1812,6 @@ Capture the eight `data_package_*` tables in a migration and the data dictionary
 | 3.12 | 2026-10-13 | **Open question 16 closed: the `og_workflow_*` tables belong to OceanGenom_Web.** They are captured by catch-up migration `044` (applied to live as a no-op), and the baseline is refreshed, so the daily drift check is green for the first time since 2026-10-05. Coverage is 25 of 64. The cutover moved to `sql/cutover/`, unnumbered until the day, so it no longer blocks later migrations. |
 | 3.13 | 2026-10-13 | **V.5 prerequisites: imports and the mitogenome pipeline.** `import_v2.py` is now the only nightly writer, so `public`'s lab tables are frozen as of 2026-10-05 and `reconcile_v2.py` drops out of the pre-flight. The mitogenome / LCA pipeline was checked statement by statement under both `search_path`s. Five statements failed under `v2`: four `sequencing` reads, and the LCA upserts' constraint names. All five are fixed on its branch `v2-cutover`, which works on either side of the cutover. The check also found five wrong GenBank coordinates (OG835, OG836, OG840, OG841) that `v2`'s converted values correct. |
 | 3.14 | 2026-10-13 | **Phase V.5 done: the `v2` cutover is applied to live** as `045_v2_cutover.sql` (06:07 UTC), after a pre-flight and a rehearsal on a fresh dump of live. Unqualified names now resolve to `v2`, and the 20 replaced `public` objects are `*_pre_v2`. All post-checks passed, and the drift baseline accepts exactly the 20 renames. Next: the watch period, then V.6. |
+| 3.15 | 2026-10-13 | **Migration `046`: `og_num` is the first column of all twelve `v2` browse views**, followed by `og_id`, so they sort numerically. `037` exposed `og_num` only on `v_tissue_browse`, as column 2. `og_num` comes from a primary-key join to `v2.sample`, reusing its generated column. `CREATE OR REPLACE` cannot insert a column at position 1, so the views are dropped and recreated with their comments and `readonly` grant restored; the in-transaction verify block checks all three. Dry-run (apply and revert, rolled back), then applied: row counts identical in all twelve views, ledger and drift clean. Revert: `sql/revert/046_v2_browse_views_og_num_first_revert.sql`. |
 
 The previous revision is preserved at `/tmp/database_review.prev.md` at the time of writing; the authoritative history is in git.
