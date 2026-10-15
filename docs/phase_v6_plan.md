@@ -1,6 +1,6 @@
 # Phase V.6 plan — consolidate `v2` into `public`
 
-Status: **written and rehearsed 2026-10-15, not applied.** Source step: `database_review.md` §9,
+Status: **applied to live 2026-10-15 06:18 UTC** as `047_drop_ss260818_snapshots.sql` and `048_v2_consolidate.sql`; see the apply record at the end. Source step: `database_review.md` §9,
 Phase V.6. Previous step: V.5, migration `045`, applied 2026-10-13. Next step: V.7 (drop the
 archive, coverage).
 
@@ -61,7 +61,7 @@ These findings shaped the migration.
    - With `search_path = public` it refuses, exit 2.
    - cron runs the file in place, so the 18:00 UTC run on 2026-10-15 is the first live run.
      **Confirm it exited 0 before applying.**
-2. **Export `blast_filtered_lca_SS260818` somewhere outside git, and verify it.** It has
+2. **Done 2026-10-15:** exported to `~/blast_filtered_lca_SS260818.csv.gz` and verified. Original wording: **Export `blast_filtered_lca_SS260818` somewhere outside git, and verify it.** It has
    192,207 rows (about 4.7 MB gzipped). `archive/snapshots_SS260818/MANIFEST.md` kept it out
    of the repo deliberately; the other four snapshot tables are already archived there. Reload
    the export into a scratch table and compare it `EXCEPT` both ways before relying on it.
@@ -161,3 +161,33 @@ the two files numbered `047` and `048`.
 One defect was found and fixed: a PL/pgSQL loop variable `r` shadowed a table alias `r`, and
 the first apply failed on `record "r" is not assigned yet`. The rename was rehearsed again from
 the same point.
+
+## Apply record — 2026-10-15
+
+At the owner's direction, applied the same morning as the rehearsal. The changed importer had
+not yet had a nightly run; the dry runs before and after stood in for it.
+
+| Step | Result |
+|---|---|
+| Export of `blast_filtered_lca_SS260818` | `~/blast_filtered_lca_SS260818.csv.gz`, 192,207 rows. Reloaded into an empty table: count and an ordered md5 over every row identical to live (`046d2dde…`) |
+| Pre-flight: drift, ledger | No drift (64 objects); 47 applied, nothing pending |
+| Pre-flight: dependents | `audit_v2_dependents.py`: every function has a disposition |
+| Pre-flight: `v2` inventory | Unchanged since the 05:38 rehearsal dump: 22 tables, 17 views, 60 indexes, 1 sequence, 3 functions |
+| Pre-flight: sessions | 5, all idle: 2 `oceangenom_web`, 2 DBeaver (130.95.189.184), 1 `postgres` |
+| Pre-apply dump | `~/oceanomics_genomes_pre_v6_261015.dump` (06:02 UTC). Keep it: after V.7 it is the only copy of the `_pre_v2` data |
+| **`047` applied** | 06:18:11 UTC |
+| **`048` applied** | 06:18:30 UTC; ledger 49, `--verify` clean |
+| `search_path`, settings | `"$user", public`; no database setting; schema `v2` gone; no SS260818 object |
+| `sample` / `public.sample` | 3,401 / 3,401 |
+| `v6_moved` | 20 relations and 2 functions archived; 39 relations and 3 functions moved |
+| Functions | `quarantine()` no longer names `v2`; `lca_set_content_hash()` pinned to `public, pg_temp` |
+| Writes through the two writable views | Landed in `public`, 0 in the archive; rolled back, 0 left |
+| `readonly` | Reads `summary` (3,401) and the archive |
+| `oceangenom_web` | `UPDATE (workflow)` only; no access to the archive |
+| `import_v2.py --dry-run` against live | Exit 0; output identical to the pre-V.6 dry run |
+| Drift | +39 / −28 exactly as expected; accepted with `check_drift.py --update` and `export_schema_baseline.sh`; 75 objects, no drift |
+| Tooling | Six cutover-only scripts moved to `scripts/archive/v2_cutover/` |
+
+**Still to watch:** tonight's 18:00 UTC import, the first nightly run since the
+consolidation (`~/lab_db_updates/out.261015.txt`); then the next mitogenome pipeline and
+samplesheet runs.

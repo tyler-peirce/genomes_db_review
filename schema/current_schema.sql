@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict B6VVfRqm5Wd1F04Hxrfh3zVozgrnRweCzufaX2vz2bbbe4jhjEoz9qF5dCNdKga
+\restrict aGHuynpE6OKn7NGFgmaVBcXCx52gQ5b2TyHDgg34g7MJnA7aNVtAHCGnBuIyyzZ
 
 -- Dumped from database version 14.24 (Ubuntu 14.24-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 14.24 (Ubuntu 14.24-0ubuntu0.22.04.1)
@@ -285,15 +285,21 @@ $$;
 
 CREATE FUNCTION public.lca_set_content_hash() RETURNS trigger
     LANGUAGE plpgsql
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 BEGIN
     NEW.content_hash := md5(
         (to_jsonb(NEW) - 'lca_run_date' - 'og_num' - 'content_hash')::text
     );
     RETURN NEW;
-END;
-$$;
+END $$;
+
+
+--
+-- Name: FUNCTION lca_set_content_hash(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lca_set_content_hash() IS 'Maintains content_hash on v2.lca and v2.lca_raw_results. Pinned search_path so the hash cannot vary with the caller''s path.';
 
 
 --
@@ -340,18 +346,31 @@ $$;
 
 
 --
--- Name: set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+-- Name: quarantine(text, text, text, text, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.set_updated_at() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path TO 'public'
+CREATE FUNCTION public.quarantine(p_source_table text, p_source_row_key text, p_violation_type text, p_violation_detail text, p_raw_row jsonb, p_source_sheet text DEFAULT NULL::text) RETURNS bigint
+    LANGUAGE sql
     AS $$
-BEGIN
-  NEW.updated_at := NOW();
-  RETURN NEW;
-END;
+    INSERT INTO public.import_quarantine AS q
+        (source_table, source_sheet, source_row_key, violation_type, violation_detail, raw_row)
+    VALUES
+        (p_source_table, p_source_sheet, p_source_row_key, p_violation_type, p_violation_detail, p_raw_row)
+    ON CONFLICT (source_table, coalesce(source_row_key, ''), violation_type)
+        WHERE resolved_at IS NULL
+    DO UPDATE SET last_seen         = now(),
+                  violation_detail  = excluded.violation_detail,
+                  raw_row           = excluded.raw_row,
+                  source_sheet      = coalesce(excluded.source_sheet, q.source_sheet)
+    RETURNING quarantine_id;
 $$;
+
+
+--
+-- Name: FUNCTION quarantine(p_source_table text, p_source_row_key text, p_violation_type text, p_violation_detail text, p_raw_row jsonb, p_source_sheet text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.quarantine(p_source_table text, p_source_row_key text, p_violation_type text, p_violation_detail text, p_raw_row jsonb, p_source_sheet text) IS 'Record or refresh a quarantined row. Idempotent per (table, key, violation) while the violation is unresolved, so repeated nightly imports do not accumulate duplicates.';
 
 
 --
@@ -374,853 +393,6 @@ $$;
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
-
---
--- Name: blast_filtered_lca_SS260818; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public."blast_filtered_lca_SS260818" (
-    og_id text NOT NULL,
-    tech text NOT NULL,
-    seq_date text NOT NULL,
-    code text NOT NULL,
-    annotation text NOT NULL,
-    match_sequence_id text NOT NULL,
-    taxon_id integer,
-    scientific_name text,
-    common_name text,
-    kingdoms text,
-    percent_identity double precision,
-    alignment_length integer,
-    query_length integer,
-    subject_length integer,
-    mismatch integer,
-    gap_open integer,
-    gaps integer,
-    query_start integer,
-    query_end integer,
-    subject_start integer,
-    subject_end integer,
-    subject_title text,
-    evalue double precision,
-    bit_score double precision,
-    query_coverage double precision,
-    subject_coverage double precision,
-    region text NOT NULL,
-    blast_run_date text
-);
-
-
---
--- Name: blast_filtered_lca_pre_v2; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.blast_filtered_lca_pre_v2 (
-    og_id text NOT NULL,
-    tech text NOT NULL,
-    seq_date text NOT NULL,
-    code text NOT NULL,
-    annotation text NOT NULL,
-    match_sequence_id text NOT NULL,
-    taxon_id text,
-    scientific_name text,
-    common_name text,
-    kingdoms text,
-    percent_identity double precision,
-    alignment_length integer,
-    query_length integer,
-    subject_length integer,
-    mismatch integer,
-    gap_open integer,
-    gaps integer,
-    query_start integer,
-    query_end integer,
-    subject_start integer,
-    subject_end integer,
-    subject_title text,
-    evalue double precision,
-    bit_score double precision,
-    query_coverage double precision,
-    subject_coverage double precision,
-    region text NOT NULL,
-    blast_run_date text
-);
-
-
---
--- Name: TABLE blast_filtered_lca_pre_v2; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.blast_filtered_lca_pre_v2 IS 'DEPRECATED 2026-10-13 by the v2 cutover migration: superseded by v2.blast_filtered_lca. Kept for rollback until V.6. ';
-
-
---
--- Name: COLUMN blast_filtered_lca_pre_v2.taxon_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.blast_filtered_lca_pre_v2.taxon_id IS 'BLAST staxids for the matched accession, verbatim. Usually a single NCBI taxon id, but a '';''-joined list when the accession is registered under more than one taxon -- cast it before using it as a number.';
-
-
---
--- Name: hic_reads_qc; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.hic_reads_qc (
-    og_id text DEFAULT ''::text NOT NULL,
-    tissue text DEFAULT ''::text NOT NULL,
-    ext_type text DEFAULT ''::text NOT NULL,
-    lib_code text DEFAULT ''::text NOT NULL,
-    lane text DEFAULT ''::text NOT NULL,
-    run_id text DEFAULT ''::text NOT NULL,
-    datecreated date,
-    isarchived boolean,
-    isfiledeleted boolean,
-    totalreadspf bigint,
-    totalclusterspf bigint,
-    read1length integer,
-    read2length integer,
-    ispairedend boolean,
-    yield_gb numeric,
-    totalsize_gb numeric
-);
-
-
---
--- Name: hifi_reads_qc; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.hifi_reads_qc (
-    og_id text NOT NULL,
-    tissue text NOT NULL,
-    ext_type text NOT NULL,
-    lib_code text NOT NULL,
-    run_id text DEFAULT ''::text NOT NULL,
-    barcode text,
-    barcode_quality numeric,
-    hifi_reads bigint,
-    hifi_read_length numeric,
-    hifi_read_quality text,
-    hifi_yield bigint,
-    polymerase_read_length numeric
-);
-
-
---
--- Name: raw_qc; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.raw_qc (
-    og_id text NOT NULL,
-    homozygosity numeric(5,2),
-    heterozygosity numeric(5,2),
-    genomesize bigint,
-    repeatsize bigint,
-    uniquesize bigint,
-    modelfit numeric(5,2),
-    errorrate numeric(5,2),
-    contam_reads integer
-);
-
-
---
--- Name: coverage_summary; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.coverage_summary AS
- WITH hifi_agg AS (
-         SELECT hifi_reads_qc.og_id,
-            sum(hifi_reads_qc.hifi_yield) AS total_hifi_yield_bp
-           FROM public.hifi_reads_qc
-          GROUP BY hifi_reads_qc.og_id
-        ), hic_agg AS (
-         SELECT hic_reads_qc.og_id,
-            (sum((hic_reads_qc.yield_gb * (1000000000)::numeric)))::bigint AS total_hic_yield_bp
-           FROM public.hic_reads_qc
-          GROUP BY hic_reads_qc.og_id
-        ), all_ogs AS (
-         SELECT hifi_agg.og_id
-           FROM hifi_agg
-        UNION
-         SELECT hic_agg.og_id
-           FROM hic_agg
-        )
- SELECT a.og_id,
-    r.genomesize,
-    round(((hic.total_hic_yield_bp)::numeric / '1000000000'::numeric), 3) AS total_hic_yield_gb,
-    round((hifi.total_hifi_yield_bp / '1000000000'::numeric), 3) AS total_hifi_yield_gb,
-        CASE
-            WHEN (r.genomesize > 0) THEN round((hifi.total_hifi_yield_bp / (r.genomesize)::numeric), 2)
-            ELSE NULL::numeric
-        END AS hifi_coverage,
-        CASE
-            WHEN (r.genomesize > 0) THEN round(((hic.total_hic_yield_bp)::numeric / (r.genomesize)::numeric), 2)
-            ELSE NULL::numeric
-        END AS hic_coverage
-   FROM (((all_ogs a
-     LEFT JOIN hifi_agg hifi ON ((hifi.og_id = a.og_id)))
-     LEFT JOIN hic_agg hic ON ((hic.og_id = a.og_id)))
-     LEFT JOIN public.raw_qc r ON ((r.og_id = a.og_id)))
-  ORDER BY a.og_id;
-
-
---
--- Name: design_description; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.design_description (
-    design_no integer NOT NULL,
-    design_description character varying,
-    comment character varying
-);
-
-
---
--- Name: TABLE design_description; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.design_description IS 'Lookup of sequencing design numbers to descriptions. Two rows, no foreign keys in or out, and no reference from either repository. Captured by 034_catchup_design_description.sql so it is not lost on a rebuild; a candidate for removal once open question 15 confirms no external consumer.';
-
-
---
--- Name: dna_extraction_pre_v2; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.dna_extraction_pre_v2 (
-    dna_id text NOT NULL,
-    tissue_id text,
-    ext_num integer,
-    status text,
-    extraction_method text,
-    extraction_date text,
-    extraction_batch_id text,
-    final_buffer text,
-    volume integer,
-    qubit_conc real,
-    nano_drop_conc real,
-    ratio_260_280 text,
-    ratio_260_230 text,
-    ratioqubit_nanodrop real,
-    total_yield text,
-    gdna_femtol_id text,
-    av_size text,
-    extraction_qc text,
-    comment text,
-    dna_freezer text,
-    dna_shelf integer,
-    dna_rack integer,
-    dna_level text,
-    dna_box text,
-    dna_notes text,
-    og_num integer GENERATED ALWAYS AS ((regexp_replace(tissue_id, '[^0-9]'::text, ''::text, 'g'::text))::integer) STORED,
-    og_id text GENERATED ALWAYS AS (regexp_replace(tissue_id, '^([^0-9]*[0-9]+).*$'::text, '\1'::text)) STORED,
-    status_overwrite character varying
-);
-
-
---
--- Name: TABLE dna_extraction_pre_v2; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.dna_extraction_pre_v2 IS 'DEPRECATED 2026-10-13 by the v2 cutover migration: superseded by v2.dna_extraction. Kept for rollback until V.6. ';
-
-
---
--- Name: draft_genomes; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.draft_genomes (
-    og_id text NOT NULL,
-    mach text,
-    seq_date text NOT NULL,
-    initial text,
-    passed_filter_reads bigint,
-    low_quality_reads integer,
-    too_many_n_reads integer,
-    too_short_reads integer,
-    too_long_reads integer,
-    raw_total_reads bigint,
-    raw_total_bases bigint,
-    raw_q20_bases bigint,
-    raw_q30_bases bigint,
-    raw_q20_rate numeric(7,6),
-    raw_q30_rate numeric(7,6),
-    raw_read1_mean_length integer,
-    raw_read2_mean_length integer,
-    raw_gc_content numeric(7,6),
-    total_reads bigint,
-    total_bases bigint,
-    q20_bases bigint,
-    q30_bases bigint,
-    q20_rate numeric(7,6),
-    q30_rate numeric(7,6),
-    read1_mean_length integer,
-    read2_mean_length integer,
-    gc_content numeric(7,6),
-    homozygosity numeric(8,4),
-    heterozygosity numeric(8,4),
-    genomesize bigint,
-    repeatsize bigint,
-    uniquesize bigint,
-    modelfit numeric(8,4),
-    errorrate numeric(8,4),
-    num_contigs integer,
-    num_contigs_mitochondrion integer,
-    num_contigs_plastid integer,
-    num_contigs_prokarya integer,
-    bp_mitochondrion bigint,
-    bp_plastid bigint,
-    bp_prokarya bigint,
-    complete numeric(4,1),
-    single_copy numeric(4,1),
-    multi_copy numeric(4,1),
-    fragmented numeric(4,1),
-    missing numeric(4,1),
-    n_markers integer,
-    domain text,
-    number_of_scaffolds integer,
-    number_of_contigs integer,
-    total_length bigint,
-    percent_gaps numeric(5,2),
-    scaffold_n50 integer,
-    contigs_n50 integer,
-    unique_k_mers_assembly bigint,
-    k_mers_total bigint,
-    qv numeric(6,4),
-    error numeric(12,11),
-    k_mer_set text,
-    solid_k_mers bigint,
-    total_k_mers bigint,
-    completeness numeric(7,4),
-    depmethod text,
-    adjust text,
-    readbp bigint,
-    mapadjust numeric(7,6),
-    scdepth numeric(5,2),
-    estgenomesize bigint,
-    aws_r1 text,
-    aws_r1_size bigint,
-    aws_r2 text,
-    aws_r2_size bigint,
-    aws_assm text,
-    aws_assm_size bigint,
-    sra_accession character varying,
-    biosample_accession character varying,
-    study character varying,
-    bioproject_accession character varying,
-    ena_analysis_accession text,
-    assembly_accession text,
-    comment character varying,
-    fastp_r1 text,
-    fastp_r1_size bigint,
-    fastp_r2 text,
-    fastp_r2_size bigint,
-    sra_r1 text,
-    sra_r1_size bigint,
-    sra_r2 text,
-    sra_r2_size bigint,
-    og_num integer GENERATED ALWAYS AS ((SUBSTRING(og_id FROM 3))::integer) STORED,
-    sra_date_submitted date,
-    num_contigs_exclude integer,
-    num_contigs_trim integer,
-    num_contigs_review integer,
-    bp_exclude integer,
-    bp_trim integer,
-    bp_review integer,
-    gfa_num_contigs bigint,
-    gfa_contig_n50 bigint,
-    gfa_num_scaffolds bigint,
-    gfa_scaffold_n50 bigint,
-    gfa_largest_scaffold bigint,
-    gfa_total_scaffold_length bigint,
-    gfa_gc_content_percent numeric(10,2),
-    internal_stop_codon_percent numeric(5,2),
-    internal_stop_codon_count bigint,
-    genomesize_min bigint,
-    repeatsize_min bigint,
-    uniquesize_min bigint,
-    homozygosity_min numeric(8,4),
-    heterozygosity_min numeric(8,4),
-    modelfit_allkmers numeric(8,4),
-    genome_size_reliable boolean,
-    genome_size_flags text,
-    kmercov numeric(10,4),
-    lambda_depth numeric(10,4),
-    host_assembly_size bigint,
-    host_assembly_fraction numeric,
-    host_haploid_size bigint,
-    partition_confidence text
-);
-
-
---
--- Name: COLUMN draft_genomes.ena_analysis_accession; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.draft_genomes.ena_analysis_accession IS 'ENA analysis (ERZ) accession from the Webin-CLI assembly receipt; written by ENA-draft-genomes step 06';
-
-
---
--- Name: COLUMN draft_genomes.assembly_accession; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.draft_genomes.assembly_accession IS 'Public INSDC assembly accession (GCA_...) assigned once the ERZ is processed; filled by ENA-draft-genomes workflow/07_resolve_gca_accessions.py. Previously held NCBI JB... accessions.';
-
-
---
--- Name: embargo_assignment_view; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.embargo_assignment_view AS
- SELECT s.og_id,
-    (regexp_replace(s.og_id, 'OG'::text, ''::text, 'g'::text))::integer AS og_num,
-    s.collector,
-    s.embargo_status,
-    lv1.validated_species_name,
-    s.nominal_species_id,
-    s.common_name,
-    s.field_id,
-    s.contact,
-    s.date_collected
-   FROM (v2.sample s
-     LEFT JOIN LATERAL ( SELECT string_agg(DISTINCT lv.validated_species_name, ', '::text ORDER BY lv.validated_species_name) AS validated_species_name
-           FROM v2.lca_validation lv
-          WHERE (lv.og_id = s.og_id)) lv1 ON (true));
-
-
---
--- Name: ena_candidate_loci_archive; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.ena_candidate_loci_archive (
-    full_seqid text,
-    og_id text,
-    gene_serial integer,
-    locus_tag text,
-    feature_key text,
-    start_coordinate integer,
-    end_coordinate integer,
-    strand character(1),
-    created_at timestamp with time zone
-);
-
-
---
--- Name: TABLE ena_candidate_loci_archive; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.ena_candidate_loci_archive IS 'Frozen copy of ena_candidate_loci as of migration 010. Records the per-candidate locus tags this pipeline submitted before locus-tag assignment moved to the downstream submission pipeline. Historical reference only.';
-
-
---
--- Name: ena_locus_registry_archive; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.ena_locus_registry_archive (
-    og_id text,
-    gene_serial integer,
-    canonical_gene text,
-    gene_occurrence integer,
-    feature_type text,
-    strand character(1),
-    feature_sequence_sha256 character(64),
-    coordinate_snapshot text,
-    allocation_status text,
-    created_at timestamp with time zone,
-    updated_at timestamp with time zone
-);
-
-
---
--- Name: TABLE ena_locus_registry_archive; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.ena_locus_registry_archive IS 'Frozen copy of ena_locus_registry as of migration 010. Records the specimen gene serials this pipeline allocated before locus-tag assignment moved to the downstream submission pipeline. Historical reference only: do not write to it and do not treat it as the current tag assignment.';
-
-
---
--- Name: ena_related_assemblies; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.ena_related_assemblies (
-    id bigint NOT NULL,
-    og_id text NOT NULL,
-    relationship_type text NOT NULL,
-    archive text NOT NULL,
-    accession text NOT NULL,
-    is_primary boolean DEFAULT false NOT NULL,
-    accession_source text,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT ena_related_archive_check CHECK ((archive = ANY (ARRAY['ENA'::text, 'NCBI'::text, 'OTHER'::text]))),
-    CONSTRAINT ena_related_relationship_check CHECK ((relationship_type = ANY (ARRAY['reference'::text, 'draft'::text])))
-);
-
-
---
--- Name: ena_related_assemblies_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-ALTER TABLE public.ena_related_assemblies ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
-    SEQUENCE NAME public.ena_related_assemblies_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1
-);
-
-
---
--- Name: ena_specimen_accessions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.ena_specimen_accessions (
-    og_id text NOT NULL,
-    og_numeric integer NOT NULL,
-    ena_biosample_accession text,
-    accession_source text,
-    verified_at timestamp with time zone,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT ena_specimen_biosample_check CHECK (((ena_biosample_accession IS NULL) OR (ena_biosample_accession ~ '^SAM(EA|N|D)[0-9]+$'::text))),
-    CONSTRAINT ena_specimen_og_id_check CHECK ((og_id ~ '^OG[0-9]+$'::text)),
-    CONSTRAINT ena_specimen_og_numeric_check CHECK (((og_numeric >= 0) AND (og_numeric <= 999999))),
-    CONSTRAINT ena_specimen_og_numeric_matches_check CHECK ((og_numeric = (SUBSTRING(og_id FROM 3))::integer))
-);
-
-
---
--- Name: ena_submissions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.ena_submissions (
-    full_seqid text NOT NULL,
-    webin_mode text DEFAULT 'production'::text NOT NULL,
-    og_id text GENERATED ALWAYS AS (split_part(full_seqid, '.'::text, 1)) STORED,
-    tech text GENERATED ALWAYS AS (split_part(full_seqid, '.'::text, 2)) STORED,
-    seq_date text GENERATED ALWAYS AS (split_part(full_seqid, '.'::text, 3)) STORED,
-    code text GENERATED ALWAYS AS (split_part(full_seqid, '.'::text, 4)) STORED,
-    annotation text GENERATED ALWAYS AS ("substring"(full_seqid, '^(?:[^.]+[.]){4}(.+)$'::text)) STORED,
-    submission_status text DEFAULT 'NOT_SUBMITTED'::text NOT NULL,
-    submitted_at timestamp with time zone,
-    submitted_by text,
-    error_message text,
-    receipt_path text,
-    receipt_sha256 character(64),
-    webin_cli_version text,
-    ena_study_accession text,
-    ena_sample_accession text,
-    ena_analysis_accession text,
-    ena_assembly_accession text,
-    ena_sequence_accession text,
-    biosample_accession text,
-    biosample_source text,
-    locus_tag_prefix text,
-    run_accessions text[],
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT ena_submissions_accession_presence_check CHECK (((submission_status <> 'ACCESSION_ASSIGNED'::text) OR (ena_analysis_accession IS NOT NULL))),
-    CONSTRAINT ena_submissions_analysis_accession_check CHECK (((ena_analysis_accession IS NULL) OR (ena_analysis_accession ~ '^ERZ[0-9]+$'::text))),
-    CONSTRAINT ena_submissions_assembly_accession_check CHECK (((ena_assembly_accession IS NULL) OR (ena_assembly_accession ~ '^GCA_[0-9]{9}[.][0-9]+$'::text))),
-    CONSTRAINT ena_submissions_biosample_check CHECK (((biosample_accession IS NULL) OR (biosample_accession ~ '^SAM(EA|N|D)[0-9]+$'::text))),
-    CONSTRAINT ena_submissions_failure_reason_check CHECK (((submission_status <> 'FAILED'::text) OR (error_message IS NOT NULL))),
-    CONSTRAINT ena_submissions_full_seqid_check CHECK ((full_seqid ~ '^OG[0-9]+[.][A-Za-z0-9._-]+$'::text)),
-    CONSTRAINT ena_submissions_locus_tag_prefix_check CHECK (((locus_tag_prefix IS NULL) OR (locus_tag_prefix ~ '^[A-Z][A-Z0-9]{2,11}$'::text))),
-    CONSTRAINT ena_submissions_receipt_digest_check CHECK (((receipt_sha256 IS NULL) OR (receipt_sha256 ~ '^[0-9a-f]{64}$'::text))),
-    CONSTRAINT ena_submissions_run_accessions_check CHECK (((run_accessions IS NULL) OR (array_to_string(run_accessions, ' '::text) ~ '^((ERR|SRR|DRR)[0-9]+( |$))*$'::text))),
-    CONSTRAINT ena_submissions_sample_accession_check CHECK (((ena_sample_accession IS NULL) OR (ena_sample_accession ~ '^ERS[0-9]+$'::text))),
-    CONSTRAINT ena_submissions_sequence_accession_check CHECK (((ena_sequence_accession IS NULL) OR (ena_sequence_accession ~ '^[A-Z]{2}[0-9]{6,8}([.][0-9]+)?$'::text))),
-    CONSTRAINT ena_submissions_status_check CHECK ((submission_status = ANY (ARRAY['NOT_SUBMITTED'::text, 'SUBMITTED'::text, 'ACCESSION_ASSIGNED'::text, 'FAILED'::text]))),
-    CONSTRAINT ena_submissions_study_accession_check CHECK (((ena_study_accession IS NULL) OR (ena_study_accession ~ '^PRJEB[0-9]+$'::text))),
-    CONSTRAINT ena_submissions_submitted_at_check CHECK (((submission_status <> ALL (ARRAY['SUBMITTED'::text, 'ACCESSION_ASSIGNED'::text])) OR (submitted_at IS NOT NULL))),
-    CONSTRAINT ena_submissions_webin_mode_check CHECK ((webin_mode = ANY (ARRAY['production'::text, 'test'::text])))
-);
-
-
---
--- Name: TABLE ena_submissions; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.ena_submissions IS 'Submission ledger, written by the downstream ENA submission pipeline. This pipeline never writes or reads it: validation does not depend on submission state.';
-
-
---
--- Name: COLUMN ena_submissions.webin_mode; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_submissions.webin_mode IS 'Which Webin service answered: production or test. Part of the key so a dry run cannot overwrite the production record.';
-
-
---
--- Name: COLUMN ena_submissions.biosample_accession; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_submissions.biosample_accession IS 'The BioSample the manifest actually carried. SAMN means the specimen is registered at NCBI only, which webin-cli cannot resolve (see sql/007).';
-
-
---
--- Name: COLUMN ena_submissions.biosample_source; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_submissions.biosample_source IS 'Where that accession came from, e.g. sample.ncbi_biosample_id or webin_sample_receipt.';
-
-
---
--- Name: COLUMN ena_submissions.run_accessions; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_submissions.run_accessions IS 'Raw-read runs the assembly came from, as ERR/SRR/DRR accessions.';
-
-
---
--- Name: ena_validation_attempts; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.ena_validation_attempts (
-    id bigint NOT NULL,
-    og_num integer GENERATED ALWAYS AS ((SUBSTRING(og_id FROM 3))::integer) STORED,
-    full_seqid text NOT NULL,
-    og_id text NOT NULL,
-    tech text,
-    seq_date text,
-    code text,
-    annotation text,
-    ena_study text DEFAULT ''::text NOT NULL,
-    validation_mode text NOT NULL,
-    validation_attempt text NOT NULL,
-    table2asn_status text NOT NULL,
-    reject_count integer,
-    error_count integer,
-    warning_count integer,
-    info_count integer,
-    fatal_discrepancy_count integer,
-    nostop_count integer,
-    blocking_codes text,
-    warning_codes text,
-    conversion_status text NOT NULL,
-    conversion_reason text,
-    conversion_exit integer,
-    preflight_status text NOT NULL,
-    preflight_reason text,
-    preflight_exit integer,
-    webin_status text NOT NULL,
-    webin_reason text,
-    webin_exit integer,
-    submission_ready boolean DEFAULT false NOT NULL,
-    recorded_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    attempt_count integer DEFAULT 1 NOT NULL,
-    CONSTRAINT ena_validation_submission_ready_check CHECK (((NOT submission_ready) OR (webin_status = 'PASS'::text)))
-);
-
-
---
--- Name: COLUMN ena_validation_attempts.og_num; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_validation_attempts.og_num IS 'Numeric part of og_id, maintained by the database. Generated, not writable: do not include it in any INSERT or UPDATE column list.';
-
-
---
--- Name: ena_submission_status; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.ena_submission_status AS
- WITH latest AS (
-         SELECT DISTINCT ON (ena_validation_attempts.full_seqid) ena_validation_attempts.id,
-            ena_validation_attempts.full_seqid,
-            ena_validation_attempts.og_id,
-            ena_validation_attempts.tech,
-            ena_validation_attempts.seq_date,
-            ena_validation_attempts.code,
-            ena_validation_attempts.annotation,
-            ena_validation_attempts.ena_study,
-            ena_validation_attempts.validation_mode,
-            ena_validation_attempts.validation_attempt,
-            ena_validation_attempts.table2asn_status,
-            ena_validation_attempts.reject_count,
-            ena_validation_attempts.error_count,
-            ena_validation_attempts.warning_count,
-            ena_validation_attempts.info_count,
-            ena_validation_attempts.fatal_discrepancy_count,
-            ena_validation_attempts.nostop_count,
-            ena_validation_attempts.blocking_codes,
-            ena_validation_attempts.warning_codes,
-            ena_validation_attempts.conversion_status,
-            ena_validation_attempts.conversion_reason,
-            ena_validation_attempts.conversion_exit,
-            ena_validation_attempts.preflight_status,
-            ena_validation_attempts.preflight_reason,
-            ena_validation_attempts.preflight_exit,
-            ena_validation_attempts.webin_status,
-            ena_validation_attempts.webin_reason,
-            ena_validation_attempts.webin_exit,
-            ena_validation_attempts.submission_ready,
-            ena_validation_attempts.recorded_at,
-            ena_validation_attempts.attempt_count
-           FROM public.ena_validation_attempts
-          ORDER BY ena_validation_attempts.full_seqid, ena_validation_attempts.recorded_at DESC, ena_validation_attempts.id DESC
-        )
- SELECT v.full_seqid,
-    v.og_id,
-    v.tech,
-    v.seq_date,
-    v.code,
-    v.annotation,
-    v.ena_study,
-    v.webin_status,
-    v.submission_ready,
-    v.recorded_at AS validated_at,
-    COALESCE(s.submission_status, 'NOT_SUBMITTED'::text) AS submission_status,
-    s.ena_analysis_accession,
-    s.ena_assembly_accession,
-    s.ena_sequence_accession,
-    s.biosample_accession,
-    s.locus_tag_prefix,
-    s.submitted_at,
-    s.receipt_path
-   FROM (latest v
-     LEFT JOIN public.ena_submissions s ON (((s.full_seqid = v.full_seqid) AND (s.webin_mode = 'production'::text))));
-
-
---
--- Name: ena_validation_attempts_new_id_seq1; Type: SEQUENCE; Schema: public; Owner: -
---
-
-ALTER TABLE public.ena_validation_attempts ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
-    SEQUENCE NAME public.ena_validation_attempts_new_id_seq1
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1
-);
-
-
---
--- Name: ena_validation_latest; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.ena_validation_latest AS
- SELECT DISTINCT ON (ena_validation_attempts.full_seqid) ena_validation_attempts.id,
-    ena_validation_attempts.og_num,
-    ena_validation_attempts.full_seqid,
-    ena_validation_attempts.og_id,
-    ena_validation_attempts.tech,
-    ena_validation_attempts.seq_date,
-    ena_validation_attempts.code,
-    ena_validation_attempts.annotation,
-    ena_validation_attempts.ena_study,
-    ena_validation_attempts.validation_mode,
-    ena_validation_attempts.validation_attempt,
-    ena_validation_attempts.table2asn_status,
-    ena_validation_attempts.reject_count,
-    ena_validation_attempts.error_count,
-    ena_validation_attempts.warning_count,
-    ena_validation_attempts.info_count,
-    ena_validation_attempts.fatal_discrepancy_count,
-    ena_validation_attempts.nostop_count,
-    ena_validation_attempts.blocking_codes,
-    ena_validation_attempts.warning_codes,
-    ena_validation_attempts.conversion_status,
-    ena_validation_attempts.conversion_reason,
-    ena_validation_attempts.conversion_exit,
-    ena_validation_attempts.preflight_status,
-    ena_validation_attempts.preflight_reason,
-    ena_validation_attempts.preflight_exit,
-    ena_validation_attempts.webin_status,
-    ena_validation_attempts.webin_reason,
-    ena_validation_attempts.webin_exit,
-    ena_validation_attempts.submission_ready,
-    ena_validation_attempts.recorded_at,
-    ena_validation_attempts.attempt_count
-   FROM public.ena_validation_attempts
-  ORDER BY ena_validation_attempts.full_seqid, ena_validation_attempts.recorded_at DESC, ena_validation_attempts.id DESC;
-
-
---
--- Name: lca_pivot_view; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.lca_pivot_view AS
- SELECT (regexp_replace(lca.og_id, 'OG'::text, ''::text, 'g'::text))::integer AS og_num,
-    lca.og_id AS og_id_lp,
-    lca.tech,
-    lca.seq_date,
-    lca.code,
-    lca.annotation,
-    max(lca.species_in_lca) FILTER (WHERE (lca.region = '12s'::text)) AS s12_lca,
-    max(lca.species_in_lca) FILTER (WHERE (lca.region = '16s'::text)) AS s16_lca,
-    max(lca.species_in_lca) FILTER (WHERE (lca.region = 'CO1'::text)) AS co1_lca
-   FROM v2.lca
-  GROUP BY lca.og_id, lca.tech, lca.seq_date, lca.code, lca.annotation;
-
-
---
--- Name: lca_results_view; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.lca_results_view AS
- SELECT lp.og_id_lp AS og_id_lr,
-    lp.tech,
-    lp.seq_date,
-    lp.code,
-    lp.annotation,
-    s.nominal_species_id,
-    lp.s12_lca,
-    lp.s16_lca,
-    lp.co1_lca,
-        CASE
-            WHEN (s.nominal_species_id IS NULL) THEN 'MISSING NOMINAL ID'::text
-            WHEN ((s.nominal_species_id = lp.s12_lca) OR (s.nominal_species_id = lp.s16_lca) OR (s.nominal_species_id = lp.co1_lca)) THEN s.nominal_species_id
-            ELSE 'INVESTIGATE'::text
-        END AS validation_status
-   FROM (public.lca_pivot_view lp
-     JOIN v2.sample s ON ((lp.og_id_lp = s.og_id)));
-
-
---
--- Name: filtered_lca_view; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.filtered_lca_view AS
- SELECT b.og_id AS og_id_flv,
-    b.tech,
-    b.seq_date,
-    b.code,
-    b.annotation,
-    string_agg(
-        CASE
-            WHEN ((b.region = '12s'::text) AND (b.scientific_name = lr.nominal_species_id)) THEN b.match_sequence_id
-            ELSE NULL::text
-        END, ', '::text ORDER BY b.match_sequence_id) AS filtered_12s,
-    string_agg(
-        CASE
-            WHEN ((b.region = '16s'::text) AND (b.scientific_name = lr.nominal_species_id)) THEN b.match_sequence_id
-            ELSE NULL::text
-        END, ', '::text ORDER BY b.match_sequence_id) AS filtered_16s,
-    string_agg(
-        CASE
-            WHEN ((b.region = 'CO1'::text) AND (b.scientific_name = lr.nominal_species_id)) THEN b.match_sequence_id
-            ELSE NULL::text
-        END, ', '::text ORDER BY b.match_sequence_id) AS filtered_co1
-   FROM (v2.blast_filtered_lca b
-     JOIN public.lca_results_view lr ON (((b.og_id = lr.og_id_lr) AND (b.tech = lr.tech) AND (b.seq_date = lr.seq_date) AND (b.code = lr.code) AND (b.annotation = lr.annotation))))
-  GROUP BY b.og_id, b.tech, b.seq_date, b.code, b.annotation;
-
-
---
--- Name: goat_project_metadata_v1; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.goat_project_metadata_v1 AS
- SELECT 'Ocean Genomes'::text AS project_name,
-    'OG'::text AS project_acronym,
-    NULL::text AS subproject_name,
-    NULL::text AS bioproject_id,
-    'Shannon Corrigan'::text AS primary_contact,
-    'Ocean Genomes Minderoo OceanOmics Centre, The University of Western Australia'::text AS primary_contact_institution,
-    'oceangenomes@uwa.edu.au'::text AS public_contact_email,
-    CURRENT_DATE AS date_of_last_update,
-    'ebp_species_goat_3.0'::text AS schema_version;
-
 
 --
 -- Name: master_species; Type: TABLE; Schema: public; Owner: -
@@ -1503,11 +675,458 @@ COMMENT ON COLUMN public.ref_genomes.stage IS 'Pulled from file names where 0=co
 
 
 --
--- Name: sample_pre_v2; Type: TABLE; Schema: public; Owner: -
+-- Name: ena_validation_attempts; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.sample_pre_v2 (
+CREATE TABLE public.ena_validation_attempts (
+    id bigint NOT NULL,
+    og_num integer GENERATED ALWAYS AS ((SUBSTRING(og_id FROM 3))::integer) STORED,
+    full_seqid text NOT NULL,
     og_id text NOT NULL,
+    tech text,
+    seq_date text,
+    code text,
+    annotation text,
+    ena_study text DEFAULT ''::text NOT NULL,
+    validation_mode text NOT NULL,
+    validation_attempt text NOT NULL,
+    table2asn_status text NOT NULL,
+    reject_count integer,
+    error_count integer,
+    warning_count integer,
+    info_count integer,
+    fatal_discrepancy_count integer,
+    nostop_count integer,
+    blocking_codes text,
+    warning_codes text,
+    conversion_status text NOT NULL,
+    conversion_reason text,
+    conversion_exit integer,
+    preflight_status text NOT NULL,
+    preflight_reason text,
+    preflight_exit integer,
+    webin_status text NOT NULL,
+    webin_reason text,
+    webin_exit integer,
+    submission_ready boolean DEFAULT false NOT NULL,
+    recorded_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    attempt_count integer DEFAULT 1 NOT NULL,
+    CONSTRAINT ena_validation_submission_ready_check CHECK (((NOT submission_ready) OR (webin_status = 'PASS'::text)))
+);
+
+
+--
+-- Name: COLUMN ena_validation_attempts.og_num; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.og_num IS 'Numeric part of og_id, maintained by the database. Generated, not writable: do not include it in any INSERT or UPDATE column list.';
+
+
+--
+-- Name: blast_filtered_lca; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.blast_filtered_lca (
+    og_id text NOT NULL,
+    tech text NOT NULL,
+    seq_date text NOT NULL,
+    code text NOT NULL,
+    annotation text NOT NULL,
+    match_sequence_id text NOT NULL,
+    taxon_id text,
+    scientific_name text,
+    common_name text,
+    kingdoms text,
+    percent_identity double precision,
+    alignment_length integer,
+    query_length integer,
+    subject_length integer,
+    mismatch integer,
+    gap_open integer,
+    gaps integer,
+    query_start integer,
+    query_end integer,
+    subject_start integer,
+    subject_end integer,
+    subject_title text,
+    evalue double precision,
+    bit_score double precision,
+    query_coverage double precision,
+    subject_coverage double precision,
+    region text NOT NULL,
+    blast_run_date text
+);
+
+
+--
+-- Name: TABLE blast_filtered_lca; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.blast_filtered_lca IS 'BLAST hits retained after LCA filtering, one row per matched sequence and region.';
+
+
+--
+-- Name: hic_reads_qc; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.hic_reads_qc (
+    og_id text DEFAULT ''::text NOT NULL,
+    tissue text DEFAULT ''::text NOT NULL,
+    ext_type text DEFAULT ''::text NOT NULL,
+    lib_code text DEFAULT ''::text NOT NULL,
+    lane text DEFAULT ''::text NOT NULL,
+    run_id text DEFAULT ''::text NOT NULL,
+    datecreated date,
+    isarchived boolean,
+    isfiledeleted boolean,
+    totalreadspf bigint,
+    totalclusterspf bigint,
+    read1length integer,
+    read2length integer,
+    ispairedend boolean,
+    yield_gb numeric,
+    totalsize_gb numeric
+);
+
+
+--
+-- Name: hifi_reads_qc; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.hifi_reads_qc (
+    og_id text NOT NULL,
+    tissue text NOT NULL,
+    ext_type text NOT NULL,
+    lib_code text NOT NULL,
+    run_id text DEFAULT ''::text NOT NULL,
+    barcode text,
+    barcode_quality numeric,
+    hifi_reads bigint,
+    hifi_read_length numeric,
+    hifi_read_quality text,
+    hifi_yield bigint,
+    polymerase_read_length numeric
+);
+
+
+--
+-- Name: raw_qc; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.raw_qc (
+    og_id text NOT NULL,
+    homozygosity numeric(5,2),
+    heterozygosity numeric(5,2),
+    genomesize bigint,
+    repeatsize bigint,
+    uniquesize bigint,
+    modelfit numeric(5,2),
+    errorrate numeric(5,2),
+    contam_reads integer
+);
+
+
+--
+-- Name: coverage_summary; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.coverage_summary AS
+ WITH hifi_agg AS (
+         SELECT hifi_reads_qc.og_id,
+            sum(hifi_reads_qc.hifi_yield) AS total_hifi_yield_bp
+           FROM public.hifi_reads_qc
+          GROUP BY hifi_reads_qc.og_id
+        ), hic_agg AS (
+         SELECT hic_reads_qc.og_id,
+            (sum((hic_reads_qc.yield_gb * (1000000000)::numeric)))::bigint AS total_hic_yield_bp
+           FROM public.hic_reads_qc
+          GROUP BY hic_reads_qc.og_id
+        ), all_ogs AS (
+         SELECT hifi_agg.og_id
+           FROM hifi_agg
+        UNION
+         SELECT hic_agg.og_id
+           FROM hic_agg
+        )
+ SELECT a.og_id,
+    r.genomesize,
+    round(((hic.total_hic_yield_bp)::numeric / '1000000000'::numeric), 3) AS total_hic_yield_gb,
+    round((hifi.total_hifi_yield_bp / '1000000000'::numeric), 3) AS total_hifi_yield_gb,
+        CASE
+            WHEN (r.genomesize > 0) THEN round((hifi.total_hifi_yield_bp / (r.genomesize)::numeric), 2)
+            ELSE NULL::numeric
+        END AS hifi_coverage,
+        CASE
+            WHEN (r.genomesize > 0) THEN round(((hic.total_hic_yield_bp)::numeric / (r.genomesize)::numeric), 2)
+            ELSE NULL::numeric
+        END AS hic_coverage
+   FROM (((all_ogs a
+     LEFT JOIN hifi_agg hifi ON ((hifi.og_id = a.og_id)))
+     LEFT JOIN hic_agg hic ON ((hic.og_id = a.og_id)))
+     LEFT JOIN public.raw_qc r ON ((r.og_id = a.og_id)))
+  ORDER BY a.og_id;
+
+
+--
+-- Name: design_description; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.design_description (
+    design_no integer NOT NULL,
+    design_description character varying,
+    comment character varying
+);
+
+
+--
+-- Name: TABLE design_description; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.design_description IS 'Lookup of sequencing design numbers to descriptions. Two rows, no foreign keys in or out, and no reference from either repository. Captured by 034_catchup_design_description.sql so it is not lost on a rebuild; a candidate for removal once open question 15 confirms no external consumer.';
+
+
+--
+-- Name: dna_extraction; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.dna_extraction (
+    dna_id text NOT NULL,
+    tissue_id text NOT NULL,
+    ext_num integer,
+    status text,
+    extraction_method text,
+    extraction_date date,
+    extraction_batch_id text,
+    final_buffer text,
+    volume integer,
+    qubit_conc real,
+    nano_drop_conc real,
+    ratio_260_280 real,
+    ratio_260_230 real,
+    ratioqubit_nanodrop real,
+    total_yield real,
+    gdna_femtol_id text,
+    av_size real,
+    extraction_qc text,
+    comment text,
+    dna_freezer text,
+    dna_shelf integer,
+    dna_rack integer,
+    dna_level text,
+    dna_box text,
+    dna_notes text,
+    status_overwrite boolean,
+    extract_plate text,
+    extract_plate_well text
+);
+
+
+--
+-- Name: TABLE dna_extraction; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.dna_extraction IS 'One row per DNA extraction attempt from a tissue. Source: the 3.DNAExtractions sheet.';
+
+
+--
+-- Name: COLUMN dna_extraction.status_overwrite; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.status_overwrite IS 'Lab flag marking which extraction to report in the summary. Boolean because the workbook holds only Y here - 129 of them across all sheets, 36 on this one, and nothing else. It has never reached the database: neither spelling of the header ("Status Overwrite" / "Overwrite Status") is in name_convert.py, so the lab has been filling a field the import silently discards while summary reads a column that is always null. See v2_scaffold_design_review.md F4a.';
+
+
+--
+-- Name: COLUMN dna_extraction.extract_plate; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.extract_plate IS 'Spreadsheet header "Extract Plate name Or tube", added by the lab after 2026-08. Populated on 274 rows of OceanGenomes_Database_261006.xlsx.';
+
+
+--
+-- Name: COLUMN dna_extraction.extract_plate_well; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.extract_plate_well IS 'Spreadsheet header "Extract Plate Well", added by the lab after 2026-08. Populated on 266 rows of OceanGenomes_Database_261006.xlsx.';
+
+
+--
+-- Name: draft_genomes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.draft_genomes (
+    og_id text NOT NULL,
+    mach text,
+    seq_date text NOT NULL,
+    initial text,
+    passed_filter_reads bigint,
+    low_quality_reads integer,
+    too_many_n_reads integer,
+    too_short_reads integer,
+    too_long_reads integer,
+    raw_total_reads bigint,
+    raw_total_bases bigint,
+    raw_q20_bases bigint,
+    raw_q30_bases bigint,
+    raw_q20_rate numeric(7,6),
+    raw_q30_rate numeric(7,6),
+    raw_read1_mean_length integer,
+    raw_read2_mean_length integer,
+    raw_gc_content numeric(7,6),
+    total_reads bigint,
+    total_bases bigint,
+    q20_bases bigint,
+    q30_bases bigint,
+    q20_rate numeric(7,6),
+    q30_rate numeric(7,6),
+    read1_mean_length integer,
+    read2_mean_length integer,
+    gc_content numeric(7,6),
+    homozygosity numeric(8,4),
+    heterozygosity numeric(8,4),
+    genomesize bigint,
+    repeatsize bigint,
+    uniquesize bigint,
+    modelfit numeric(8,4),
+    errorrate numeric(8,4),
+    num_contigs integer,
+    num_contigs_mitochondrion integer,
+    num_contigs_plastid integer,
+    num_contigs_prokarya integer,
+    bp_mitochondrion bigint,
+    bp_plastid bigint,
+    bp_prokarya bigint,
+    complete numeric(4,1),
+    single_copy numeric(4,1),
+    multi_copy numeric(4,1),
+    fragmented numeric(4,1),
+    missing numeric(4,1),
+    n_markers integer,
+    domain text,
+    number_of_scaffolds integer,
+    number_of_contigs integer,
+    total_length bigint,
+    percent_gaps numeric(5,2),
+    scaffold_n50 integer,
+    contigs_n50 integer,
+    unique_k_mers_assembly bigint,
+    k_mers_total bigint,
+    qv numeric(6,4),
+    error numeric(12,11),
+    k_mer_set text,
+    solid_k_mers bigint,
+    total_k_mers bigint,
+    completeness numeric(7,4),
+    depmethod text,
+    adjust text,
+    readbp bigint,
+    mapadjust numeric(7,6),
+    scdepth numeric(5,2),
+    estgenomesize bigint,
+    aws_r1 text,
+    aws_r1_size bigint,
+    aws_r2 text,
+    aws_r2_size bigint,
+    aws_assm text,
+    aws_assm_size bigint,
+    sra_accession character varying,
+    biosample_accession character varying,
+    study character varying,
+    bioproject_accession character varying,
+    ena_analysis_accession text,
+    assembly_accession text,
+    comment character varying,
+    fastp_r1 text,
+    fastp_r1_size bigint,
+    fastp_r2 text,
+    fastp_r2_size bigint,
+    sra_r1 text,
+    sra_r1_size bigint,
+    sra_r2 text,
+    sra_r2_size bigint,
+    og_num integer GENERATED ALWAYS AS ((SUBSTRING(og_id FROM 3))::integer) STORED,
+    sra_date_submitted date,
+    num_contigs_exclude integer,
+    num_contigs_trim integer,
+    num_contigs_review integer,
+    bp_exclude integer,
+    bp_trim integer,
+    bp_review integer,
+    gfa_num_contigs bigint,
+    gfa_contig_n50 bigint,
+    gfa_num_scaffolds bigint,
+    gfa_scaffold_n50 bigint,
+    gfa_largest_scaffold bigint,
+    gfa_total_scaffold_length bigint,
+    gfa_gc_content_percent numeric(10,2),
+    internal_stop_codon_percent numeric(5,2),
+    internal_stop_codon_count bigint,
+    genomesize_min bigint,
+    repeatsize_min bigint,
+    uniquesize_min bigint,
+    homozygosity_min numeric(8,4),
+    heterozygosity_min numeric(8,4),
+    modelfit_allkmers numeric(8,4),
+    genome_size_reliable boolean,
+    genome_size_flags text,
+    kmercov numeric(10,4),
+    lambda_depth numeric(10,4),
+    host_assembly_size bigint,
+    host_assembly_fraction numeric,
+    host_haploid_size bigint,
+    partition_confidence text
+);
+
+
+--
+-- Name: COLUMN draft_genomes.ena_analysis_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomes.ena_analysis_accession IS 'ENA analysis (ERZ) accession from the Webin-CLI assembly receipt; written by ENA-draft-genomes step 06';
+
+
+--
+-- Name: COLUMN draft_genomes.assembly_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomes.assembly_accession IS 'Public INSDC assembly accession (GCA_...) assigned once the ERZ is processed; filled by ENA-draft-genomes workflow/07_resolve_gca_accessions.py. Previously held NCBI JB... accessions.';
+
+
+--
+-- Name: lca_validation; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.lca_validation (
+    og_id text NOT NULL,
+    tech text NOT NULL,
+    validated_species_name text,
+    validator text,
+    nominal_species_id_lca_comment text,
+    validator_2 text,
+    data_release text,
+    validated_rank text,
+    lca_genus text,
+    seq_date text NOT NULL,
+    code text NOT NULL,
+    annotation text NOT NULL,
+    row_created_on timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE lca_validation; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.lca_validation IS 'Human validation of LCA calls. Read by v2.summary and by the public reporting views.';
+
+
+--
+-- Name: sample; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.sample (
+    og_id text NOT NULL,
+    og_num integer GENERATED ALWAYS AS ((NULLIF("substring"(og_id, '^OG([0-9]+)$'::text), ''::text))::integer) STORED,
+    project_id text,
     field_id text,
     nominal_species_id text,
     common_name text,
@@ -1515,38 +1134,38 @@ CREATE TABLE public.sample_pre_v2 (
     contact text,
     date_collected date,
     sex text,
-    weight text,
-    lengthtl_and_lengthfl text,
+    weight real,
     country text,
     state text,
     location text,
-    latitude_collection text,
-    longitude_collection text,
-    depth_collection text,
+    latitude_collection double precision,
+    longitude_collection double precision,
     collection_method text,
     preservation_method text,
     sample_condition text,
+    sample_condition_upon_preservation text,
     photo_voucher text,
     photo_id text,
     specimen_voucher text,
     voucher_id text,
+    ethics_permit text,
+    collection_permit text,
+    import_permit text,
+    cultural_significance text,
+    cites text,
+    cms text,
+    iucn text,
+    epbc text,
+    sample_receipt_date date,
     comments text,
+    workflow text,
     priority text,
-    tissues text,
-    extracted text,
-    extraction_queue text,
-    ilmn text,
-    il_status text,
-    hifi text,
-    pb_status text,
-    hic text,
-    hic_status text,
-    nano text,
-    ont_num text,
-    rna text,
-    rna_status text,
-    ilrna text,
-    ilrna_status text,
+    ilmn boolean,
+    hifi boolean,
+    hic boolean,
+    nano boolean,
+    rna boolean,
+    ilrna boolean,
     assigned_species text,
     eschmeyer_id text,
     ncbi_sample_name text,
@@ -1563,263 +1182,449 @@ CREATE TABLE public.sample_pre_v2 (
     hifi_public text,
     illumina_lca text,
     ncbi_bioproject_id_draft text,
-    illumina_public text,
     draft_sra_accessions text,
     draft_assembly_accession text,
-    og_num integer GENERATED ALWAYS AS ((SUBSTRING(og_id FROM 3))::integer) STORED,
-    project_id text,
-    workflow character varying,
-    illumina_sequencing text,
-    hifi_sequencing text,
-    hic_sequencing text,
-    nanopore_sequencing text,
-    rna_ilmn_sequencing text,
-    rna_kinnex_sequencing text,
-    rna_extraction text,
-    summary_comments character varying,
-    embargo_status character varying
+    embargo_status text,
+    length_tl_mm real,
+    length_fl_mm real,
+    length_unspecified_mm real,
+    depth_min_m real,
+    depth_max_m real,
+    CONSTRAINT sample_depth_range_check CHECK (((depth_min_m IS NULL) OR (depth_max_m IS NULL) OR (depth_min_m <= depth_max_m)))
 );
 
 
 --
--- Name: TABLE sample_pre_v2; Type: COMMENT; Schema: public; Owner: -
+-- Name: TABLE sample; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.sample_pre_v2 IS 'DEPRECATED 2026-10-13 by the v2 cutover migration: superseded by v2.sample. Kept for rollback until V.6. ';
-
-
---
--- Name: COLUMN sample_pre_v2.og_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sample_pre_v2.og_id IS 'Ocean Genomes sample number that links through the whole database.';
+COMMENT ON TABLE public.sample IS 'One row per specimen. Source: the 1.MetaData sheet, plus eight hand-entered planning columns from Summary.';
 
 
 --
--- Name: COLUMN sample_pre_v2.hifi_lca_outcome; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN sample.og_num; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.sample_pre_v2.hifi_lca_outcome IS 'Not up to date - use lca_validation table';
-
-
---
--- Name: COLUMN sample_pre_v2.illumina_lca; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sample_pre_v2.illumina_lca IS 'Not up to date - use lca_validation table';
+COMMENT ON COLUMN public.sample.og_num IS 'Numeric part of og_id, for sort order only. Null on any og_id not matching ^OG[0-9]+$ rather than raising, unlike the live column.';
 
 
 --
--- Name: COLUMN sample_pre_v2.illumina_sequencing; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN sample.sample_receipt_date; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.sample_pre_v2.illumina_sequencing IS 'Require a Y for if this type of sequencing is to occur';
-
-
---
--- Name: COLUMN sample_pre_v2.hifi_sequencing; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sample_pre_v2.hifi_sequencing IS 'Require a Y for if this type of sequencing is to occur';
+COMMENT ON COLUMN public.sample.sample_receipt_date IS 'Stored as an Excel date serial in the sheet, like Date_Collected; the importer needs the same serial-to-date handling.';
 
 
 --
--- Name: COLUMN sample_pre_v2.hic_sequencing; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN sample.ilmn; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.sample_pre_v2.hic_sequencing IS 'Require a Y for if this type of sequencing is to occur';
-
-
---
--- Name: COLUMN sample_pre_v2.nanopore_sequencing; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sample_pre_v2.nanopore_sequencing IS 'Require a Y for if this type of sequencing is to occur';
+COMMENT ON COLUMN public.sample.ilmn IS 'Is this sample slated for Illumina? Hand-entered lab intent (Y/N in the workbook). Compare against the actual library count in v2.summary.';
 
 
 --
--- Name: COLUMN sample_pre_v2.rna_ilmn_sequencing; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN sample.hifi; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.sample_pre_v2.rna_ilmn_sequencing IS 'Require a Y for if this type of sequencing is to occur';
-
-
---
--- Name: COLUMN sample_pre_v2.rna_kinnex_sequencing; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sample_pre_v2.rna_kinnex_sequencing IS 'Require a Y for if this type of sequencing is to occur';
+COMMENT ON COLUMN public.sample.hifi IS 'Is this sample slated for PacBio HiFi? Hand-entered lab intent.';
 
 
 --
--- Name: COLUMN sample_pre_v2.rna_extraction; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN sample.hic; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.sample_pre_v2.rna_extraction IS 'Require a Y for if this type of sequencing is to occur';
-
-
---
--- Name: COLUMN sample_pre_v2.summary_comments; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.sample_pre_v2.summary_comments IS 'comments on the status of the samples, different to the metadata comments in the comment column';
+COMMENT ON COLUMN public.sample.hic IS 'Is this sample slated for Hi-C? Hand-entered lab intent.';
 
 
 --
--- Name: goat_species_v1_pre_v2; Type: VIEW; Schema: public; Owner: -
+-- Name: COLUMN sample.nano; Type: COMMENT; Schema: public; Owner: -
 --
 
-CREATE VIEW public.goat_species_v1_pre_v2 AS
- SELECT s.ncbi_taxon_id,
-    s.family,
-    s.species,
-    COALESCE(s.epithet, '-'::text) AS subspecies_epithet,
-        CASE
-            WHEN (s.ncbi_taxon_id = ANY (ARRAY[215367, 182658, 163129, 7793, 582430])) THEN 'priority_target'::text
-            ELSE 'potential_target'::text
-        END AS target_list_status,
-        CASE
-            WHEN (EXISTS ( SELECT 1
-               FROM public.sample_pre_v2 samp
-              WHERE (samp.nominal_species_id = s.species))) THEN 'sample_collected'::text
-            ELSE NULL::text
-        END AS sampling_status,
-        CASE
-            WHEN (EXISTS ( SELECT 1
-               FROM public.sample_pre_v2 samp
-              WHERE ((samp.nominal_species_id = s.species) AND (samp.ncbi_bioproject_id_lvl_3_hifi IS NOT NULL)))) THEN 'submitted'::text
-            WHEN (EXISTS ( SELECT 1
-               FROM (public.sample_pre_v2 samp
-                 JOIN public.ref_genomes rg ON ((rg.og_id = samp.og_id)))
-              WHERE (samp.nominal_species_id = s.species))) THEN 'in_assembly'::text
-            WHEN (EXISTS ( SELECT 1
-               FROM public.sample_pre_v2 samp
-              WHERE ((samp.nominal_species_id = s.species) AND (samp.pb_status = ANY (ARRAY['Library Prep - PacBio SMRTbell'::text, 'QC - Femto'::text, 'Sequenced'::text, 'Sequenced, SRE'::text, 'Sequence - PacBio'::text, 'Shearing'::text, 'SRE'::text, 'SRE - ULI'::text, 'ULI'::text]))))) THEN 'in_lab'::text
-            ELSE NULL::text
-        END AS sequencing_status,
-    NULL::text AS genome_publication,
-    'Ocean Genomes'::text AS primary_project,
-    NULL::text AS ebp_collaborator_acronyms,
-    NULL::text AS contributing_project_lab,
-        CASE
-            WHEN (s.species = ANY (ARRAY['Neophoca cinerea'::text, 'Careproctus sp.'::text, 'Lethrinus punctulatus'::text, 'Siphonognathus radiatus'::text, 'Dascyllus aruanus'::text, 'Carcharhinus galapagensis'::text])) THEN 'data_conflict'::text
-            ELSE ( SELECT samp.collector
-               FROM public.sample_pre_v2 samp
-              WHERE ((samp.nominal_species_id = s.species) AND ((samp.workflow)::text = 'Reference'::text) AND (samp.collector IS NOT NULL))
-             LIMIT 1)
-        END AS collected_by,
-    NULL::text AS priority_flags,
-    COALESCE(s.afd_common_name, '-'::text) AS common_name,
-    COALESCE(s.synonym, '-'::text) AS synonym,
-    NULL::text AS assigned_sequencing_center
-   FROM public.master_species s
-  ORDER BY s.family, s.species;
+COMMENT ON COLUMN public.sample.nano IS 'Is this sample slated for ONT? Hand-entered lab intent.';
 
 
 --
--- Name: VIEW goat_species_v1_pre_v2; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN sample.rna; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.goat_species_v1_pre_v2 IS 'DEPRECATED 2026-10-13 by the v2 cutover migration: superseded by v2.goat_species_v1. Kept for rollback until V.6. ';
+COMMENT ON COLUMN public.sample.rna IS 'Is this sample slated for RNA extraction? Hand-entered lab intent.';
 
 
 --
--- Name: hic_library_pre_v2; Type: TABLE; Schema: public; Owner: -
+-- Name: COLUMN sample.ilrna; Type: COMMENT; Schema: public; Owner: -
 --
 
-CREATE TABLE public.hic_library_pre_v2 (
-    hic_library_tube_id text NOT NULL,
-    lysate_id text,
-    hic_num integer,
-    hic_status text,
-    library_method text,
-    library_date text,
-    library_id text,
-    prox_ligation_conc real,
-    purified_dna_total real,
-    index_set text,
-    library_conc real,
-    library_size integer,
-    hic_comments text,
-    status_overwrite character varying,
-    og_id text GENERATED ALWAYS AS (regexp_replace(lysate_id, '^([^0-9]*[0-9]+).*$'::text, '\1'::text)) STORED
+COMMENT ON COLUMN public.sample.ilrna IS 'Is this sample slated for Illumina RNA? Hand-entered lab intent.';
+
+
+--
+-- Name: COLUMN sample.length_tl_mm; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.length_tl_mm IS 'Total length, mm. From a TL-labelled value in the workbook''s "Length (TL or FL mm)".';
+
+
+--
+-- Name: COLUMN sample.length_fl_mm; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.length_fl_mm IS 'Fork length, mm. From an FL-labelled value in "Length (TL or FL mm)"; a cell can give both.';
+
+
+--
+-- Name: COLUMN sample.length_unspecified_mm; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.length_unspecified_mm IS 'A length the workbook gives without saying TL or FL, mm. Not guessed: relabel at source.';
+
+
+--
+-- Name: COLUMN sample.depth_min_m; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.depth_min_m IS 'Collection depth, shallow end, metres (Darwin Core minimumDepthInMeters). Equals depth_max_m for a single depth; 0 for "<x" and for "Surface".';
+
+
+--
+-- Name: COLUMN sample.depth_max_m; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.depth_max_m IS 'Collection depth, deep end, metres (Darwin Core maximumDepthInMeters). NULL for ">x".';
+
+
+--
+-- Name: embargo_assignment_view; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.embargo_assignment_view AS
+ SELECT s.og_id,
+    (regexp_replace(s.og_id, 'OG'::text, ''::text, 'g'::text))::integer AS og_num,
+    s.collector,
+    s.embargo_status,
+    lv1.validated_species_name,
+    s.nominal_species_id,
+    s.common_name,
+    s.field_id,
+    s.contact,
+    s.date_collected
+   FROM (public.sample s
+     LEFT JOIN LATERAL ( SELECT string_agg(DISTINCT lv.validated_species_name, ', '::text ORDER BY lv.validated_species_name) AS validated_species_name
+           FROM public.lca_validation lv
+          WHERE (lv.og_id = s.og_id)) lv1 ON (true));
+
+
+--
+-- Name: ena_candidate_loci_archive; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ena_candidate_loci_archive (
+    full_seqid text,
+    og_id text,
+    gene_serial integer,
+    locus_tag text,
+    feature_key text,
+    start_coordinate integer,
+    end_coordinate integer,
+    strand character(1),
+    created_at timestamp with time zone
 );
 
 
 --
--- Name: TABLE hic_library_pre_v2; Type: COMMENT; Schema: public; Owner: -
+-- Name: TABLE ena_candidate_loci_archive; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.hic_library_pre_v2 IS 'DEPRECATED 2026-10-13 by the v2 cutover migration: superseded by v2.hic_library. Kept for rollback until V.6. ';
+COMMENT ON TABLE public.ena_candidate_loci_archive IS 'Frozen copy of ena_candidate_loci as of migration 010. Records the per-candidate locus tags this pipeline submitted before locus-tag assignment moved to the downstream submission pipeline. Historical reference only.';
 
 
 --
--- Name: hic_lysate_pre_v2; Type: TABLE; Schema: public; Owner: -
+-- Name: ena_locus_registry_archive; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.hic_lysate_pre_v2 (
-    lysate_id text NOT NULL,
-    tissue_id text,
-    lysate_num integer,
-    lysate_status text,
-    lysate_prep_date date,
-    lysate_batch_id text,
-    lysate_conc real,
-    total_lysate real,
-    lysate_cde real,
-    lysate_comments text
+CREATE TABLE public.ena_locus_registry_archive (
+    og_id text,
+    gene_serial integer,
+    canonical_gene text,
+    gene_occurrence integer,
+    feature_type text,
+    strand character(1),
+    feature_sequence_sha256 character(64),
+    coordinate_snapshot text,
+    allocation_status text,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone
 );
 
 
 --
--- Name: TABLE hic_lysate_pre_v2; Type: COMMENT; Schema: public; Owner: -
+-- Name: TABLE ena_locus_registry_archive; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.hic_lysate_pre_v2 IS 'DEPRECATED 2026-10-13 by the v2 cutover migration: superseded by v2.hic_lysate. Kept for rollback until V.6. ';
+COMMENT ON TABLE public.ena_locus_registry_archive IS 'Frozen copy of ena_locus_registry as of migration 010. Records the specimen gene serials this pipeline allocated before locus-tag assignment moved to the downstream submission pipeline. Historical reference only: do not write to it and do not treat it as the current tag assignment.';
 
 
 --
--- Name: illumina_library_pre_v2; Type: TABLE; Schema: public; Owner: -
+-- Name: ena_related_assemblies; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.illumina_library_pre_v2 (
-    illumina_library_tube_id text NOT NULL,
-    dna_id text,
-    ilmn_num integer,
-    ilmn_status text,
-    library_method text,
-    library_date text,
-    library_id text,
-    index_set text,
-    index_well text,
-    index_idx text,
-    library_qubit_conc text,
-    il_comments text,
-    status_overwrite character varying,
-    og_id text GENERATED ALWAYS AS (regexp_replace(dna_id, '^([^0-9]*[0-9]+).*$'::text, '\1'::text)) STORED
+CREATE TABLE public.ena_related_assemblies (
+    id bigint NOT NULL,
+    og_id text NOT NULL,
+    relationship_type text NOT NULL,
+    archive text NOT NULL,
+    accession text NOT NULL,
+    is_primary boolean DEFAULT false NOT NULL,
+    accession_source text,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT ena_related_archive_check CHECK ((archive = ANY (ARRAY['ENA'::text, 'NCBI'::text, 'OTHER'::text]))),
+    CONSTRAINT ena_related_relationship_check CHECK ((relationship_type = ANY (ARRAY['reference'::text, 'draft'::text])))
 );
 
 
 --
--- Name: TABLE illumina_library_pre_v2; Type: COMMENT; Schema: public; Owner: -
+-- Name: ena_related_assemblies_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.illumina_library_pre_v2 IS 'DEPRECATED 2026-10-13 by the v2 cutover migration: superseded by v2.illumina_library. Kept for rollback until V.6. ';
+ALTER TABLE public.ena_related_assemblies ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.ena_related_assemblies_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
--- Name: lca_SS260818; Type: TABLE; Schema: public; Owner: -
+-- Name: ena_specimen_accessions; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public."lca_SS260818" (
-    og_num integer GENERATED ALWAYS AS ((SUBSTRING(og_id FROM 3))::integer) STORED,
+CREATE TABLE public.ena_specimen_accessions (
+    og_id text NOT NULL,
+    og_numeric integer NOT NULL,
+    ena_biosample_accession text,
+    accession_source text,
+    verified_at timestamp with time zone,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT ena_specimen_biosample_check CHECK (((ena_biosample_accession IS NULL) OR (ena_biosample_accession ~ '^SAM(EA|N|D)[0-9]+$'::text))),
+    CONSTRAINT ena_specimen_og_id_check CHECK ((og_id ~ '^OG[0-9]+$'::text)),
+    CONSTRAINT ena_specimen_og_numeric_check CHECK (((og_numeric >= 0) AND (og_numeric <= 999999))),
+    CONSTRAINT ena_specimen_og_numeric_matches_check CHECK ((og_numeric = (SUBSTRING(og_id FROM 3))::integer))
+);
+
+
+--
+-- Name: ena_submissions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ena_submissions (
+    full_seqid text NOT NULL,
+    webin_mode text DEFAULT 'production'::text NOT NULL,
+    og_id text GENERATED ALWAYS AS (split_part(full_seqid, '.'::text, 1)) STORED,
+    tech text GENERATED ALWAYS AS (split_part(full_seqid, '.'::text, 2)) STORED,
+    seq_date text GENERATED ALWAYS AS (split_part(full_seqid, '.'::text, 3)) STORED,
+    code text GENERATED ALWAYS AS (split_part(full_seqid, '.'::text, 4)) STORED,
+    annotation text GENERATED ALWAYS AS ("substring"(full_seqid, '^(?:[^.]+[.]){4}(.+)$'::text)) STORED,
+    submission_status text DEFAULT 'NOT_SUBMITTED'::text NOT NULL,
+    submitted_at timestamp with time zone,
+    submitted_by text,
+    error_message text,
+    receipt_path text,
+    receipt_sha256 character(64),
+    webin_cli_version text,
+    ena_study_accession text,
+    ena_sample_accession text,
+    ena_analysis_accession text,
+    ena_assembly_accession text,
+    ena_sequence_accession text,
+    biosample_accession text,
+    biosample_source text,
+    locus_tag_prefix text,
+    run_accessions text[],
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT ena_submissions_accession_presence_check CHECK (((submission_status <> 'ACCESSION_ASSIGNED'::text) OR (ena_analysis_accession IS NOT NULL))),
+    CONSTRAINT ena_submissions_analysis_accession_check CHECK (((ena_analysis_accession IS NULL) OR (ena_analysis_accession ~ '^ERZ[0-9]+$'::text))),
+    CONSTRAINT ena_submissions_assembly_accession_check CHECK (((ena_assembly_accession IS NULL) OR (ena_assembly_accession ~ '^GCA_[0-9]{9}[.][0-9]+$'::text))),
+    CONSTRAINT ena_submissions_biosample_check CHECK (((biosample_accession IS NULL) OR (biosample_accession ~ '^SAM(EA|N|D)[0-9]+$'::text))),
+    CONSTRAINT ena_submissions_failure_reason_check CHECK (((submission_status <> 'FAILED'::text) OR (error_message IS NOT NULL))),
+    CONSTRAINT ena_submissions_full_seqid_check CHECK ((full_seqid ~ '^OG[0-9]+[.][A-Za-z0-9._-]+$'::text)),
+    CONSTRAINT ena_submissions_locus_tag_prefix_check CHECK (((locus_tag_prefix IS NULL) OR (locus_tag_prefix ~ '^[A-Z][A-Z0-9]{2,11}$'::text))),
+    CONSTRAINT ena_submissions_receipt_digest_check CHECK (((receipt_sha256 IS NULL) OR (receipt_sha256 ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT ena_submissions_run_accessions_check CHECK (((run_accessions IS NULL) OR (array_to_string(run_accessions, ' '::text) ~ '^((ERR|SRR|DRR)[0-9]+( |$))*$'::text))),
+    CONSTRAINT ena_submissions_sample_accession_check CHECK (((ena_sample_accession IS NULL) OR (ena_sample_accession ~ '^ERS[0-9]+$'::text))),
+    CONSTRAINT ena_submissions_sequence_accession_check CHECK (((ena_sequence_accession IS NULL) OR (ena_sequence_accession ~ '^[A-Z]{2}[0-9]{6,8}([.][0-9]+)?$'::text))),
+    CONSTRAINT ena_submissions_status_check CHECK ((submission_status = ANY (ARRAY['NOT_SUBMITTED'::text, 'SUBMITTED'::text, 'ACCESSION_ASSIGNED'::text, 'FAILED'::text]))),
+    CONSTRAINT ena_submissions_study_accession_check CHECK (((ena_study_accession IS NULL) OR (ena_study_accession ~ '^PRJEB[0-9]+$'::text))),
+    CONSTRAINT ena_submissions_submitted_at_check CHECK (((submission_status <> ALL (ARRAY['SUBMITTED'::text, 'ACCESSION_ASSIGNED'::text])) OR (submitted_at IS NOT NULL))),
+    CONSTRAINT ena_submissions_webin_mode_check CHECK ((webin_mode = ANY (ARRAY['production'::text, 'test'::text])))
+);
+
+
+--
+-- Name: TABLE ena_submissions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ena_submissions IS 'Submission ledger, written by the downstream ENA submission pipeline. This pipeline never writes or reads it: validation does not depend on submission state.';
+
+
+--
+-- Name: COLUMN ena_submissions.webin_mode; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.webin_mode IS 'Which Webin service answered: production or test. Part of the key so a dry run cannot overwrite the production record.';
+
+
+--
+-- Name: COLUMN ena_submissions.biosample_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.biosample_accession IS 'The BioSample the manifest actually carried. SAMN means the specimen is registered at NCBI only, which webin-cli cannot resolve (see sql/007).';
+
+
+--
+-- Name: COLUMN ena_submissions.biosample_source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.biosample_source IS 'Where that accession came from, e.g. sample.ncbi_biosample_id or webin_sample_receipt.';
+
+
+--
+-- Name: COLUMN ena_submissions.run_accessions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.run_accessions IS 'Raw-read runs the assembly came from, as ERR/SRR/DRR accessions.';
+
+
+--
+-- Name: ena_submission_status; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.ena_submission_status AS
+ WITH latest AS (
+         SELECT DISTINCT ON (ena_validation_attempts.full_seqid) ena_validation_attempts.id,
+            ena_validation_attempts.full_seqid,
+            ena_validation_attempts.og_id,
+            ena_validation_attempts.tech,
+            ena_validation_attempts.seq_date,
+            ena_validation_attempts.code,
+            ena_validation_attempts.annotation,
+            ena_validation_attempts.ena_study,
+            ena_validation_attempts.validation_mode,
+            ena_validation_attempts.validation_attempt,
+            ena_validation_attempts.table2asn_status,
+            ena_validation_attempts.reject_count,
+            ena_validation_attempts.error_count,
+            ena_validation_attempts.warning_count,
+            ena_validation_attempts.info_count,
+            ena_validation_attempts.fatal_discrepancy_count,
+            ena_validation_attempts.nostop_count,
+            ena_validation_attempts.blocking_codes,
+            ena_validation_attempts.warning_codes,
+            ena_validation_attempts.conversion_status,
+            ena_validation_attempts.conversion_reason,
+            ena_validation_attempts.conversion_exit,
+            ena_validation_attempts.preflight_status,
+            ena_validation_attempts.preflight_reason,
+            ena_validation_attempts.preflight_exit,
+            ena_validation_attempts.webin_status,
+            ena_validation_attempts.webin_reason,
+            ena_validation_attempts.webin_exit,
+            ena_validation_attempts.submission_ready,
+            ena_validation_attempts.recorded_at,
+            ena_validation_attempts.attempt_count
+           FROM public.ena_validation_attempts
+          ORDER BY ena_validation_attempts.full_seqid, ena_validation_attempts.recorded_at DESC, ena_validation_attempts.id DESC
+        )
+ SELECT v.full_seqid,
+    v.og_id,
+    v.tech,
+    v.seq_date,
+    v.code,
+    v.annotation,
+    v.ena_study,
+    v.webin_status,
+    v.submission_ready,
+    v.recorded_at AS validated_at,
+    COALESCE(s.submission_status, 'NOT_SUBMITTED'::text) AS submission_status,
+    s.ena_analysis_accession,
+    s.ena_assembly_accession,
+    s.ena_sequence_accession,
+    s.biosample_accession,
+    s.locus_tag_prefix,
+    s.submitted_at,
+    s.receipt_path
+   FROM (latest v
+     LEFT JOIN public.ena_submissions s ON (((s.full_seqid = v.full_seqid) AND (s.webin_mode = 'production'::text))));
+
+
+--
+-- Name: ena_validation_attempts_new_id_seq1; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ena_validation_attempts ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.ena_validation_attempts_new_id_seq1
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ena_validation_latest; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.ena_validation_latest AS
+ SELECT DISTINCT ON (ena_validation_attempts.full_seqid) ena_validation_attempts.id,
+    ena_validation_attempts.og_num,
+    ena_validation_attempts.full_seqid,
+    ena_validation_attempts.og_id,
+    ena_validation_attempts.tech,
+    ena_validation_attempts.seq_date,
+    ena_validation_attempts.code,
+    ena_validation_attempts.annotation,
+    ena_validation_attempts.ena_study,
+    ena_validation_attempts.validation_mode,
+    ena_validation_attempts.validation_attempt,
+    ena_validation_attempts.table2asn_status,
+    ena_validation_attempts.reject_count,
+    ena_validation_attempts.error_count,
+    ena_validation_attempts.warning_count,
+    ena_validation_attempts.info_count,
+    ena_validation_attempts.fatal_discrepancy_count,
+    ena_validation_attempts.nostop_count,
+    ena_validation_attempts.blocking_codes,
+    ena_validation_attempts.warning_codes,
+    ena_validation_attempts.conversion_status,
+    ena_validation_attempts.conversion_reason,
+    ena_validation_attempts.conversion_exit,
+    ena_validation_attempts.preflight_status,
+    ena_validation_attempts.preflight_reason,
+    ena_validation_attempts.preflight_exit,
+    ena_validation_attempts.webin_status,
+    ena_validation_attempts.webin_reason,
+    ena_validation_attempts.webin_exit,
+    ena_validation_attempts.submission_ready,
+    ena_validation_attempts.recorded_at,
+    ena_validation_attempts.attempt_count
+   FROM public.ena_validation_attempts
+  ORDER BY ena_validation_attempts.full_seqid, ena_validation_attempts.recorded_at DESC, ena_validation_attempts.id DESC;
+
+
+--
+-- Name: lca; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.lca (
     og_id text NOT NULL,
     tech text NOT NULL,
     seq_date text NOT NULL,
     code text NOT NULL,
     annotation text NOT NULL,
     region text NOT NULL,
-    lca_run_date text,
+    lca_run_date text NOT NULL,
     species_in_lca text,
     number_unq_blast_hits integer,
     domain text,
@@ -1830,69 +1635,12 @@ CREATE TABLE public."lca_SS260818" (
     genus text,
     specific_epiphet text,
     species text,
-    scientific_name_authorship character varying,
+    scientific_name_authorship text,
     taxon_rank text,
-    top_taxon_id character varying,
-    taxon_id_db character varying,
-    top_accession_id character varying,
-    accession_id_ref_db character varying,
-    top_percent_query_cover real,
-    top_percent_query_cover_hsp real,
-    alignment_length integer,
-    subject_length integer,
-    sequence_length integer,
-    top_confidence_score real,
-    top_percent_match double precision
-);
-
-
---
--- Name: lca_pivot_view_SS260818; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public."lca_pivot_view_SS260818" AS
- SELECT (regexp_replace("lca_SS260818".og_id, 'OG'::text, ''::text, 'g'::text))::integer AS og_num,
-    "lca_SS260818".og_id AS og_id_lp,
-    "lca_SS260818".tech,
-    "lca_SS260818".seq_date,
-    "lca_SS260818".code,
-    "lca_SS260818".annotation,
-    max("lca_SS260818".species_in_lca) FILTER (WHERE ("lca_SS260818".region = '12s'::text)) AS s12_lca,
-    max("lca_SS260818".species_in_lca) FILTER (WHERE ("lca_SS260818".region = '16s'::text)) AS s16_lca,
-    max("lca_SS260818".species_in_lca) FILTER (WHERE ("lca_SS260818".region = 'CO1'::text)) AS co1_lca
-   FROM public."lca_SS260818"
-  GROUP BY "lca_SS260818".og_id, "lca_SS260818".tech, "lca_SS260818".seq_date, "lca_SS260818".code, "lca_SS260818".annotation;
-
-
---
--- Name: lca_pre_v2; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.lca_pre_v2 (
-    og_num integer GENERATED ALWAYS AS ((SUBSTRING(og_id FROM 3))::integer) STORED,
-    og_id text NOT NULL,
-    tech text NOT NULL,
-    seq_date text NOT NULL,
-    code text NOT NULL,
-    annotation text NOT NULL,
-    region text NOT NULL,
-    lca_run_date text,
-    species_in_lca text,
-    number_unq_blast_hits integer,
-    domain text,
-    phylum text,
-    class text,
-    "order" text,
-    family text,
-    genus text,
-    specific_epiphet text,
-    species text,
-    scientific_name_authorship character varying,
-    taxon_rank text,
-    top_taxon_id character varying,
-    taxon_id_db character varying,
-    top_accession_id character varying,
-    accession_id_ref_db character varying,
+    top_taxon_id text,
+    taxon_id_db text,
+    top_accession_id text,
+    accession_id_ref_db text,
     top_percent_query_cover real,
     top_percent_query_cover_hsp real,
     alignment_length integer,
@@ -1906,84 +1654,869 @@ CREATE TABLE public.lca_pre_v2 (
 
 
 --
--- Name: TABLE lca_pre_v2; Type: COMMENT; Schema: public; Owner: -
+-- Name: TABLE lca; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.lca_pre_v2 IS 'DEPRECATED 2026-10-13 by the v2 cutover migration: superseded by v2.lca. Kept for rollback until V.6. ';
-
-
---
--- Name: COLUMN lca_pre_v2.top_confidence_score; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.lca_pre_v2.top_confidence_score IS 'double precision, not real: LCA confidence values reach ~1e-163, far below the ~1.18e-38 floor of real.';
+COMMENT ON TABLE public.lca IS 'Lowest common ancestor calls per marker region. Live carries this key as a UNIQUE constraint only; here it is the primary key.';
 
 
 --
--- Name: COLUMN lca_pre_v2.taxon_rank_db; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN lca.lca_run_date; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.lca_pre_v2.taxon_rank_db IS 'Taxonomic rank as reported by the reference database, as opposed to taxon_rank, which is the rank the LCA itself resolved to.';
-
-
---
--- Name: COLUMN lca_pre_v2.content_hash; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.lca_pre_v2.content_hash IS 'md5 of the row minus lca_run_date, og_num and content_hash, maintained by the lca_content_hash trigger. Do not include it in any INSERT or UPDATE column list.';
+COMMENT ON COLUMN public.lca.lca_run_date IS 'When the LCA pipeline ran. NOT NULL, but deliberately NOT part of the key -- row identity is the content hash (migration 017), so a re-run with a changed answer stores a new row rather than colliding with the old one.';
 
 
 --
--- Name: lca_raw_results_SS260818; Type: TABLE; Schema: public; Owner: -
+-- Name: COLUMN lca.content_hash; Type: COMMENT; Schema: public; Owner: -
 --
 
-CREATE TABLE public."lca_raw_results_SS260818" (
-    og_num integer GENERATED ALWAYS AS ((SUBSTRING(og_id FROM 3))::integer) STORED,
-    og_id text NOT NULL,
-    tech text NOT NULL,
-    seq_date text NOT NULL,
-    code text NOT NULL,
-    annotation text NOT NULL,
-    sequence_region text,
-    lca_run_date integer,
-    domain text,
-    phylum text,
-    class text,
-    "order" text,
-    family text,
-    genus text,
-    specific_epiphet text,
-    scientific_name text,
-    scientific_name_authorship text,
-    taxon_rank text,
-    taxon_id character varying,
-    taxon_id_db character varying,
-    verbatim_identification text,
-    accession_id character varying,
-    accession_id_ref_db text,
-    percent_match real,
-    percent_query_cover real,
-    percent_query_cover_hsp real,
-    alignment_length integer,
-    subject_length integer,
-    sequence_length integer,
-    confidence_score real
+COMMENT ON COLUMN public.lca.content_hash IS 'md5 of the row content, maintained by the trigger below. Row identity for this table. Not comparable with public.lca.content_hash: the hash covers every column, and the two tables no longer have the same column set (og_num is gone, F2). Reconcile these tables on their business keys, never on this value.';
+
+
+--
+-- Name: lca_pivot_view; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.lca_pivot_view AS
+ SELECT (regexp_replace(lca.og_id, 'OG'::text, ''::text, 'g'::text))::integer AS og_num,
+    lca.og_id AS og_id_lp,
+    lca.tech,
+    lca.seq_date,
+    lca.code,
+    lca.annotation,
+    max(lca.species_in_lca) FILTER (WHERE (lca.region = '12s'::text)) AS s12_lca,
+    max(lca.species_in_lca) FILTER (WHERE (lca.region = '16s'::text)) AS s16_lca,
+    max(lca.species_in_lca) FILTER (WHERE (lca.region = 'CO1'::text)) AS co1_lca
+   FROM public.lca
+  GROUP BY lca.og_id, lca.tech, lca.seq_date, lca.code, lca.annotation;
+
+
+--
+-- Name: lca_results_view; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.lca_results_view AS
+ SELECT lp.og_id_lp AS og_id_lr,
+    lp.tech,
+    lp.seq_date,
+    lp.code,
+    lp.annotation,
+    s.nominal_species_id,
+    lp.s12_lca,
+    lp.s16_lca,
+    lp.co1_lca,
+        CASE
+            WHEN (s.nominal_species_id IS NULL) THEN 'MISSING NOMINAL ID'::text
+            WHEN ((s.nominal_species_id = lp.s12_lca) OR (s.nominal_species_id = lp.s16_lca) OR (s.nominal_species_id = lp.co1_lca)) THEN s.nominal_species_id
+            ELSE 'INVESTIGATE'::text
+        END AS validation_status
+   FROM (public.lca_pivot_view lp
+     JOIN public.sample s ON ((lp.og_id_lp = s.og_id)));
+
+
+--
+-- Name: filtered_lca_view; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.filtered_lca_view AS
+ SELECT b.og_id AS og_id_flv,
+    b.tech,
+    b.seq_date,
+    b.code,
+    b.annotation,
+    string_agg(
+        CASE
+            WHEN ((b.region = '12s'::text) AND (b.scientific_name = lr.nominal_species_id)) THEN b.match_sequence_id
+            ELSE NULL::text
+        END, ', '::text ORDER BY b.match_sequence_id) AS filtered_12s,
+    string_agg(
+        CASE
+            WHEN ((b.region = '16s'::text) AND (b.scientific_name = lr.nominal_species_id)) THEN b.match_sequence_id
+            ELSE NULL::text
+        END, ', '::text ORDER BY b.match_sequence_id) AS filtered_16s,
+    string_agg(
+        CASE
+            WHEN ((b.region = 'CO1'::text) AND (b.scientific_name = lr.nominal_species_id)) THEN b.match_sequence_id
+            ELSE NULL::text
+        END, ', '::text ORDER BY b.match_sequence_id) AS filtered_co1
+   FROM (public.blast_filtered_lca b
+     JOIN public.lca_results_view lr ON (((b.og_id = lr.og_id_lr) AND (b.tech = lr.tech) AND (b.seq_date = lr.seq_date) AND (b.code = lr.code) AND (b.annotation = lr.annotation))))
+  GROUP BY b.og_id, b.tech, b.seq_date, b.code, b.annotation;
+
+
+--
+-- Name: goat_project_metadata_v1; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.goat_project_metadata_v1 AS
+ SELECT 'Ocean Genomes'::text AS project_name,
+    'OG'::text AS project_acronym,
+    NULL::text AS subproject_name,
+    NULL::text AS bioproject_id,
+    'Shannon Corrigan'::text AS primary_contact,
+    'Ocean Genomes Minderoo OceanOmics Centre, The University of Western Australia'::text AS primary_contact_institution,
+    'oceangenomes@uwa.edu.au'::text AS public_contact_email,
+    CURRENT_DATE AS date_of_last_update,
+    'ebp_species_goat_3.0'::text AS schema_version;
+
+
+--
+-- Name: hic_library; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.hic_library (
+    hic_library_tube_id text NOT NULL,
+    lysate_id text NOT NULL,
+    hic_num integer,
+    hic_status text,
+    library_method text,
+    processing_notes text,
+    library_date date,
+    library_id text,
+    prox_ligation_conc real,
+    purified_dna_total real,
+    index_set text,
+    index_i5 text,
+    index_i7 text,
+    library_conc real,
+    library_yield real,
+    library_size integer,
+    pcr_dup_read_pairs real,
+    nodup_cis_read_pairs_1kb real,
+    expected_distinct_30m_reads bigint,
+    hic_comments text,
+    status_overwrite boolean
 );
 
 
 --
--- Name: lca_raw_results_pre_v2; Type: TABLE; Schema: public; Owner: -
+-- Name: TABLE hic_library; Type: COMMENT; Schema: public; Owner: -
 --
 
-CREATE TABLE public.lca_raw_results_pre_v2 (
-    og_num integer GENERATED ALWAYS AS ((SUBSTRING(og_id FROM 3))::integer) STORED,
+COMMENT ON TABLE public.hic_library IS 'One row per Hi-C library. Source: the 4.HiCLibrary sheet.';
+
+
+--
+-- Name: COLUMN hic_library.prox_ligation_conc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.prox_ligation_conc IS 'LEGACY. The intended home for this measurement is hic_lysate.prox_ligation_conc (decision 11, F13), but the lab still records it on 4.HiCLibrary - 264 numeric values in OceanGenomes_Database_261006.xlsx against 77 on 4.HiCLysate - so import_v2.py writes it here by owner decision 2026-10-06 rather than drop every new value. The 226 backfilled values cannot be migrated up because 10 of their lysates carry conflicting values across their libraries and no rule picks a winner. Retire this column once the lab records the measurement on 4.HiCLysate.';
+
+
+--
+-- Name: hic_lysate; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.hic_lysate (
+    lysate_id text NOT NULL,
+    tissue_id text NOT NULL,
+    lysate_num integer,
+    lysate_status text,
+    lysate_method text,
+    lysate_prep_date date,
+    lysate_batch_id text,
+    lysate_conc real,
+    total_lysate real,
+    lysate_cde real,
+    prox_ligation_date date,
+    prox_ligation_conc real,
+    prox_ligation_yield real GENERATED ALWAYS AS ((prox_ligation_conc * (40)::double precision)) STORED,
+    lysate_comments text,
+    status_overwrite boolean
+);
+
+
+--
+-- Name: TABLE hic_lysate; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.hic_lysate IS 'One row per Hi-C lysate prepared from a tissue. Source: the 4.HiCLysate sheet.';
+
+
+--
+-- Name: COLUMN hic_lysate.lysate_method; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_lysate.lysate_method IS 'Spreadsheet header "Prep Method". Populated on 386 rows and dropped by the importer until now.';
+
+
+--
+-- Name: COLUMN hic_lysate.prox_ligation_conc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_lysate.prox_ligation_conc IS 'Proximity ligation concentration - the LIVE home for this measurement (decision 11). Evidence: it agrees with hic_library.prox_ligation_conc 48 times out of 49 where both are present; all 19 multi-library conflicts predate this column; and 36 lysates carry a value while having zero or one Hi-C library, so it exists before any library does. The workbook contains the literal strings "NA" and "0" here, which will quarantine against this type.';
+
+
+--
+-- Name: COLUMN hic_lysate.prox_ligation_yield; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_lysate.prox_ligation_yield IS 'Derived, matching the workbook formula IF(conc="NA","NA",conc*40) on 4.HiCLysate. The 40 is the elution volume in uL; if the protocol changes this expression must change with it.';
+
+
+--
+-- Name: illumina_library; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.illumina_library (
+    illumina_library_tube_id text NOT NULL,
+    dna_id text NOT NULL,
+    ilmn_num integer,
+    ilmn_status text,
+    library_method text,
+    prep_automation text,
+    library_date date,
+    library_id text,
+    library_plate_well text,
+    index_plate text,
+    index_set text,
+    index_well text,
+    index_idx text,
+    library_qubit_conc real,
+    il_comments text,
+    status_overwrite boolean
+);
+
+
+--
+-- Name: TABLE illumina_library; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.illumina_library IS 'One row per Illumina DNA library. Source: the 4.Illumina sheet.';
+
+
+--
+-- Name: COLUMN illumina_library.prep_automation; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.illumina_library.prep_automation IS 'Spreadsheet header "Manual/ Automated Method", populated on 1,607 rows and dropped by the importer until now. 941 of them read "Auomated Biomek i7" and normalise to "Automated Biomek i7" at backfill.';
+
+
+--
+-- Name: COLUMN illumina_library.library_plate_well; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.illumina_library.library_plate_well IS 'Spreadsheet header "Final Library Plate Well", renamed by the lab from "Library Plate Well" between the 260804 and 261006 workbooks; name_convert_v2.py maps both. Populated on 1,523 rows in August and 1,078 in OceanGenomes_Database_261006.xlsx, and dropped by the live importer.';
+
+
+--
+-- Name: COLUMN illumina_library.index_plate; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.illumina_library.index_plate IS 'Spreadsheet header "Index Plate". Populated on 1,297 rows and dropped by the importer until now.';
+
+
+--
+-- Name: ont_library; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ont_library (
+    ont_library_tube_id text NOT NULL,
+    dna_id text NOT NULL,
+    ont_num integer,
+    ont_status text,
+    library_method text,
+    library_type text,
+    library_date date,
+    library_id text,
+    est_loading_size integer,
+    ont_comments text,
+    status_overwrite boolean
+);
+
+
+--
+-- Name: TABLE ont_library; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ont_library IS 'One row per Oxford Nanopore library. Source: the 4.ONT sheet.';
+
+
+--
+-- Name: COLUMN ont_library.library_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ont_library.library_type IS 'The ONT kit type from the "Library Type" header. Unrelated to library.library_type, which names the technology.';
+
+
+--
+-- Name: pacbio_library; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.pacbio_library (
+    pacbio_library_tube_id text NOT NULL,
+    dna_id text NOT NULL,
+    pacb_num integer,
+    pacb_status text,
+    dna_treatment text,
+    sre_kit text,
+    post_sre_conc real,
+    final_pre_library_conc real,
+    shear_femtol_id text,
+    shear_av_size integer,
+    library_method text,
+    prep_automation text,
+    library_date date,
+    library_id text,
+    index_well text,
+    barcode text,
+    seq_femto_id text,
+    seq_av_size real,
+    library_conc real,
+    comment text,
+    status_overwrite boolean
+);
+
+
+--
+-- Name: TABLE pacbio_library; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.pacbio_library IS 'One row per PacBio HiFi library. Source: the 4.PacBio sheet.';
+
+
+--
+-- Name: COLUMN pacbio_library.sre_kit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.sre_kit IS 'Short Read Eliminator kit. Populated on 394 rows and dropped by the importer until now.';
+
+
+--
+-- Name: COLUMN pacbio_library.post_sre_conc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.post_sre_conc IS 'Spreadsheet header "Post-SRE Conc. (ng/uL)". Populated on 191 rows and dropped by the importer until now.';
+
+
+--
+-- Name: COLUMN pacbio_library.final_pre_library_conc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.final_pre_library_conc IS 'Spreadsheet header "Final Pre-Library Prep Conc. (ng/uL)". Populated on 194 rows and dropped by the importer until now.';
+
+
+--
+-- Name: COLUMN pacbio_library.prep_automation; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.prep_automation IS 'Spreadsheet header "Manual/ Automated Method". Populated on 365 rows and dropped by the importer until now.';
+
+
+--
+-- Name: rna_extraction; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.rna_extraction (
+    rna_id text NOT NULL,
+    tissue_id text NOT NULL,
+    ext_num integer,
+    status text,
+    extraction_method text,
+    extraction_date date,
+    extraction_batch_id text,
+    final_buffer text,
+    volume integer,
+    qubit_conc real,
+    nano_drop_conc real,
+    ratio_260_280 real,
+    ratio_260_230 real,
+    total_yield real,
+    gdna_over_7kb_perc real,
+    tapestation_id text,
+    rna_dv200 real,
+    rin real,
+    extraction_qc text,
+    comment text,
+    rna_freezer text,
+    rna_shelf integer,
+    rna_rack integer,
+    rna_level text,
+    rna_box text,
+    rna_notes text,
+    status_overwrite boolean
+);
+
+
+--
+-- Name: TABLE rna_extraction; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.rna_extraction IS 'One row per RNA extraction attempt from a tissue. Source: the 3.RNAExtractions sheet.';
+
+
+--
+-- Name: COLUMN rna_extraction.gdna_over_7kb_perc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.gdna_over_7kb_perc IS 'Spreadsheet header "gDNA? >7,000bp %". Populated on 185 rows and dropped by the importer until now.';
+
+
+--
+-- Name: rna_library_ilmn; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.rna_library_ilmn (
+    rna_library_tube_id text NOT NULL,
+    rna_id text NOT NULL,
+    rna_num integer,
+    rna_status text,
+    library_method text,
+    library_date date,
+    library_id text,
+    library_size integer,
+    perc_product real,
+    library_qubit_conc real,
+    library_molarity real,
+    index_set text,
+    index_well text,
+    index_inx text,
+    comments text,
+    status_overwrite boolean,
+    final_plate_name text,
+    final_plate_well text,
+    well_position text
+);
+
+
+--
+-- Name: TABLE rna_library_ilmn; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.rna_library_ilmn IS 'One row per Illumina RNA library. Source: the 4.RNAIllumina sheet.';
+
+
+--
+-- Name: COLUMN rna_library_ilmn.library_size; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_ilmn.library_size IS 'Historical values only. The "cDNA Library Size (bp)" header was removed from 4.RNAIllumina between the 260804 and 261006 workbooks, so nothing writes this column after the backfill.';
+
+
+--
+-- Name: COLUMN rna_library_ilmn.perc_product; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_ilmn.perc_product IS 'Mapped in name_convert.py to a "% Product" header that no longer exists on 4.RNAIllumina, so it has been silently NULL. Retained pending a mapping fix, not a schema fix.';
+
+
+--
+-- Name: COLUMN rna_library_ilmn.final_plate_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_ilmn.final_plate_name IS 'Spreadsheet header "Final Plate Name", added by the lab after 2026-08. Populated on 135 rows of OceanGenomes_Database_261006.xlsx.';
+
+
+--
+-- Name: COLUMN rna_library_ilmn.final_plate_well; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_ilmn.final_plate_well IS 'Spreadsheet header "Final Plate Well", added by the lab after 2026-08. Populated on 135 rows of OceanGenomes_Database_261006.xlsx.';
+
+
+--
+-- Name: COLUMN rna_library_ilmn.well_position; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_ilmn.well_position IS 'Spreadsheet header "Well Position". Populated on 63 rows of OceanGenomes_Database_261006.xlsx. Possibly the predecessor of final_plate_well; kept separate until the lab says so (owner decision 2026-10-06).';
+
+
+--
+-- Name: rna_library_kinx; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.rna_library_kinx (
+    rna_library_tube_id text NOT NULL,
+    rna_id text NOT NULL,
+    rna_num integer,
+    rna_status text,
+    library_method text,
+    processing_comment text,
+    synthesis_date date,
+    part1_batch_id text,
+    synthesis_conc real,
+    part2_batch_id text,
+    final_qubit_conc real,
+    library_size integer,
+    kinnex_primers text,
+    kinnex_barcode text,
+    pool_id text,
+    plate integer,
+    plate_location text,
+    sequencing_sample_id text,
+    comments text,
+    status_overwrite boolean
+);
+
+
+--
+-- Name: TABLE rna_library_kinx; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.rna_library_kinx IS 'One row per PacBio Kinnex RNA library. Source: the 4.RNAkinnex sheet.';
+
+
+--
+-- Name: COLUMN rna_library_kinx.synthesis_conc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_kinx.synthesis_conc IS 'Mapped in name_convert.py to a header without the embedded newline the real one has ("cDNA Concentration \n(end of section 1 conc)"), so it has been silently NULL. Fix is in the importer.';
+
+
+--
+-- Name: COLUMN rna_library_kinx.sequencing_sample_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_kinx.sequencing_sample_id IS 'Populated on 148 rows and dropped by the importer until now. Hand-entered here, unlike the same-named formula column on 4.RNAIllumina.';
+
+
+--
+-- Name: tissue; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tissue (
+    tissue_id text NOT NULL,
+    og_id text NOT NULL,
+    alt_id text,
+    tissue text,
+    extracted integer,
+    preservation text,
+    freezer text,
+    shelf integer,
+    rack integer,
+    level text,
+    box text,
+    comment text
+);
+
+
+--
+-- Name: TABLE tissue; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.tissue IS 'One row per tissue subsample taken from a specimen. Source: the 2.Tissue sheet.';
+
+
+--
+-- Name: COLUMN tissue.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tissue.og_id IS 'Parent specimen. The only ancestor stored here, per lab_key_strategy.md §6.0.';
+
+
+--
+-- Name: COLUMN tissue.preservation; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tissue.preservation IS 'Tissue-level preservation. Distinct from sample.preservation_method, which is specimen-level.';
+
+
+--
+-- Name: summary; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.summary AS
+ SELECT s.og_num,
+    s.og_id,
+    s.project_id,
+    s.workflow,
+    s.priority,
+    ( SELECT count(*) AS count
+           FROM public.tissue t
+          WHERE (t.og_id = s.og_id)) AS tissues,
+    ( SELECT count(*) AS count
+           FROM (public.dna_extraction d
+             JOIN public.tissue t ON ((t.tissue_id = d.tissue_id)))
+          WHERE ((t.og_id = s.og_id) AND (d.status = 'Extracted'::text))) AS extracted,
+    COALESCE(dna.status, 'Awaiting Status'::text) AS dna_extraction_status,
+    COALESCE(ilmn.status, 'Awaiting Status'::text) AS illumina_status,
+    COALESCE(pacb.status, 'Awaiting Status'::text) AS pacbio_status,
+    COALESCE(hic.status, 'Awaiting Status'::text) AS hic_status,
+    COALESCE(ont.status, 'Awaiting Status'::text) AS nanopore_status,
+    COALESCE(rna.status, 'Awaiting Status'::text) AS rna_extraction_status,
+    COALESCE(rilm.status, 'Awaiting Status'::text) AS rna_ilmn_status,
+    COALESCE(rkin.status, 'Awaiting Status'::text) AS rna_kinnex_status,
+    s.ilmn AS illumina_planned,
+    s.hifi AS hifi_planned,
+    s.hic AS hic_planned,
+    s.nano AS nanopore_planned,
+    s.rna AS rna_planned,
+    s.ilrna AS rna_ilmn_planned,
+    ( SELECT count(*) AS count
+           FROM ((public.illumina_library i
+             JOIN public.dna_extraction d ON ((d.dna_id = i.dna_id)))
+             JOIN public.tissue t ON ((t.tissue_id = d.tissue_id)))
+          WHERE (t.og_id = s.og_id)) AS illumina_actual,
+    ( SELECT count(*) AS count
+           FROM ((public.pacbio_library p
+             JOIN public.dna_extraction d ON ((d.dna_id = p.dna_id)))
+             JOIN public.tissue t ON ((t.tissue_id = d.tissue_id)))
+          WHERE (t.og_id = s.og_id)) AS hifi_actual,
+    ( SELECT count(*) AS count
+           FROM ((public.hic_library h
+             JOIN public.hic_lysate y ON ((y.lysate_id = h.lysate_id)))
+             JOIN public.tissue t ON ((t.tissue_id = y.tissue_id)))
+          WHERE (t.og_id = s.og_id)) AS hic_actual,
+    ( SELECT count(*) AS count
+           FROM ((public.ont_library o
+             JOIN public.dna_extraction d ON ((d.dna_id = o.dna_id)))
+             JOIN public.tissue t ON ((t.tissue_id = d.tissue_id)))
+          WHERE (t.og_id = s.og_id)) AS nanopore_actual,
+    ( SELECT count(*) AS count
+           FROM (public.rna_extraction r
+             JOIN public.tissue t ON ((t.tissue_id = r.tissue_id)))
+          WHERE (t.og_id = s.og_id)) AS rna_actual,
+    ( SELECT count(*) AS count
+           FROM ((public.rna_library_ilmn x
+             JOIN public.rna_extraction r ON ((r.rna_id = x.rna_id)))
+             JOIN public.tissue t ON ((t.tissue_id = r.tissue_id)))
+          WHERE (t.og_id = s.og_id)) AS rna_ilmn_actual,
+    ( SELECT count(*) AS count
+           FROM ((public.rna_library_kinx k
+             JOIN public.rna_extraction r ON ((r.rna_id = k.rna_id)))
+             JOIN public.tissue t ON ((t.tissue_id = r.tissue_id)))
+          WHERE (t.og_id = s.og_id)) AS rna_kinnex_actual,
+    ( SELECT string_agg(DISTINCT lv.validated_species_name, ', '::text ORDER BY lv.validated_species_name) AS string_agg
+           FROM public.lca_validation lv
+          WHERE ((lv.og_id = s.og_id) AND (lv.tech = 'ilmn'::text) AND (lv.validated_species_name IS NOT NULL) AND (lv.validated_species_name <> ''::text))) AS ilmn_validated_species_name,
+    ( SELECT string_agg(DISTINCT lv.validated_species_name, ', '::text ORDER BY lv.validated_species_name) AS string_agg
+           FROM public.lca_validation lv
+          WHERE ((lv.og_id = s.og_id) AND (lv.tech = 'hifi'::text) AND (lv.validated_species_name IS NOT NULL) AND (lv.validated_species_name <> ''::text))) AS hifi_validated_species_name,
+    ( SELECT string_agg(DISTINCT lv.validated_species_name, ', '::text ORDER BY lv.validated_species_name) AS string_agg
+           FROM public.lca_validation lv
+          WHERE ((lv.og_id = s.og_id) AND (lv.tech = 'hic'::text) AND (lv.validated_species_name IS NOT NULL) AND (lv.validated_species_name <> ''::text))) AS hic_validated_species_name,
+    s.field_id,
+    s.nominal_species_id,
+    s.common_name,
+    s.collector,
+    s.contact,
+    s.comments
+   FROM ((((((((public.sample s
+     LEFT JOIN LATERAL ( SELECT d.status
+           FROM (public.dna_extraction d
+             JOIN public.tissue t ON ((t.tissue_id = d.tissue_id)))
+          WHERE (t.og_id = s.og_id)
+          ORDER BY d.status_overwrite DESC NULLS LAST, d.ext_num DESC
+         LIMIT 1) dna ON (true))
+     LEFT JOIN LATERAL ( SELECT i.ilmn_status AS status
+           FROM ((public.illumina_library i
+             JOIN public.dna_extraction d ON ((d.dna_id = i.dna_id)))
+             JOIN public.tissue t ON ((t.tissue_id = d.tissue_id)))
+          WHERE (t.og_id = s.og_id)
+          ORDER BY i.status_overwrite DESC NULLS LAST, i.ilmn_num DESC
+         LIMIT 1) ilmn ON (true))
+     LEFT JOIN LATERAL ( SELECT p.pacb_status AS status
+           FROM ((public.pacbio_library p
+             JOIN public.dna_extraction d ON ((d.dna_id = p.dna_id)))
+             JOIN public.tissue t ON ((t.tissue_id = d.tissue_id)))
+          WHERE (t.og_id = s.og_id)
+          ORDER BY p.status_overwrite DESC NULLS LAST, p.pacb_num DESC
+         LIMIT 1) pacb ON (true))
+     LEFT JOIN LATERAL ( SELECT h.hic_status AS status
+           FROM ((public.hic_library h
+             JOIN public.hic_lysate y ON ((y.lysate_id = h.lysate_id)))
+             JOIN public.tissue t ON ((t.tissue_id = y.tissue_id)))
+          WHERE (t.og_id = s.og_id)
+          ORDER BY h.status_overwrite DESC NULLS LAST, h.hic_num DESC
+         LIMIT 1) hic ON (true))
+     LEFT JOIN LATERAL ( SELECT o.ont_status AS status
+           FROM ((public.ont_library o
+             JOIN public.dna_extraction d ON ((d.dna_id = o.dna_id)))
+             JOIN public.tissue t ON ((t.tissue_id = d.tissue_id)))
+          WHERE (t.og_id = s.og_id)
+          ORDER BY o.status_overwrite DESC NULLS LAST, o.ont_num DESC
+         LIMIT 1) ont ON (true))
+     LEFT JOIN LATERAL ( SELECT r.status
+           FROM (public.rna_extraction r
+             JOIN public.tissue t ON ((t.tissue_id = r.tissue_id)))
+          WHERE (t.og_id = s.og_id)
+          ORDER BY r.status_overwrite DESC NULLS LAST, r.ext_num DESC
+         LIMIT 1) rna ON (true))
+     LEFT JOIN LATERAL ( SELECT x.rna_status AS status
+           FROM ((public.rna_library_ilmn x
+             JOIN public.rna_extraction r ON ((r.rna_id = x.rna_id)))
+             JOIN public.tissue t ON ((t.tissue_id = r.tissue_id)))
+          WHERE (t.og_id = s.og_id)
+          ORDER BY x.status_overwrite DESC NULLS LAST, x.rna_num DESC
+         LIMIT 1) rilm ON (true))
+     LEFT JOIN LATERAL ( SELECT k.rna_status AS status
+           FROM ((public.rna_library_kinx k
+             JOIN public.rna_extraction r ON ((r.rna_id = k.rna_id)))
+             JOIN public.tissue t ON ((t.tissue_id = r.tissue_id)))
+          WHERE (t.og_id = s.og_id)
+          ORDER BY k.status_overwrite DESC NULLS LAST, k.rna_num DESC
+         LIMIT 1) rkin ON (true));
+
+
+--
+-- Name: VIEW summary; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.summary IS 'The workbook''s Summary sheet, computed from the child tables instead of copied from Excel (decision 5). This is what replaces the nine derived columns removed from v2.sample, and it is what fixes the status fragmentation of database_review.md Finding 7 at source: the 47 distinct rna_status values were Excel string concatenation being persisted. Each technology also reports planned (lab intent) against actual (counted).';
+
+
+--
+-- Name: COLUMN summary.illumina_planned; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.illumina_planned IS 'Hand-entered lab intent from the Summary sheet''s "ilmn" column: is this sample slated for Illumina at all? Compare with illumina_actual.';
+
+
+--
+-- Name: COLUMN summary.illumina_actual; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.illumina_actual IS 'Illumina libraries that actually exist for this sample, counted through tissue -> dna_extraction.';
+
+
+--
+-- Name: goat_species_v1; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.goat_species_v1 AS
+ SELECT s.ncbi_taxon_id,
+    s.family,
+    s.species,
+    COALESCE(s.epithet, '-'::text) AS subspecies_epithet,
+        CASE
+            WHEN (s.ncbi_taxon_id = ANY (ARRAY[215367, 182658, 163129, 7793, 582430])) THEN 'priority_target'::text
+            ELSE 'potential_target'::text
+        END AS target_list_status,
+        CASE
+            WHEN (EXISTS ( SELECT 1
+               FROM public.sample samp
+              WHERE (samp.nominal_species_id = s.species))) THEN 'sample_collected'::text
+            ELSE NULL::text
+        END AS sampling_status,
+        CASE
+            WHEN (EXISTS ( SELECT 1
+               FROM public.sample samp
+              WHERE ((samp.nominal_species_id = s.species) AND (samp.ncbi_bioproject_id_lvl_3_hifi IS NOT NULL)))) THEN 'submitted'::text
+            WHEN (EXISTS ( SELECT 1
+               FROM (public.sample samp
+                 JOIN public.ref_genomes rg ON ((rg.og_id = samp.og_id)))
+              WHERE (samp.nominal_species_id = s.species))) THEN 'in_assembly'::text
+            WHEN (EXISTS ( SELECT 1
+               FROM public.summary sm
+              WHERE ((sm.nominal_species_id = s.species) AND (sm.pacbio_status = ANY (ARRAY['Library Prep - PacBio SMRTbell'::text, 'QC - Femto'::text, 'Sequenced'::text, 'Sequenced, SRE'::text, 'Sequence - PacBio'::text, 'Shearing'::text, 'SRE'::text, 'SRE - ULI'::text, 'ULI'::text]))))) THEN 'in_lab'::text
+            ELSE NULL::text
+        END AS sequencing_status,
+    NULL::text AS genome_publication,
+    'Ocean Genomes'::text AS primary_project,
+    NULL::text AS ebp_collaborator_acronyms,
+    NULL::text AS contributing_project_lab,
+        CASE
+            WHEN (s.species = ANY (ARRAY['Neophoca cinerea'::text, 'Careproctus sp.'::text, 'Lethrinus punctulatus'::text, 'Siphonognathus radiatus'::text, 'Dascyllus aruanus'::text, 'Carcharhinus galapagensis'::text])) THEN 'data_conflict'::text
+            ELSE ( SELECT samp.collector
+               FROM public.sample samp
+              WHERE ((samp.nominal_species_id = s.species) AND (samp.workflow = 'Reference'::text) AND (samp.collector IS NOT NULL))
+             LIMIT 1)
+        END AS collected_by,
+    NULL::text AS priority_flags,
+    COALESCE(s.afd_common_name, '-'::text) AS common_name,
+    COALESCE(s.synonym, '-'::text) AS synonym,
+    NULL::text AS assigned_sequencing_center
+   FROM public.master_species s
+  ORDER BY s.family, s.species;
+
+
+--
+-- Name: VIEW goat_species_v1; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.goat_species_v1 IS 'GoaT species submission view. Differs from the public version only in reading pacbio status from v2.summary rather than sample.pb_status, which F5 removed. See docs/v2_cutover_dependencies.md.';
+
+
+--
+-- Name: import_quarantine; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.import_quarantine (
+    quarantine_id bigint NOT NULL,
+    source_table text NOT NULL,
+    source_sheet text,
+    source_row_key text,
+    violation_type text NOT NULL,
+    violation_detail text,
+    raw_row jsonb NOT NULL,
+    first_seen timestamp with time zone DEFAULT now() NOT NULL,
+    last_seen timestamp with time zone DEFAULT now() NOT NULL,
+    resolved_at timestamp with time zone,
+    resolution_note text,
+    CONSTRAINT import_quarantine_resolution_check CHECK (((resolution_note IS NULL) OR (resolved_at IS NOT NULL))),
+    CONSTRAINT import_quarantine_violation_type_check CHECK ((violation_type = ANY (ARRAY['not_null'::text, 'foreign_key'::text, 'type_cast'::text, 'unique'::text, 'duplicate_source_row'::text, 'lookup'::text, 'conflicting_value'::text, 'check'::text, 'displaced'::text])))
+);
+
+
+--
+-- Name: TABLE import_quarantine; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.import_quarantine IS 'Rows rejected by the v2 constraints, held for correction at source. Written by both the backfill (scripts/backfill_v2.sql) and the nightly import. See v2_scaffold_design_review.md decision 6.';
+
+
+--
+-- Name: COLUMN import_quarantine.source_table; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.import_quarantine.source_table IS 'Target v2 table the row was meant for, unqualified (e.g. "dna_extraction").';
+
+
+--
+-- Name: COLUMN import_quarantine.source_sheet; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.import_quarantine.source_sheet IS 'Originating workbook sheet, when known (e.g. "3.DNAExtractions"), so the lab can find the row to fix.';
+
+
+--
+-- Name: COLUMN import_quarantine.source_row_key; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.import_quarantine.source_row_key IS 'Business key of the rejected row - the tube ID, tissue ID, or og_id. Null when the row has no usable key, which is itself usually the violation.';
+
+
+--
+-- Name: COLUMN import_quarantine.raw_row; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.import_quarantine.raw_row IS 'The whole rejected row as jsonb, so nothing is lost and the row can be replayed after the source is fixed.';
+
+
+--
+-- Name: COLUMN import_quarantine.last_seen; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.import_quarantine.last_seen IS 'Bumped each time the same unresolved violation reappears. A stale last_seen means the source row is gone or fixed.';
+
+
+--
+-- Name: import_quarantine_quarantine_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.import_quarantine ALTER COLUMN quarantine_id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.import_quarantine_quarantine_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: lca_raw_results; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.lca_raw_results (
     og_id text NOT NULL,
     tech text NOT NULL,
     seq_date text NOT NULL,
     code text NOT NULL,
     annotation text NOT NULL,
-    sequence_region text,
-    lca_run_date integer,
+    sequence_region text NOT NULL,
+    lca_run_date text NOT NULL,
     domain text,
     phylum text,
     class text,
@@ -1994,10 +2527,10 @@ CREATE TABLE public.lca_raw_results_pre_v2 (
     scientific_name text,
     scientific_name_authorship text,
     taxon_rank text,
-    taxon_id character varying,
-    taxon_id_db character varying,
+    taxon_id text,
+    taxon_id_db text,
     verbatim_identification text,
-    accession_id character varying,
+    accession_id text NOT NULL,
     accession_id_ref_db text,
     percent_match real,
     percent_query_cover real,
@@ -2012,103 +2545,17 @@ CREATE TABLE public.lca_raw_results_pre_v2 (
 
 
 --
--- Name: TABLE lca_raw_results_pre_v2; Type: COMMENT; Schema: public; Owner: -
+-- Name: TABLE lca_raw_results; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.lca_raw_results_pre_v2 IS 'DEPRECATED 2026-10-13 by the v2 cutover migration: superseded by v2.lca_raw_results. Kept for rollback until V.6. ';
-
-
---
--- Name: COLUMN lca_raw_results_pre_v2.confidence_score; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.lca_raw_results_pre_v2.confidence_score IS 'double precision, not real: LCA confidence values reach ~1e-163, far below the ~1.18e-38 floor of real.';
+COMMENT ON TABLE public.lca_raw_results IS 'Unfiltered LCA output. lca_run_date is text here, matching v2.lca; the live tables disagree on its type while using it in equivalent uniqueness constraints. confidence_score is double precision, not real -- see the column note, and do not narrow it back.';
 
 
 --
--- Name: COLUMN lca_raw_results_pre_v2.taxon_rank_db; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN lca_raw_results.content_hash; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.lca_raw_results_pre_v2.taxon_rank_db IS 'Taxonomic rank as reported by the reference database for this hit.';
-
-
---
--- Name: COLUMN lca_raw_results_pre_v2.content_hash; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.lca_raw_results_pre_v2.content_hash IS 'md5 of the row minus lca_run_date, og_num and content_hash, maintained by the lca_raw_results_content_hash trigger. Do not include it in any INSERT or UPDATE column list.';
-
-
---
--- Name: lca_results_view_SS260818; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public."lca_results_view_SS260818" AS
- SELECT lp.og_id_lp AS og_id_lr,
-    lp.tech,
-    lp.seq_date,
-    lp.code,
-    lp.annotation,
-    s.nominal_species_id,
-    lp.s12_lca,
-    lp.s16_lca,
-    lp.co1_lca,
-        CASE
-            WHEN (s.nominal_species_id IS NULL) THEN 'MISSING NOMINAL ID'::text
-            WHEN (((s.nominal_species_id = lp.s12_lca) OR (s.nominal_species_id = lp.s16_lca)) OR (s.nominal_species_id = lp.co1_lca)) THEN s.nominal_species_id
-            ELSE 'INVESTIGATE'::text
-        END AS validation_status
-   FROM (public."lca_pivot_view_SS260818" lp
-     JOIN public.sample_pre_v2 s ON ((lp.og_id_lp = s.og_id)));
-
-
---
--- Name: lca_validation_SS260818; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public."lca_validation_SS260818" (
-    og_id text NOT NULL,
-    tech text NOT NULL,
-    validated_species_name text,
-    validator text,
-    nominal_species_id_lca_comment text,
-    validator_2 text,
-    data_release character varying,
-    og_num integer GENERATED ALWAYS AS ((SUBSTRING(og_id FROM 3))::integer) STORED,
-    seq_date text NOT NULL,
-    code character varying NOT NULL,
-    annotation character varying NOT NULL,
-    row_created_on timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: lca_validation_pre_v2; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.lca_validation_pre_v2 (
-    og_id text NOT NULL,
-    tech text NOT NULL,
-    validated_species_name text,
-    validator text,
-    nominal_species_id_lca_comment text,
-    validator_2 text,
-    data_release character varying,
-    og_num integer GENERATED ALWAYS AS ((SUBSTRING(og_id FROM 3))::integer) STORED,
-    seq_date text NOT NULL,
-    code character varying NOT NULL,
-    annotation character varying NOT NULL,
-    row_created_on timestamp with time zone DEFAULT now() NOT NULL,
-    validated_rank text,
-    lca_genus text
-);
-
-
---
--- Name: TABLE lca_validation_pre_v2; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.lca_validation_pre_v2 IS 'DEPRECATED 2026-10-13 by the v2 cutover migration: superseded by v2.lca_validation. Kept for rollback until V.6. ';
+COMMENT ON COLUMN public.lca_raw_results.content_hash IS 'See v2.lca.content_hash. Part of the key here because one BLAST accession can yield several HSPs in a single run, which share accession and run date but differ in percent_match -- 33 such rows exist in live today.';
 
 
 --
@@ -2123,9 +2570,9 @@ CREATE VIEW public.sample_view AS
     s.photo_voucher AS photo_vouch_sv,
     s.specimen_voucher AS specimen_vouch_sv,
     s.voucher_id AS vouch_id_sv
-   FROM v2.sample s
+   FROM public.sample s
   WHERE (EXISTS ( SELECT 1
-           FROM v2.lca_validation lv
+           FROM public.lca_validation lv
           WHERE (lv.og_id = s.og_id)));
 
 
@@ -2167,7 +2614,7 @@ CREATE VIEW public.lca_validation_report_view AS
     sv.photo_vouch_sv,
     sv.specimen_vouch_sv,
     sv.vouch_id_sv
-   FROM (((((v2.lca_validation lv
+   FROM (((((public.lca_validation lv
      LEFT JOIN public.lca_pivot_view lp ON (((lp.og_id_lp = lv.og_id) AND (lp.tech = lv.tech) AND (lp.seq_date = lv.seq_date) AND (lp.code = lv.code) AND (lp.annotation = lv.annotation))))
      LEFT JOIN public.lca_results_view lr ON (((lr.og_id_lr = lv.og_id) AND (lr.tech = lv.tech) AND (lr.seq_date = lv.seq_date) AND (lr.code = lv.code) AND (lr.annotation = lv.annotation))))
      LEFT JOIN public.filtered_lca_view flv ON (((flv.og_id_flv = lv.og_id) AND (flv.tech = lv.tech) AND (flv.seq_date = lv.seq_date) AND (flv.code = lv.code) AND (flv.annotation = lv.annotation))))
@@ -2181,66 +2628,45 @@ CREATE VIEW public.lca_validation_report_view AS
             string_agg(DISTINCT lca.family, ', '::text ORDER BY lca.family) AS lca_families,
             string_agg(DISTINCT lca.genus, ', '::text ORDER BY lca.genus) AS lca_genera,
             string_agg(DISTINCT lca.specific_epiphet, ', '::text ORDER BY lca.specific_epiphet) AS lca_specific_epiphets
-           FROM v2.lca
+           FROM public.lca
           GROUP BY lca.og_id, lca.tech, lca.seq_date, lca.code, lca.annotation) lca_tax ON (((lca_tax.og_id = lv.og_id) AND (lca_tax.tech = lv.tech) AND (lca_tax.seq_date = lv.seq_date) AND (lca_tax.code = lv.code) AND (lca_tax.annotation = lv.annotation))))
      LEFT JOIN public.sample_view sv ON ((lv.og_id = sv.og_id_sv)));
 
 
 --
--- Name: lca_validation_report_view_SS260818; Type: VIEW; Schema: public; Owner: -
+-- Name: library; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE VIEW public."lca_validation_report_view_SS260818" AS
- SELECT (regexp_replace(lv.og_id, 'OG'::text, ''::text, 'g'::text))::integer AS og_num,
-    sv.proj_id,
-    lv.og_id,
-    lv.tech,
-    lv.seq_date,
-    lv.code,
-    lv.annotation,
-    lp.s12_lca,
-    lp.s16_lca,
-    lp.co1_lca,
-    lr.validation_status,
-    sv.nom_id,
-    lv.validated_species_name,
-    lv.validator,
-    lv.validator_2,
-    lca_tax.lca_taxon_ranks,
-    lca_tax.lca_orders,
-    lca_tax.lca_families,
-    lca_tax.lca_genera,
-    lca_tax.lca_specific_epiphets,
-        CASE
-            WHEN ((flv.filtered_12s IS NOT NULL) OR (flv.filtered_16s IS NOT NULL) OR (flv.filtered_co1 IS NOT NULL)) THEN 'YES'::text
-            ELSE NULL::text
-        END AS nom_id_in_results,
-    lv.nominal_species_id_lca_comment AS comment,
-    lv.data_release,
-    flv.filtered_12s,
-    flv.filtered_16s,
-    flv.filtered_co1,
-    sv.photo_id_sv,
-    sv.photo_vouch_sv,
-    sv.specimen_vouch_sv,
-    sv.vouch_id_sv
-   FROM (((((public."lca_validation_SS260818" lv
-     LEFT JOIN public."lca_pivot_view_SS260818" lp ON (((lp.og_id_lp = lv.og_id) AND (lp.tech = lv.tech) AND (lp.seq_date = lv.seq_date) AND (lp.code = (lv.code)::text) AND (lp.annotation = (lv.annotation)::text))))
-     LEFT JOIN public."lca_results_view_SS260818" lr ON (((lr.og_id_lr = lv.og_id) AND (lr.tech = lv.tech) AND (lr.seq_date = lv.seq_date) AND (lr.code = (lv.code)::text) AND (lr.annotation = (lv.annotation)::text))))
-     LEFT JOIN public.filtered_lca_view flv ON (((flv.og_id_flv = lv.og_id) AND (flv.tech = lv.tech) AND (flv.seq_date = lv.seq_date) AND (flv.code = (lv.code)::text) AND (flv.annotation = (lv.annotation)::text))))
-     LEFT JOIN ( SELECT "lca_SS260818".og_id,
-            "lca_SS260818".tech,
-            "lca_SS260818".seq_date,
-            "lca_SS260818".code,
-            "lca_SS260818".annotation,
-            string_agg(DISTINCT "lca_SS260818".taxon_rank, ', '::text ORDER BY "lca_SS260818".taxon_rank) AS lca_taxon_ranks,
-            string_agg(DISTINCT "lca_SS260818"."order", ', '::text ORDER BY "lca_SS260818"."order") AS lca_orders,
-            string_agg(DISTINCT "lca_SS260818".family, ', '::text ORDER BY "lca_SS260818".family) AS lca_families,
-            string_agg(DISTINCT "lca_SS260818".genus, ', '::text ORDER BY "lca_SS260818".genus) AS lca_genera,
-            string_agg(DISTINCT "lca_SS260818".specific_epiphet, ', '::text ORDER BY "lca_SS260818".specific_epiphet) AS lca_specific_epiphets
-           FROM public."lca_SS260818"
-          GROUP BY "lca_SS260818".og_id, "lca_SS260818".tech, "lca_SS260818".seq_date, "lca_SS260818".code, "lca_SS260818".annotation) lca_tax ON (((lca_tax.og_id = lv.og_id) AND (lca_tax.tech = lv.tech) AND (lca_tax.seq_date = lv.seq_date) AND (lca_tax.code = (lv.code)::text) AND (lca_tax.annotation = (lv.annotation)::text))))
-     LEFT JOIN public.sample_view sv ON ((lv.og_id = sv.og_id_sv)));
+CREATE TABLE public.library (
+    library_tube_id text NOT NULL,
+    library_type text NOT NULL,
+    dna_id text,
+    rna_id text,
+    lysate_id text,
+    CONSTRAINT library_one_parent_check CHECK ((num_nonnulls(dna_id, rna_id, lysate_id) = 1)),
+    CONSTRAINT library_type_check CHECK ((library_type = ANY (ARRAY['illumina'::text, 'pacbio'::text, 'ont'::text, 'hic'::text, 'rna_ilmn'::text, 'rna_kinx'::text])))
+);
+
+
+--
+-- Name: TABLE library; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.library IS 'Identity registry giving every library, of any technology, one primary key so sequencing has a single FK target. It normalises nothing away: each technology table keeps all of its own columns and its own parent FK. Confirmed safe as a shared key - the two RNA library sheets have zero tube-ID overlap (312 distinct on 4.RNAIllumina with _IL/_dIL suffixes, 174 on 4.RNAkinnex with _KL). See lab_key_strategy.md §6.4.';
+
+
+--
+-- Name: COLUMN library.library_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.library.library_type IS 'Which technology table holds this library''s attributes. Replaces sequencing.seq_type, which import_data.py currently derives by testing for _D / _R substrings in the tube ID.';
+
+
+--
+-- Name: CONSTRAINT library_one_parent_check ON library; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON CONSTRAINT library_one_parent_check ON public.library IS 'Exactly one parent. Expressed as three typed nullable FK columns rather than a source_type/source_id pair, because a polymorphic reference cannot carry a real foreign key - which is the guarantee this whole design depends on.';
 
 
 --
@@ -2259,10 +2685,10 @@ CREATE TABLE public.master_species_genome (
 
 
 --
--- Name: mitogenome_data_SS260818; Type: TABLE; Schema: public; Owner: -
+-- Name: mitogenome_data; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public."mitogenome_data_SS260818" (
+CREATE TABLE public.mitogenome_data (
     og_id text NOT NULL,
     tech text NOT NULL,
     seq_date text NOT NULL,
@@ -2316,10 +2742,9 @@ CREATE TABLE public."mitogenome_data_SS260818" (
     trna_his integer,
     trna_gln integer,
     manual_curation_notes text,
-    bankit character varying,
-    genbank_accession character varying,
-    og_num integer GENERATED ALWAYS AS ((SUBSTRING(og_id FROM 3))::integer) STORED,
-    annotation character varying,
+    bankit text,
+    genbank_accession text,
+    annotation text,
     date_submitted_genbank date,
     avg_coverage real,
     avg_base_coverage real,
@@ -2336,127 +2761,10 @@ CREATE TABLE public."mitogenome_data_SS260818" (
     nad4l_trans integer,
     nad5_trans integer,
     nad6_trans integer,
-    extra_genes character varying,
-    missing_genes character varying,
-    order_correct character varying,
-    passed character varying,
-    mean_depth double precision,
-    median_depth double precision,
-    depth_sd double precision,
-    depth_cv double precision,
-    breadth_1x double precision,
-    breadth_10x double precision,
-    mito_mapped_reads bigint,
-    total_reads bigint,
-    mito_read_fraction double precision,
-    depth_target_length_bp integer,
-    depth_target_fasta text,
-    depth_method text,
-    depth_measured_at timestamp with time zone
-);
-
-
---
--- Name: COLUMN "mitogenome_data_SS260818".avg_coverage; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public."mitogenome_data_SS260818".avg_coverage IS 'LEGACY, assembler-specific and NOT comparable across assemblers: k-mer coverage for GetOrganelle rows, reference-recruited read depth for MitoHiFi rows, NULL for Oatk. Retained for provenance. See mean_depth.';
-
-
---
--- Name: COLUMN "mitogenome_data_SS260818".mean_depth; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public."mitogenome_data_SS260818".mean_depth IS 'Mean per-base read depth of the sample''s own reads remapped to this assembly. Comparable across GetOrganelle / MitoHiFi / Oatk and across Illumina / HiC / HiFi. Use this, not avg_coverage, for any cross-platform comparison.';
-
-
---
--- Name: COLUMN "mitogenome_data_SS260818".depth_method; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public."mitogenome_data_SS260818".depth_method IS 'remap_full_v1  = mean_depth measured by remapping the full post-QC read set to this assembly (circular molecules folded on a doubled reference). not_measured   = this assembly never reached annotation (failed, under-length, or a discarded assembly variant), or the depth step was skipped. legacy_*       = pre-dates the uniform measurement; only the assembler-specific avg_coverage / avg_base_coverage values exist for this row.';
-
-
---
--- Name: mitogenome_data_pre_v2; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.mitogenome_data_pre_v2 (
-    og_num integer GENERATED ALWAYS AS ((SUBSTRING(og_id FROM 3))::integer) STORED,
-    og_id text NOT NULL,
-    tech text NOT NULL,
-    seq_date text NOT NULL,
-    code text NOT NULL,
-    annotation character varying,
-    stats text,
-    length integer,
-    length_emma integer,
-    seqlength_12s integer,
-    seqlength_16s integer,
-    seqlength_co1 integer,
-    cds_no integer,
-    trna_no integer,
-    rrna_no integer,
-    status text,
-    genbank text,
-    rrna12s integer,
-    rrna16s integer,
-    atp6 integer,
-    atp8 integer,
-    cox1 integer,
-    cox2 integer,
-    cox3 integer,
-    cytb integer,
-    nad1 integer,
-    nad2 integer,
-    nad3 integer,
-    nad4 integer,
-    nad4l integer,
-    nad5 integer,
-    nad6 integer,
-    trna_phe integer,
-    trna_val integer,
-    trna_leuuag integer,
-    trna_leuuaa integer,
-    trna_ile integer,
-    trna_met integer,
-    trna_thr integer,
-    trna_pro integer,
-    trna_lys integer,
-    trna_asp integer,
-    trna_glu integer,
-    trna_sergcu integer,
-    trna_seruga integer,
-    trna_tyr integer,
-    trna_cys integer,
-    trna_trp integer,
-    trna_ala integer,
-    trna_asn integer,
-    trna_gly integer,
-    trna_arg integer,
-    trna_his integer,
-    trna_gln integer,
-    manual_curation_notes text,
-    bankit character varying,
-    genbank_accession character varying,
-    date_submitted_genbank date,
-    atp6_trans integer,
-    atp8_trans integer,
-    cox1_trans integer,
-    cox2_trans integer,
-    cox3_trans integer,
-    cytb_trans integer,
-    nad1_trans integer,
-    nad2_trans integer,
-    nad3_trans integer,
-    nad4_trans integer,
-    nad4l_trans integer,
-    nad5_trans integer,
-    nad6_trans integer,
-    extra_genes character varying,
-    missing_genes character varying,
-    order_correct character varying,
-    passed character varying,
+    extra_genes text,
+    missing_genes text,
+    order_correct text,
+    passed text,
     mean_depth double precision,
     median_depth double precision,
     depth_sd double precision,
@@ -2470,8 +2778,6 @@ CREATE TABLE public.mitogenome_data_pre_v2 (
     depth_target_fasta text,
     depth_method text,
     depth_measured_at timestamp with time zone,
-    avg_coverage real,
-    avg_base_coverage real,
     trna_advisory text,
     order_variant text,
     order_deviation text,
@@ -2497,67 +2803,18 @@ CREATE TABLE public.mitogenome_data_pre_v2 (
 
 
 --
--- Name: TABLE mitogenome_data_pre_v2; Type: COMMENT; Schema: public; Owner: -
+-- Name: TABLE mitogenome_data; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.mitogenome_data_pre_v2 IS 'DEPRECATED 2026-10-13 by the v2 cutover migration: superseded by v2.mitogenome_data. Kept for rollback until V.6. ';
-
-
---
--- Name: COLUMN mitogenome_data_pre_v2.og_num; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.mitogenome_data_pre_v2.og_num IS 'Numeric part of og_id, maintained by the database. Generated, not writable: do not include it in any INSERT or UPDATE column list.';
+COMMENT ON TABLE public.mitogenome_data IS 'Assembled mitogenome per (og_id, tech, seq_date, code). Parent of the LCA tables. Unlike the live table it has a foreign key to sample, so an assembly cannot reference a specimen that does not exist.';
 
 
 --
--- Name: COLUMN mitogenome_data_pre_v2.mean_depth; Type: COMMENT; Schema: public; Owner: -
+-- Name: mitogenome_submission_view; Type: VIEW; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.mitogenome_data_pre_v2.mean_depth IS 'Mean per-base read depth of the sample''s own reads remapped to this assembly. Comparable across GetOrganelle / MitoHiFi / Oatk and across Illumina / HiC / HiFi. Use this, not avg_coverage, for any cross-platform comparison.';
-
-
---
--- Name: COLUMN mitogenome_data_pre_v2.depth_method; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.mitogenome_data_pre_v2.depth_method IS 'remap_full_v1  = mean_depth measured by remapping the full post-QC read set to this assembly (circular molecules folded on a doubled reference). not_measured   = this assembly never reached annotation (failed, under-length, or a discarded assembly variant), or the depth step was skipped. legacy_*       = pre-dates the uniform measurement; only the assembler-specific avg_coverage / avg_base_coverage values exist for this row.';
-
-
---
--- Name: COLUMN mitogenome_data_pre_v2.avg_coverage; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.mitogenome_data_pre_v2.avg_coverage IS 'LEGACY, assembler-specific and NOT comparable across assemblers: k-mer coverage for GetOrganelle rows, reference-recruited read depth for MitoHiFi rows, NULL for Oatk. Retained for provenance. See mean_depth.';
-
-
---
--- Name: COLUMN mitogenome_data_pre_v2.order_status; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.mitogenome_data_pre_v2.order_status IS 'reference | trna_displacement | rearranged_block | rearranged_major | not_evaluated.';
-
-
---
--- Name: COLUMN mitogenome_data_pre_v2.annotation_integrity_status; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.mitogenome_data_pre_v2.annotation_integrity_status IS 'ok | advisory | broken | not_evaluated. Computed on the published annotation after all repair branches merge.';
-
-
---
--- Name: COLUMN mitogenome_data_pre_v2.mtmuts; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.mitogenome_data_pre_v2.mtmuts IS 'Octocoral mitochondrial mismatch-repair gene (INSDC /gene=mtMutS). Expected in Malacalcyonacea/Scleralcyonacea, absent in Hexacorallia.';
-
-
---
--- Name: mitogenome_submission_view_pre_v2; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.mitogenome_submission_view_pre_v2 AS
- SELECT m.og_num,
+CREATE VIEW public.mitogenome_submission_view AS
+ SELECT s.og_num,
     m.og_id,
     m.tech,
     m.seq_date,
@@ -2581,16 +2838,17 @@ CREATE VIEW public.mitogenome_submission_view_pre_v2 AS
     e.submission_ready,
     l.validated_species_name,
     l.validator
-   FROM ((public.mitogenome_data_pre_v2 m
-     LEFT JOIN public.ena_validation_attempts e ON (((e.og_id = m.og_id) AND (e.tech = m.tech) AND (e.seq_date = m.seq_date) AND (e.code = m.code) AND (e.annotation = (m.annotation)::text))))
-     LEFT JOIN public.lca_validation_pre_v2 l ON (((l.og_id = m.og_id) AND (l.tech = m.tech) AND (l.seq_date = m.seq_date) AND ((l.code)::text = m.code) AND ((l.annotation)::text = (m.annotation)::text))));
+   FROM (((public.mitogenome_data m
+     LEFT JOIN public.sample s ON ((s.og_id = m.og_id)))
+     LEFT JOIN public.ena_validation_attempts e ON (((e.og_id = m.og_id) AND (e.tech = m.tech) AND (e.seq_date = m.seq_date) AND (e.code = m.code) AND (e.annotation = m.annotation))))
+     LEFT JOIN public.lca_validation l ON (((l.og_id = m.og_id) AND (l.tech = m.tech) AND (l.seq_date = m.seq_date) AND (l.code = m.code) AND (l.annotation = m.annotation))));
 
 
 --
--- Name: VIEW mitogenome_submission_view_pre_v2; Type: COMMENT; Schema: public; Owner: -
+-- Name: VIEW mitogenome_submission_view; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.mitogenome_submission_view_pre_v2 IS 'DEPRECATED 2026-10-13 by the v2 cutover migration: superseded by v2.mitogenome_submission_view. Kept for rollback until V.6. ';
+COMMENT ON VIEW public.mitogenome_submission_view IS 'One row per mitogenome assembly with its ENA validation result and validated species name, for ENA submission. v2 form of public.mitogenome_submission_view (029): og_num comes from v2.sample, because v2 drops it from mitogenome_data (F2). See migration 043.';
 
 
 --
@@ -2719,63 +2977,20 @@ COMMENT ON TABLE public.og_workflow_recommendation IS 'Recommended sequencing wo
 
 
 --
--- Name: ont_library_pre_v2; Type: TABLE; Schema: public; Owner: -
+-- Name: prep_automation; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.ont_library_pre_v2 (
-    ont_library_tube_id text NOT NULL,
-    dna_id text,
-    ont_num integer,
-    ont_status text,
-    library_date text,
-    library_id text,
-    library_method text,
-    library_type text,
-    est_loading_size integer,
-    ont_comments text,
-    og_id text GENERATED ALWAYS AS (regexp_replace(dna_id, '^([^0-9]*[0-9]+).*$'::text, '\1'::text)) STORED,
-    status_overwrite character varying
+CREATE TABLE public.prep_automation (
+    prep_automation text NOT NULL,
+    description text
 );
 
 
 --
--- Name: TABLE ont_library_pre_v2; Type: COMMENT; Schema: public; Owner: -
+-- Name: TABLE prep_automation; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.ont_library_pre_v2 IS 'DEPRECATED 2026-10-13 by the v2 cutover migration: superseded by v2.ont_library. Kept for rollback until V.6. ';
-
-
---
--- Name: pacbio_library_pre_v2; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.pacbio_library_pre_v2 (
-    pacbio_library_tube_id text NOT NULL,
-    dna_id text,
-    pacb_num integer,
-    pacb_status text,
-    library_method text,
-    library_date text,
-    library_id text,
-    dna_treatment text,
-    index_well text,
-    barcode text,
-    shear_femtol_id text,
-    shear_av_size integer,
-    seq_femto_id text,
-    seq_av_size real,
-    library_conc real,
-    comment text,
-    status_overwrite character varying,
-    og_id text GENERATED ALWAYS AS (regexp_replace(dna_id, '^([^0-9]*[0-9]+).*$'::text, '\1'::text)) STORED
-);
-
-
---
--- Name: TABLE pacbio_library_pre_v2; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.pacbio_library_pre_v2 IS 'DEPRECATED 2026-10-13 by the v2 cutover migration: superseded by v2.pacbio_library. Kept for rollback until V.6. ';
+COMMENT ON TABLE public.prep_automation IS 'Controlled vocabulary for the spreadsheet''s "Manual/ Automated Method" column, shared by illumina_library and pacbio_library. 4.Illumina currently spells the automated value "Auomated Biomek i7" (missing t) in all 941 populated rows while 4.PacBio spells it correctly; a shared lookup makes that a backfill normalisation instead of two permanently divergent free-text columns. See v2_scaffold_design_review.md F12.';
 
 
 --
@@ -2824,119 +3039,6 @@ CREATE TABLE public.ref_genomes_sra_uploads (
 
 
 --
--- Name: rna_extraction_pre_v2; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.rna_extraction_pre_v2 (
-    rna_id text NOT NULL,
-    tissue_id text,
-    ext_num integer,
-    status text,
-    extraction_method text,
-    extraction_date date,
-    extraction_batch_id text,
-    final_buffer text,
-    volume integer,
-    qubit_conc real,
-    nano_drop_conc real,
-    ratio_260_280 text,
-    ratio_260_230 text,
-    total_yield integer,
-    tapestation_id text,
-    rna_dv200 real,
-    rin text,
-    extraction_qc text,
-    comment text,
-    rna_freezer text,
-    rna_shelf text,
-    rna_rack text,
-    rna_level text,
-    rna_box text,
-    rna_notes text,
-    og_id text GENERATED ALWAYS AS (regexp_replace(tissue_id, '^([^0-9]*[0-9]+).*$'::text, '\1'::text)) STORED,
-    status_overwrite character varying
-);
-
-
---
--- Name: TABLE rna_extraction_pre_v2; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.rna_extraction_pre_v2 IS 'DEPRECATED 2026-10-13 by the v2 cutover migration: superseded by v2.rna_extraction. Kept for rollback until V.6. ';
-
-
---
--- Name: rna_library_ilmn_pre_v2; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.rna_library_ilmn_pre_v2 (
-    rna_library_tube_id text NOT NULL,
-    rna_id text,
-    rna_num integer,
-    rna_status text,
-    library_method text,
-    library_date text,
-    library_id text,
-    library_size integer,
-    perc_product real,
-    library_qubit_conc real,
-    library_molarity text,
-    index_set text,
-    index_well text,
-    index_inx text,
-    kinnex_primers text,
-    kinnex_barcode text,
-    comments text,
-    og_id text GENERATED ALWAYS AS (regexp_replace(rna_id, '^([^0-9]*[0-9]+).*$'::text, '\1'::text)) STORED,
-    status_overwrite character varying
-);
-
-
---
--- Name: TABLE rna_library_ilmn_pre_v2; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.rna_library_ilmn_pre_v2 IS 'DEPRECATED 2026-10-13 by the v2 cutover migration: superseded by v2.rna_library_ilmn. Kept for rollback until V.6. ';
-
-
---
--- Name: rna_library_kinx_pre_v2; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.rna_library_kinx_pre_v2 (
-    rna_library_tube_id character varying(50) NOT NULL,
-    rna_id character varying(50),
-    rna_num integer,
-    rna_status character varying(50),
-    library_method character varying(100),
-    processing_comment text,
-    synthesis_date date,
-    part1_batch_id character varying(50),
-    synthesis_conc real,
-    part2_batch_id character varying(50),
-    final_qubit_conc real,
-    library_size integer,
-    kinnex_primers character varying(20),
-    kinnex_barcode character varying(20),
-    pool_id character varying(50),
-    plate integer,
-    plate_location character varying(5),
-    comments text,
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now(),
-    og_id text GENERATED ALWAYS AS (regexp_replace((rna_id)::text, '^([^0-9]*[0-9]+).*$'::text, '\1'::text)) STORED,
-    status_overwrite character varying
-);
-
-
---
--- Name: TABLE rna_library_kinx_pre_v2; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.rna_library_kinx_pre_v2 IS 'DEPRECATED 2026-10-13 by the v2 cutover migration: superseded by v2.rna_library_kinx. Kept for rollback until V.6. ';
-
-
---
 -- Name: rna_qc_kinnex; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2969,36 +3071,53 @@ COMMENT ON TABLE public.schema_migrations IS 'Migration ledger for sql/. One row
 
 
 --
--- Name: sequencing_pre_v2; Type: TABLE; Schema: public; Owner: -
+-- Name: sequencing; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.sequencing_pre_v2 (
+CREATE TABLE public.sequencing (
     sequencing_id text NOT NULL,
-    og_id text GENERATED ALWAYS AS ("substring"(sequencing_id, '([A-Z]{2}[0-9]+)'::text)) STORED,
-    rna_library_tube_id text,
-    illumina_library_tube_id text,
-    ont_library_tube_id text,
-    pacbio_library_tube_id text,
-    hic_library_tube_id text,
+    library_tube_id text NOT NULL,
+    status text,
     technology text,
     instrument text,
-    run_date text,
+    run_date date,
     run_id text,
     seq_date text GENERATED ALWAYS AS (split_part(run_id, '_'::text, 2)) STORED,
     cell_id text,
     smrt_num integer,
-    seq_comments text,
     seq_type text,
     design_no integer,
-    og_num integer GENERATED ALWAYS AS (("substring"(sequencing_id, '^OG([0-9]+)'::text))::integer) STORED
+    hic_depth text,
+    seq_comments text
 );
 
 
 --
--- Name: TABLE sequencing_pre_v2; Type: COMMENT; Schema: public; Owner: -
+-- Name: TABLE sequencing; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.sequencing_pre_v2 IS 'DEPRECATED 2026-10-13 by the v2 cutover migration: superseded by v2.sequencing. Kept for rollback until V.6. ';
+COMMENT ON TABLE public.sequencing IS 'One row per sequencing record. Source: the 5.Sequencing sheet.';
+
+
+--
+-- Name: COLUMN sequencing.library_tube_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing.library_tube_id IS 'The single library sequenced, via the registry. Replaces five nullable polymorphic columns, one of which could not carry a foreign key at all.';
+
+
+--
+-- Name: COLUMN sequencing.status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing.status IS 'Spreadsheet header "Status". Populated on 4,004 of ~4,014 rows; the live sequencing table has no status column at all, so this has always been dropped.';
+
+
+--
+-- Name: COLUMN sequencing.seq_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing.seq_type IS 'Retained for the existing consumers that filter on it. library.library_type is now the authoritative technology label; derive this from it at cutover rather than having the importer compute it.';
 
 
 --
@@ -3039,172 +3158,45 @@ CREATE TABLE public.species_ncbi_assembly (
 
 
 --
--- Name: tissue_pre_v2; Type: TABLE; Schema: public; Owner: -
+-- Name: v_dna_extraction_browse; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE TABLE public.tissue_pre_v2 (
-    tissue_id text NOT NULL,
-    og_id text,
-    field_id text,
-    alt_id text,
-    tissue text,
-    extracted integer,
-    freezer text,
-    shelf integer,
-    rack integer,
-    level text,
-    box text,
-    comment text,
-    og_num integer GENERATED ALWAYS AS ((SUBSTRING(og_id FROM 3))::integer) STORED
-);
-
-
---
--- Name: TABLE tissue_pre_v2; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.tissue_pre_v2 IS 'DEPRECATED 2026-10-13 by the v2 cutover migration: superseded by v2.tissue. Kept for rollback until V.6. ';
-
-
---
--- Name: summary_pre_v2; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.summary_pre_v2 AS
- SELECT (regexp_replace(s.og_id, 'OG'::text, ''::text, 'g'::text))::integer AS og_num,
-    s.og_id,
-    s.project_id,
-    s.workflow,
-    s.priority,
-    ( SELECT count(*) AS count
-           FROM public.tissue_pre_v2 t
-          WHERE (t.og_id = s.og_id)) AS tissues,
-    ( SELECT count(*) AS count
-           FROM public.dna_extraction_pre_v2 d
-          WHERE ((d.og_id = s.og_id) AND (d.status = 'Extracted'::text))) AS extracted,
-    COALESCE(( SELECT d.status
-           FROM public.dna_extraction_pre_v2 d
-          WHERE ((d.og_id = s.og_id) AND ((d.status_overwrite)::text = 'Y'::text))
-          ORDER BY d.ext_num DESC
-         LIMIT 1), ( SELECT d.status
-           FROM public.dna_extraction_pre_v2 d
-          WHERE (d.og_id = s.og_id)
-          ORDER BY d.ext_num DESC
-         LIMIT 1), 'Awaiting Status'::text) AS dna_extraction_status,
-    s.ilmn AS illumina_sequencing,
-        CASE
-            WHEN (s.illumina_sequencing = 'N'::text) THEN ''::text
-            ELSE COALESCE(( SELECT i.ilmn_status
-               FROM public.illumina_library_pre_v2 i
-              WHERE ((i.og_id = s.og_id) AND ((i.status_overwrite)::text = 'Y'::text))
-              ORDER BY i.ilmn_num DESC
-             LIMIT 1), ( SELECT i.ilmn_status
-               FROM public.illumina_library_pre_v2 i
-              WHERE (i.og_id = s.og_id)
-              ORDER BY i.ilmn_num DESC
-             LIMIT 1), 'Awaiting Status'::text)
-        END AS illumina_status,
-    s.hifi AS hifi_sequencing,
-        CASE
-            WHEN (s.hifi_sequencing = 'N'::text) THEN ''::text
-            ELSE COALESCE(( SELECT p.pacb_status
-               FROM public.pacbio_library_pre_v2 p
-              WHERE ((p.og_id = s.og_id) AND ((p.status_overwrite)::text = 'Y'::text))
-              ORDER BY p.pacb_num DESC
-             LIMIT 1), ( SELECT p.pacb_status
-               FROM public.pacbio_library_pre_v2 p
-              WHERE (p.og_id = s.og_id)
-              ORDER BY p.pacb_num DESC
-             LIMIT 1), 'Awaiting Status'::text)
-        END AS pacbio_status,
-    s.hic AS hic_sequencing,
-        CASE
-            WHEN (s.hic_sequencing = 'N'::text) THEN ''::text
-            ELSE COALESCE(( SELECT h.hic_status
-               FROM public.hic_library_pre_v2 h
-              WHERE ((h.og_id = s.og_id) AND ((h.status_overwrite)::text = 'Y'::text))
-              ORDER BY h.hic_num DESC
-             LIMIT 1), ( SELECT h.hic_status
-               FROM public.hic_library_pre_v2 h
-              WHERE (h.og_id = s.og_id)
-              ORDER BY h.hic_num DESC
-             LIMIT 1), 'Awaiting Status'::text)
-        END AS hic_status,
-    s.nano AS nanopore_sequencing,
-        CASE
-            WHEN (s.nanopore_sequencing = 'N'::text) THEN ''::text
-            ELSE COALESCE(( SELECT o.ont_status
-               FROM public.ont_library_pre_v2 o
-              WHERE ((o.og_id = s.og_id) AND ((o.status_overwrite)::text = 'Y'::text))
-              ORDER BY o.ont_num DESC
-             LIMIT 1), ( SELECT o.ont_status
-               FROM public.ont_library_pre_v2 o
-              WHERE (o.og_id = s.og_id)
-              ORDER BY o.ont_num DESC
-             LIMIT 1), 'Awaiting Status'::text)
-        END AS nanopore_status,
-    s.rna AS rna_extraction,
-        CASE
-            WHEN (s.rna_extraction = 'N'::text) THEN ''::text
-            ELSE COALESCE(( SELECT r.status
-               FROM public.rna_extraction_pre_v2 r
-              WHERE ((r.og_id = s.og_id) AND ((r.status_overwrite)::text = 'Y'::text))
-              ORDER BY r.ext_num DESC
-             LIMIT 1), ( SELECT r.status
-               FROM public.rna_extraction_pre_v2 r
-              WHERE (r.og_id = s.og_id)
-              ORDER BY r.ext_num DESC
-             LIMIT 1), 'Awaiting Status'::text)
-        END AS rna_extraction_status,
-    s.ilrna AS rna_ilmn_sequencing,
-        CASE
-            WHEN (s.rna_ilmn_sequencing = 'N'::text) THEN ''::text
-            ELSE COALESCE(( SELECT ri.rna_status
-               FROM public.rna_library_ilmn_pre_v2 ri
-              WHERE ((ri.og_id = s.og_id) AND ((ri.status_overwrite)::text = 'Y'::text))
-              ORDER BY ri.rna_num DESC
-             LIMIT 1), ( SELECT ri.rna_status
-               FROM public.rna_library_ilmn_pre_v2 ri
-              WHERE (ri.og_id = s.og_id)
-              ORDER BY ri.rna_num DESC
-             LIMIT 1), 'Awaiting Status'::text)
-        END AS rna_ilmn_status,
-    s.rna_kinnex_sequencing,
-        CASE
-            WHEN (s.rna_kinnex_sequencing = 'N'::text) THEN ''::character varying
-            ELSE COALESCE(( SELECT rk.rna_status
-               FROM public.rna_library_kinx_pre_v2 rk
-              WHERE ((rk.og_id = s.og_id) AND ((rk.status_overwrite)::text = 'Y'::text))
-              ORDER BY rk.rna_num DESC
-             LIMIT 1), ( SELECT rk.rna_status
-               FROM public.rna_library_kinx_pre_v2 rk
-              WHERE (rk.og_id = s.og_id)
-              ORDER BY rk.rna_num DESC
-             LIMIT 1), 'Awaiting Status'::character varying)
-        END AS rna_kinnex_status,
-    ( SELECT string_agg(DISTINCT lv.validated_species_name, ', '::text ORDER BY lv.validated_species_name) AS string_agg
-           FROM public.lca_validation_pre_v2 lv
-          WHERE ((lv.og_id = s.og_id) AND (lv.tech = 'ilmn'::text) AND (lv.validated_species_name IS NOT NULL) AND (lv.validated_species_name <> ''::text))) AS ilmn_validated_species_name,
-    ( SELECT string_agg(DISTINCT lv.validated_species_name, ', '::text ORDER BY lv.validated_species_name) AS string_agg
-           FROM public.lca_validation_pre_v2 lv
-          WHERE ((lv.og_id = s.og_id) AND (lv.tech = 'hifi'::text) AND (lv.validated_species_name IS NOT NULL) AND (lv.validated_species_name <> ''::text))) AS hifi_validated_species_name,
-    ( SELECT string_agg(DISTINCT lv.validated_species_name, ', '::text ORDER BY lv.validated_species_name) AS string_agg
-           FROM public.lca_validation_pre_v2 lv
-          WHERE ((lv.og_id = s.og_id) AND (lv.tech = 'hic'::text) AND (lv.validated_species_name IS NOT NULL) AND (lv.validated_species_name <> ''::text))) AS hic_validated_species_name,
-    s.field_id,
-    s.nominal_species_id,
-    s.common_name,
-    s.collector,
-    s.contact,
-    s.summary_comments
-   FROM public.sample_pre_v2 s;
+CREATE VIEW public.v_dna_extraction_browse AS
+ SELECT s.og_num,
+    t.og_id,
+    d.tissue_id,
+    d.dna_id,
+    d.ext_num,
+    (d.ext_num = max(d.ext_num) OVER (PARTITION BY d.tissue_id)) AS is_latest,
+    d.status,
+    d.status_overwrite,
+    d.extraction_method,
+    d.extraction_date,
+    d.extraction_batch_id,
+    d.qubit_conc,
+    d.total_yield,
+    d.av_size,
+    d.extraction_qc,
+    d.extract_plate,
+    d.extract_plate_well,
+    d.comment
+   FROM ((public.dna_extraction d
+     JOIN public.tissue t ON ((t.tissue_id = d.tissue_id)))
+     JOIN public.sample s ON ((s.og_id = t.og_id)));
 
 
 --
--- Name: VIEW summary_pre_v2; Type: COMMENT; Schema: public; Owner: -
+-- Name: VIEW v_dna_extraction_browse; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.summary_pre_v2 IS 'DEPRECATED 2026-10-13 by the v2 cutover migration: superseded by v2.summary. Kept for rollback until V.6. ';
+COMMENT ON VIEW public.v_dna_extraction_browse IS 'DNA extractions with og_id and is_latest, neither of which is stored on the base table.';
+
+
+--
+-- Name: COLUMN v_dna_extraction_browse.is_latest; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_dna_extraction_browse.is_latest IS 'True when this row has the highest ext_num for its tissue. A faithful translation of the workbook''s Latest formula, MAX(#) per parent — including its behaviour on ties, which is why unique(tissue_id, ext_num) matters.';
 
 
 --
@@ -3227,9 +3219,519 @@ CREATE VIEW public.v_genome_size_comparison AS
     a.is_refseq,
     a.is_representative
    FROM (((public.draft_genomes d
-     JOIN v2.sample s ON ((s.og_id = d.og_id)))
+     JOIN public.sample s ON ((s.og_id = d.og_id)))
      JOIN public.species sp ON ((s.nominal_species_id = sp.species)))
      LEFT JOIN public.species_ncbi_assembly a ON (((a.species = sp.species) AND a.is_chosen)));
+
+
+--
+-- Name: v_hic_library_browse; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_hic_library_browse AS
+ SELECT s.og_num,
+    t.og_id,
+    y.tissue_id,
+    h.lysate_id,
+    h.hic_library_tube_id,
+    h.hic_num,
+    (h.hic_num = max(h.hic_num) OVER (PARTITION BY h.lysate_id)) AS is_latest,
+    h.hic_status,
+    h.status_overwrite,
+    h.library_method,
+    h.processing_notes,
+    h.library_date,
+    h.library_id,
+    y.prox_ligation_conc,
+    h.prox_ligation_conc AS prox_ligation_conc_legacy,
+    h.purified_dna_total,
+    h.index_set,
+    h.index_i5,
+    h.index_i7,
+    h.library_conc,
+    h.library_yield,
+    h.library_size,
+    h.pcr_dup_read_pairs,
+    h.nodup_cis_read_pairs_1kb,
+    h.expected_distinct_30m_reads,
+    h.hic_comments
+   FROM (((public.hic_library h
+     JOIN public.hic_lysate y ON ((y.lysate_id = h.lysate_id)))
+     JOIN public.tissue t ON ((t.tissue_id = y.tissue_id)))
+     JOIN public.sample s ON ((s.og_id = t.og_id)));
+
+
+--
+-- Name: VIEW v_hic_library_browse; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.v_hic_library_browse IS 'Hi-C libraries with og_id and is_latest. Exposes the lysate proximity-ligation value as prox_ligation_conc and the legacy library-level one separately.';
+
+
+--
+-- Name: v_hic_lysate_browse; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_hic_lysate_browse AS
+ SELECT s.og_num,
+    t.og_id,
+    y.tissue_id,
+    y.lysate_id,
+    y.lysate_num,
+    (y.lysate_num = max(y.lysate_num) OVER (PARTITION BY y.tissue_id)) AS is_latest,
+    y.lysate_status,
+    y.status_overwrite,
+    y.lysate_method,
+    y.lysate_prep_date,
+    y.lysate_batch_id,
+    y.lysate_conc,
+    y.total_lysate,
+    y.lysate_cde,
+    y.prox_ligation_date,
+    y.prox_ligation_conc,
+    y.prox_ligation_yield,
+    y.lysate_comments
+   FROM ((public.hic_lysate y
+     JOIN public.tissue t ON ((t.tissue_id = y.tissue_id)))
+     JOIN public.sample s ON ((s.og_id = t.og_id)));
+
+
+--
+-- Name: VIEW v_hic_lysate_browse; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.v_hic_lysate_browse IS 'Hi-C lysates with og_id and is_latest, including the live proximity-ligation columns.';
+
+
+--
+-- Name: v_illumina_library_browse; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_illumina_library_browse AS
+ SELECT s.og_num,
+    t.og_id,
+    d.tissue_id,
+    i.dna_id,
+    i.illumina_library_tube_id,
+    i.ilmn_num,
+    (i.ilmn_num = max(i.ilmn_num) OVER (PARTITION BY i.dna_id)) AS is_latest,
+    i.ilmn_status,
+    i.status_overwrite,
+    i.library_method,
+    i.prep_automation,
+    i.library_date,
+    i.library_id,
+    i.library_plate_well,
+    i.index_plate,
+    i.index_set,
+    i.index_well,
+    i.index_idx,
+    i.library_qubit_conc,
+    i.il_comments
+   FROM (((public.illumina_library i
+     JOIN public.dna_extraction d ON ((d.dna_id = i.dna_id)))
+     JOIN public.tissue t ON ((t.tissue_id = d.tissue_id)))
+     JOIN public.sample s ON ((s.og_id = t.og_id)));
+
+
+--
+-- Name: VIEW v_illumina_library_browse; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.v_illumina_library_browse IS 'Illumina DNA libraries with og_id and is_latest.';
+
+
+--
+-- Name: v_library_browse; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_library_browse AS
+ SELECT s.og_num,
+    t.og_id,
+    t.tissue_id,
+    l.library_tube_id,
+    l.library_type,
+    COALESCE(l.dna_id, l.rna_id, l.lysate_id) AS parent_id,
+    l.dna_id,
+    l.rna_id,
+    l.lysate_id
+   FROM (((((public.library l
+     LEFT JOIN public.dna_extraction d ON ((d.dna_id = l.dna_id)))
+     LEFT JOIN public.rna_extraction r ON ((r.rna_id = l.rna_id)))
+     LEFT JOIN public.hic_lysate y ON ((y.lysate_id = l.lysate_id)))
+     JOIN public.tissue t ON ((t.tissue_id = COALESCE(d.tissue_id, r.tissue_id, y.tissue_id))))
+     JOIN public.sample s ON ((s.og_id = t.og_id)));
+
+
+--
+-- Name: VIEW v_library_browse; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.v_library_browse IS 'All libraries of every technology, one row each, with og_id resolved through whichever parent chain applies. The registry made browsable.';
+
+
+--
+-- Name: v_ont_library_browse; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_ont_library_browse AS
+ SELECT s.og_num,
+    t.og_id,
+    d.tissue_id,
+    o.dna_id,
+    o.ont_library_tube_id,
+    o.ont_num,
+    (o.ont_num = max(o.ont_num) OVER (PARTITION BY o.dna_id, o.library_method)) AS is_latest,
+    o.ont_status,
+    o.status_overwrite,
+    o.library_method,
+    o.library_type,
+    o.library_date,
+    o.library_id,
+    o.est_loading_size,
+    o.ont_comments
+   FROM (((public.ont_library o
+     JOIN public.dna_extraction d ON ((d.dna_id = o.dna_id)))
+     JOIN public.tissue t ON ((t.tissue_id = d.tissue_id)))
+     JOIN public.sample s ON ((s.og_id = t.og_id)));
+
+
+--
+-- Name: VIEW v_ont_library_browse; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.v_ont_library_browse IS 'ONT libraries with og_id and is_latest. is_latest is per kit (library_method), because the lab numbers attempts per kit.';
+
+
+--
+-- Name: v_pacbio_library_browse; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_pacbio_library_browse AS
+ SELECT s.og_num,
+    t.og_id,
+    d.tissue_id,
+    p.dna_id,
+    p.pacbio_library_tube_id,
+    p.pacb_num,
+    (p.pacb_num = max(p.pacb_num) OVER (PARTITION BY p.dna_id)) AS is_latest,
+    p.pacb_status,
+    p.status_overwrite,
+    p.dna_treatment,
+    p.sre_kit,
+    p.post_sre_conc,
+    p.final_pre_library_conc,
+    p.shear_femtol_id,
+    p.shear_av_size,
+    p.library_method,
+    p.prep_automation,
+    p.library_date,
+    p.library_id,
+    p.index_well,
+    p.barcode,
+    p.seq_femto_id,
+    p.seq_av_size,
+    p.library_conc,
+    p.comment
+   FROM (((public.pacbio_library p
+     JOIN public.dna_extraction d ON ((d.dna_id = p.dna_id)))
+     JOIN public.tissue t ON ((t.tissue_id = d.tissue_id)))
+     JOIN public.sample s ON ((s.og_id = t.og_id)));
+
+
+--
+-- Name: VIEW v_pacbio_library_browse; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.v_pacbio_library_browse IS 'PacBio HiFi libraries with og_id and is_latest.';
+
+
+--
+-- Name: v_quarantine_displaced; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_quarantine_displaced AS
+ SELECT import_quarantine.source_table,
+    import_quarantine.source_row_key AS displaced_key,
+    import_quarantine.violation_detail AS replaced_by,
+    import_quarantine.first_seen AS displaced_at,
+    import_quarantine.raw_row
+   FROM public.import_quarantine
+  WHERE ((import_quarantine.resolved_at IS NULL) AND (import_quarantine.violation_type = 'displaced'::text))
+  ORDER BY import_quarantine.first_seen DESC, import_quarantine.source_table, import_quarantine.source_row_key;
+
+
+--
+-- Name: VIEW v_quarantine_displaced; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.v_quarantine_displaced IS 'Seated rows import_v2.py deleted because the workbook assigned their attempt slot to another tube ID. raw_row holds the deleted row in full.';
+
+
+--
+-- Name: v_quarantine_open; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_quarantine_open AS
+ SELECT import_quarantine.source_table,
+    import_quarantine.violation_type,
+    count(*) AS rows_blocked,
+    min(import_quarantine.first_seen) AS oldest,
+    max(import_quarantine.last_seen) AS most_recent
+   FROM public.import_quarantine
+  WHERE ((import_quarantine.resolved_at IS NULL) AND (import_quarantine.violation_type <> 'displaced'::text))
+  GROUP BY import_quarantine.source_table, import_quarantine.violation_type
+  ORDER BY (count(*)) DESC, import_quarantine.source_table, import_quarantine.violation_type;
+
+
+--
+-- Name: VIEW v_quarantine_open; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.v_quarantine_open IS 'One line per (table, violation) still blocking rows. The lab-facing summary of what needs fixing. Excludes displaced rows, which block nothing; see v_quarantine_displaced.';
+
+
+--
+-- Name: v_rna_extraction_browse; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_rna_extraction_browse AS
+ SELECT s.og_num,
+    t.og_id,
+    r.tissue_id,
+    r.rna_id,
+    r.ext_num,
+    (r.ext_num = max(r.ext_num) OVER (PARTITION BY r.tissue_id)) AS is_latest,
+    r.status,
+    r.status_overwrite,
+    r.extraction_method,
+    r.extraction_date,
+    r.extraction_batch_id,
+    r.qubit_conc,
+    r.total_yield,
+    r.rna_dv200,
+    r.rin,
+    r.gdna_over_7kb_perc,
+    r.extraction_qc,
+    r.comment
+   FROM ((public.rna_extraction r
+     JOIN public.tissue t ON ((t.tissue_id = r.tissue_id)))
+     JOIN public.sample s ON ((s.og_id = t.og_id)));
+
+
+--
+-- Name: VIEW v_rna_extraction_browse; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.v_rna_extraction_browse IS 'RNA extractions with og_id and is_latest.';
+
+
+--
+-- Name: v_rna_library_ilmn_browse; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_rna_library_ilmn_browse AS
+ SELECT s.og_num,
+    t.og_id,
+    r.tissue_id,
+    x.rna_id,
+    x.rna_library_tube_id,
+    x.rna_num,
+    (x.rna_num = max(x.rna_num) OVER (PARTITION BY x.rna_id, x.library_method)) AS is_latest,
+    x.rna_status,
+    x.status_overwrite,
+    x.library_method,
+    x.library_date,
+    x.library_id,
+    x.library_size,
+    x.perc_product,
+    x.library_qubit_conc,
+    x.library_molarity,
+    x.index_set,
+    x.index_well,
+    x.index_inx,
+    x.final_plate_name,
+    x.final_plate_well,
+    x.well_position,
+    x.comments
+   FROM (((public.rna_library_ilmn x
+     JOIN public.rna_extraction r ON ((r.rna_id = x.rna_id)))
+     JOIN public.tissue t ON ((t.tissue_id = r.tissue_id)))
+     JOIN public.sample s ON ((s.og_id = t.og_id)));
+
+
+--
+-- Name: VIEW v_rna_library_ilmn_browse; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.v_rna_library_ilmn_browse IS 'Illumina RNA libraries with og_id and is_latest. is_latest is per library_method, because the lab numbers attempts per method (mRNA _IL and ribosomal-depletion _dIL each start at #1).';
+
+
+--
+-- Name: v_rna_library_kinx_browse; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_rna_library_kinx_browse AS
+ SELECT s.og_num,
+    t.og_id,
+    r.tissue_id,
+    k.rna_id,
+    k.rna_library_tube_id,
+    k.rna_num,
+    (k.rna_num = max(k.rna_num) OVER (PARTITION BY k.rna_id)) AS is_latest,
+    k.rna_status,
+    k.status_overwrite,
+    k.library_method,
+    k.processing_comment,
+    k.synthesis_date,
+    k.part1_batch_id,
+    k.synthesis_conc,
+    k.part2_batch_id,
+    k.final_qubit_conc,
+    k.library_size,
+    k.kinnex_primers,
+    k.kinnex_barcode,
+    k.pool_id,
+    k.plate,
+    k.plate_location,
+    k.sequencing_sample_id,
+    k.comments
+   FROM (((public.rna_library_kinx k
+     JOIN public.rna_extraction r ON ((r.rna_id = k.rna_id)))
+     JOIN public.tissue t ON ((t.tissue_id = r.tissue_id)))
+     JOIN public.sample s ON ((s.og_id = t.og_id)));
+
+
+--
+-- Name: VIEW v_rna_library_kinx_browse; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.v_rna_library_kinx_browse IS 'PacBio Kinnex RNA libraries with og_id and is_latest.';
+
+
+--
+-- Name: v_sequencing_browse; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_sequencing_browse AS
+ SELECT b.og_num,
+    b.og_id,
+    b.tissue_id,
+    b.parent_id,
+    b.library_tube_id,
+    b.library_type,
+    q.sequencing_id,
+    q.status,
+    q.technology,
+    q.instrument,
+    q.run_date,
+    q.run_id,
+    q.seq_date,
+    q.cell_id,
+    q.smrt_num,
+    q.seq_type,
+    q.design_no,
+    q.hic_depth,
+    q.seq_comments
+   FROM (public.sequencing q
+     JOIN public.v_library_browse b ON ((b.library_tube_id = q.library_tube_id)));
+
+
+--
+-- Name: VIEW v_sequencing_browse; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.v_sequencing_browse IS 'Sequencing records with the full ancestor chain, through the library registry.';
+
+
+--
+-- Name: v_tissue_browse; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_tissue_browse AS
+ SELECT s.og_num,
+    s.og_id,
+    s.nominal_species_id,
+    t.tissue_id,
+    t.tissue,
+    t.preservation,
+    t.extracted,
+    t.freezer,
+    t.shelf,
+    t.rack,
+    t.level,
+    t.box,
+    t.comment
+   FROM (public.tissue t
+     JOIN public.sample s ON ((s.og_id = t.og_id)));
+
+
+--
+-- Name: VIEW v_tissue_browse; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.v_tissue_browse IS 'Tissues with specimen context. Read-only; import against v2.tissue.';
+
+
+--
+-- Name: value_conversions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.value_conversions (
+    source_table text NOT NULL,
+    row_key text NOT NULL,
+    column_name text NOT NULL,
+    raw_value text NOT NULL,
+    stored_value text,
+    rule text NOT NULL,
+    converted_by text NOT NULL,
+    first_seen timestamp with time zone DEFAULT now() NOT NULL,
+    last_seen timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT value_conversions_rule_check CHECK ((rule = ANY (ARRAY['no_value'::text, 'unit'::text, 'bound'::text, 'surface'::text, 'length'::text, 'dms'::text, 'excel_serial_coordinate'::text, 'dms_assumed_hemisphere'::text, 'length_split'::text, 'depth_range'::text])))
+);
+
+
+--
+-- Name: TABLE value_conversions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.value_conversions IS 'Values stored by a conversion rule (OceanOmics-Database/v2_value_rules.py) rather than as typed, with the raw text. Lets a rule''s effect be audited or undone, e.g. bounds stored as numbers. Written by import_v2.py and scripts/apply_value_rules.py. See migration 041.';
+
+
+--
+-- Name: COLUMN value_conversions.stored_value; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.value_conversions.stored_value IS 'What was stored, as text; NULL for rule no_value.';
+
+
+--
+-- Name: COLUMN value_conversions.converted_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.value_conversions.converted_by IS 'import_v2.py or apply_value_rules.py.';
+
+
+--
+-- Name: workbook_attempt_keys; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.workbook_attempt_keys (
+    source_table text NOT NULL,
+    row_key text NOT NULL,
+    parent_key text,
+    attempt_scope text,
+    attempt_num integer,
+    workbook_file text NOT NULL,
+    staged_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE workbook_attempt_keys; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.workbook_attempt_keys IS 'Attempt-keyed rows of the lab workbook, staged by import_v2.py --stage-attempt-keys so backfill_v2.sql can prefer the workbook''s side of a tie. Replaced wholesale on each staging run; workbook_file records which workbook.';
 
 
 --
@@ -3247,86 +3749,6 @@ ALTER TABLE ONLY public.og_workflow_notification ALTER COLUMN id SET DEFAULT nex
 
 
 --
--- Name: dna_extraction_pre_v2 DNA_Extraction_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.dna_extraction_pre_v2
-    ADD CONSTRAINT "DNA_Extraction_pkey" PRIMARY KEY (dna_id);
-
-
---
--- Name: hic_library_pre_v2 HiC_Library_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.hic_library_pre_v2
-    ADD CONSTRAINT "HiC_Library_pkey" PRIMARY KEY (hic_library_tube_id);
-
-
---
--- Name: hic_lysate_pre_v2 HiC_Lysate_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.hic_lysate_pre_v2
-    ADD CONSTRAINT "HiC_Lysate_pkey" PRIMARY KEY (lysate_id);
-
-
---
--- Name: illumina_library_pre_v2 Illumina_Library_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.illumina_library_pre_v2
-    ADD CONSTRAINT "Illumina_Library_pkey" PRIMARY KEY (illumina_library_tube_id);
-
-
---
--- Name: ont_library_pre_v2 ONT_Library_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.ont_library_pre_v2
-    ADD CONSTRAINT "ONT_Library_pkey" PRIMARY KEY (ont_library_tube_id);
-
-
---
--- Name: pacbio_library_pre_v2 PacBio_Library_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.pacbio_library_pre_v2
-    ADD CONSTRAINT "PacBio_Library_pkey" PRIMARY KEY (pacbio_library_tube_id);
-
-
---
--- Name: rna_extraction_pre_v2 RNA_Extraction_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.rna_extraction_pre_v2
-    ADD CONSTRAINT "RNA_Extraction_pkey" PRIMARY KEY (rna_id);
-
-
---
--- Name: rna_library_ilmn_pre_v2 RNA_Library_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.rna_library_ilmn_pre_v2
-    ADD CONSTRAINT "RNA_Library_pkey" PRIMARY KEY (rna_library_tube_id);
-
-
---
--- Name: sample_pre_v2 Sample_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.sample_pre_v2
-    ADD CONSTRAINT "Sample_pkey" PRIMARY KEY (og_id);
-
-
---
--- Name: sequencing_pre_v2 Sequencing_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.sequencing_pre_v2
-    ADD CONSTRAINT "Sequencing_pkey" PRIMARY KEY (sequencing_id);
-
-
---
 -- Name: species Species_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3335,27 +3757,11 @@ ALTER TABLE ONLY public.species
 
 
 --
--- Name: tissue_pre_v2 Tissue_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: blast_filtered_lca blast_filtered_lca_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.tissue_pre_v2
-    ADD CONSTRAINT "Tissue_pkey" PRIMARY KEY (tissue_id);
-
-
---
--- Name: blast_filtered_lca_pre_v2 blast_filtered_lca_new_pk; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.blast_filtered_lca_pre_v2
-    ADD CONSTRAINT blast_filtered_lca_new_pk PRIMARY KEY (og_id, tech, seq_date, code, annotation, match_sequence_id, region);
-
-
---
--- Name: blast_filtered_lca_SS260818 blast_filtered_lca_pk; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public."blast_filtered_lca_SS260818"
-    ADD CONSTRAINT blast_filtered_lca_pk PRIMARY KEY (og_id, tech, seq_date, code, annotation, match_sequence_id, region);
+ALTER TABLE ONLY public.blast_filtered_lca
+    ADD CONSTRAINT blast_filtered_lca_pkey PRIMARY KEY (og_id, tech, seq_date, code, annotation, match_sequence_id, region);
 
 
 --
@@ -3364,6 +3770,29 @@ ALTER TABLE ONLY public."blast_filtered_lca_SS260818"
 
 ALTER TABLE ONLY public.design_description
     ADD CONSTRAINT design_description_pk PRIMARY KEY (design_no);
+
+
+--
+-- Name: dna_extraction dna_extraction_attempt_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.dna_extraction
+    ADD CONSTRAINT dna_extraction_attempt_key UNIQUE (tissue_id, ext_num) DEFERRABLE;
+
+
+--
+-- Name: CONSTRAINT dna_extraction_attempt_key ON dna_extraction; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON CONSTRAINT dna_extraction_attempt_key ON public.dna_extraction IS 'The spreadsheet''s own "Latest" formula, MAX(#) per parent, is only correct if this holds - a tie marks two rows as latest. It fails on 5 of 2,223 rows here; those rows quarantine for the lab to renumber. (The "53 of 321 on 4.RNAIllumina" once cited as the worst case were not ties: that sheet numbers attempts per library method -- see rna_library_ilmn_attempt_key.) DEFERRABLE INITIALLY IMMEDIATE, as are all nine attempt keys: every statement still checks it, but import_v2.py defers it within one table step so that a renumber or a swap of two attempt numbers -- legitimate edits -- can land in a single upsert.';
+
+
+--
+-- Name: dna_extraction dna_extraction_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.dna_extraction
+    ADD CONSTRAINT dna_extraction_pkey PRIMARY KEY (dna_id);
 
 
 --
@@ -3431,6 +3860,38 @@ ALTER TABLE ONLY public.ena_validation_attempts
 
 
 --
+-- Name: hic_library hic_library_attempt_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hic_library
+    ADD CONSTRAINT hic_library_attempt_key UNIQUE (lysate_id, hic_num) DEFERRABLE;
+
+
+--
+-- Name: hic_library hic_library_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hic_library
+    ADD CONSTRAINT hic_library_pkey PRIMARY KEY (hic_library_tube_id);
+
+
+--
+-- Name: hic_lysate hic_lysate_attempt_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hic_lysate
+    ADD CONSTRAINT hic_lysate_attempt_key UNIQUE (tissue_id, lysate_num) DEFERRABLE;
+
+
+--
+-- Name: hic_lysate hic_lysate_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hic_lysate
+    ADD CONSTRAINT hic_lysate_pkey PRIMARY KEY (lysate_id);
+
+
+--
 -- Name: hic_reads_qc hic_reads_qc_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3447,51 +3908,83 @@ ALTER TABLE ONLY public.hifi_reads_qc
 
 
 --
--- Name: lca_pre_v2 lca_content_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: illumina_library illumina_library_attempt_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.lca_pre_v2
-    ADD CONSTRAINT lca_content_unique UNIQUE (og_id, tech, seq_date, code, annotation, region, content_hash);
-
-
---
--- Name: lca_raw_results_pre_v2 lca_raw_results_content_unique; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.lca_raw_results_pre_v2
-    ADD CONSTRAINT lca_raw_results_content_unique UNIQUE (og_id, tech, seq_date, code, annotation, sequence_region, accession_id, content_hash);
+ALTER TABLE ONLY public.illumina_library
+    ADD CONSTRAINT illumina_library_attempt_key UNIQUE (dna_id, ilmn_num) DEFERRABLE;
 
 
 --
--- Name: lca_raw_results_SS260818 lca_raw_results_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: illumina_library illumina_library_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public."lca_raw_results_SS260818"
-    ADD CONSTRAINT lca_raw_results_unique UNIQUE (og_id, tech, seq_date, code, annotation, sequence_region, lca_run_date, accession_id);
-
-
---
--- Name: lca_SS260818 lca_results_unique; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public."lca_SS260818"
-    ADD CONSTRAINT lca_results_unique UNIQUE (og_id, tech, seq_date, code, annotation, region, lca_run_date);
+ALTER TABLE ONLY public.illumina_library
+    ADD CONSTRAINT illumina_library_pkey PRIMARY KEY (illumina_library_tube_id);
 
 
 --
--- Name: lca_validation_pre_v2 lca_validation_new_pk; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: import_quarantine import_quarantine_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.lca_validation_pre_v2
-    ADD CONSTRAINT lca_validation_new_pk PRIMARY KEY (og_id, tech, seq_date, code, annotation);
+ALTER TABLE ONLY public.import_quarantine
+    ADD CONSTRAINT import_quarantine_pkey PRIMARY KEY (quarantine_id);
 
 
 --
--- Name: lca_validation_SS260818 lca_validation_pk; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: lca lca_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public."lca_validation_SS260818"
-    ADD CONSTRAINT lca_validation_pk PRIMARY KEY (og_id, tech, seq_date, code, annotation);
+ALTER TABLE ONLY public.lca
+    ADD CONSTRAINT lca_pkey PRIMARY KEY (og_id, tech, seq_date, code, annotation, region, content_hash);
+
+
+--
+-- Name: lca_raw_results lca_raw_results_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lca_raw_results
+    ADD CONSTRAINT lca_raw_results_pkey PRIMARY KEY (og_id, tech, seq_date, code, annotation, sequence_region, accession_id, content_hash);
+
+
+--
+-- Name: lca_validation lca_validation_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lca_validation
+    ADD CONSTRAINT lca_validation_pkey PRIMARY KEY (og_id, tech, seq_date, code, annotation);
+
+
+--
+-- Name: library library_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.library
+    ADD CONSTRAINT library_pkey PRIMARY KEY (library_tube_id);
+
+
+--
+-- Name: library library_tube_dna_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.library
+    ADD CONSTRAINT library_tube_dna_key UNIQUE (library_tube_id, dna_id);
+
+
+--
+-- Name: library library_tube_lysate_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.library
+    ADD CONSTRAINT library_tube_lysate_key UNIQUE (library_tube_id, lysate_id);
+
+
+--
+-- Name: library library_tube_rna_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.library
+    ADD CONSTRAINT library_tube_rna_key UNIQUE (library_tube_id, rna_id);
 
 
 --
@@ -3511,35 +4004,19 @@ ALTER TABLE ONLY public.master_species
 
 
 --
--- Name: mitogenome_data_SS260818 mitogenome_data_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: mitogenome_data mitogenome_data_annotation_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public."mitogenome_data_SS260818"
+ALTER TABLE ONLY public.mitogenome_data
+    ADD CONSTRAINT mitogenome_data_annotation_key UNIQUE (og_id, tech, seq_date, code, annotation);
+
+
+--
+-- Name: mitogenome_data mitogenome_data_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mitogenome_data
     ADD CONSTRAINT mitogenome_data_pkey PRIMARY KEY (og_id, tech, seq_date, code);
-
-
---
--- Name: mitogenome_data_pre_v2 mitogenome_data_pkey_1; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.mitogenome_data_pre_v2
-    ADD CONSTRAINT mitogenome_data_pkey_1 PRIMARY KEY (og_id, tech, seq_date, code);
-
-
---
--- Name: mitogenome_data_SS260818 mitogenome_data_unique; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public."mitogenome_data_SS260818"
-    ADD CONSTRAINT mitogenome_data_unique UNIQUE (og_id, tech, seq_date, code, annotation);
-
-
---
--- Name: mitogenome_data_pre_v2 mitogenome_data_unique_1; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.mitogenome_data_pre_v2
-    ADD CONSTRAINT mitogenome_data_unique_1 UNIQUE (og_id, tech, seq_date, code, annotation);
 
 
 --
@@ -3572,6 +4049,53 @@ ALTER TABLE ONLY public.og_workflow_notification
 
 ALTER TABLE ONLY public.og_workflow_recommendation
     ADD CONSTRAINT og_workflow_recommendation_pkey PRIMARY KEY (og_id);
+
+
+--
+-- Name: ont_library ont_library_attempt_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ont_library
+    ADD CONSTRAINT ont_library_attempt_key UNIQUE (dna_id, library_method, ont_num) DEFERRABLE;
+
+
+--
+-- Name: CONSTRAINT ont_library_attempt_key ON ont_library; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON CONSTRAINT ont_library_attempt_key ON public.ont_library IS 'Per method, not per DNA: the lab numbers each kit separately (Ligation Kit LSK, Ultra Long Kit ULK), so both are #1. True of all 3 DNAs with both in OceanGenomes_Database_261006.xlsx (Phase V.2, 2026-10-06). A NULL library_method never collides.';
+
+
+--
+-- Name: ont_library ont_library_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ont_library
+    ADD CONSTRAINT ont_library_pkey PRIMARY KEY (ont_library_tube_id);
+
+
+--
+-- Name: pacbio_library pacbio_library_attempt_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pacbio_library
+    ADD CONSTRAINT pacbio_library_attempt_key UNIQUE (dna_id, pacb_num) DEFERRABLE;
+
+
+--
+-- Name: pacbio_library pacbio_library_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pacbio_library
+    ADD CONSTRAINT pacbio_library_pkey PRIMARY KEY (pacbio_library_tube_id);
+
+
+--
+-- Name: prep_automation prep_automation_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.prep_automation
+    ADD CONSTRAINT prep_automation_pkey PRIMARY KEY (prep_automation);
 
 
 --
@@ -3615,10 +4139,57 @@ ALTER TABLE ONLY public.ref_genomes_assembly_uploads
 
 
 --
--- Name: rna_library_kinx_pre_v2 rna_library_kinx_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: rna_extraction rna_extraction_attempt_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.rna_library_kinx_pre_v2
+ALTER TABLE ONLY public.rna_extraction
+    ADD CONSTRAINT rna_extraction_attempt_key UNIQUE (tissue_id, ext_num) DEFERRABLE;
+
+
+--
+-- Name: rna_extraction rna_extraction_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rna_extraction
+    ADD CONSTRAINT rna_extraction_pkey PRIMARY KEY (rna_id);
+
+
+--
+-- Name: rna_library_ilmn rna_library_ilmn_attempt_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rna_library_ilmn
+    ADD CONSTRAINT rna_library_ilmn_attempt_key UNIQUE (rna_id, library_method, rna_num) DEFERRABLE;
+
+
+--
+-- Name: CONSTRAINT rna_library_ilmn_attempt_key ON rna_library_ilmn; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON CONSTRAINT rna_library_ilmn_attempt_key ON public.rna_library_ilmn IS 'Per method, not per RNA: the lab restarts # at 1 for each library method, so the first stranded-mRNA library (_IL) and the first ribosomal-depletion library (_dIL) from one RNA are both #1. True of all 51 RNAs with both in OceanGenomes_Database_261006.xlsx (Phase V.2, 2026-10-06). Keyed on (rna_id, rna_num) those were 56 false ties, and in 31 of the 59 across this table and ont_library the import kept a failed library over a sequenced one. A NULL library_method never collides.';
+
+
+--
+-- Name: rna_library_ilmn rna_library_ilmn_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rna_library_ilmn
+    ADD CONSTRAINT rna_library_ilmn_pkey PRIMARY KEY (rna_library_tube_id);
+
+
+--
+-- Name: rna_library_kinx rna_library_kinx_attempt_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rna_library_kinx
+    ADD CONSTRAINT rna_library_kinx_attempt_key UNIQUE (rna_id, rna_num) DEFERRABLE;
+
+
+--
+-- Name: rna_library_kinx rna_library_kinx_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rna_library_kinx
     ADD CONSTRAINT rna_library_kinx_pkey PRIMARY KEY (rna_library_tube_id);
 
 
@@ -3631,6 +4202,14 @@ ALTER TABLE ONLY public.rna_qc_kinnex
 
 
 --
+-- Name: sample sample_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sample
+    ADD CONSTRAINT sample_pkey PRIMARY KEY (og_id);
+
+
+--
 -- Name: schema_migrations schema_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3639,11 +4218,57 @@ ALTER TABLE ONLY public.schema_migrations
 
 
 --
+-- Name: sequencing sequencing_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sequencing
+    ADD CONSTRAINT sequencing_pkey PRIMARY KEY (sequencing_id);
+
+
+--
 -- Name: species_ncbi_assembly species_ncbi_assembly_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.species_ncbi_assembly
     ADD CONSTRAINT species_ncbi_assembly_pkey PRIMARY KEY (assembly_accession);
+
+
+--
+-- Name: tissue tissue_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tissue
+    ADD CONSTRAINT tissue_pkey PRIMARY KEY (tissue_id);
+
+
+--
+-- Name: value_conversions value_conversions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.value_conversions
+    ADD CONSTRAINT value_conversions_pkey PRIMARY KEY (source_table, row_key, column_name);
+
+
+--
+-- Name: workbook_attempt_keys workbook_attempt_keys_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workbook_attempt_keys
+    ADD CONSTRAINT workbook_attempt_keys_pkey PRIMARY KEY (source_table, row_key);
+
+
+--
+-- Name: blast_filtered_lca_og_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX blast_filtered_lca_og_id_idx ON public.blast_filtered_lca USING btree (og_id);
+
+
+--
+-- Name: dna_extraction_tissue_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX dna_extraction_tissue_id_idx ON public.dna_extraction USING btree (tissue_id);
 
 
 --
@@ -3689,80 +4314,17 @@ CREATE INDEX ena_validation_attempts_recorded_at_idx ON public.ena_validation_at
 
 
 --
--- Name: idx_dna_extraction_og_id; Type: INDEX; Schema: public; Owner: -
+-- Name: hic_library_lysate_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_dna_extraction_og_id ON public.dna_extraction_pre_v2 USING btree (og_id);
-
-
---
--- Name: idx_dna_extraction_tissue_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_dna_extraction_tissue_id ON public.dna_extraction_pre_v2 USING btree (tissue_id);
+CREATE INDEX hic_library_lysate_id_idx ON public.hic_library USING btree (lysate_id);
 
 
 --
--- Name: idx_hic_library_lysate_id; Type: INDEX; Schema: public; Owner: -
+-- Name: hic_lysate_tissue_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_hic_library_lysate_id ON public.hic_library_pre_v2 USING btree (lysate_id);
-
-
---
--- Name: idx_hic_library_og_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_hic_library_og_id ON public.hic_library_pre_v2 USING btree (og_id);
-
-
---
--- Name: idx_hic_lysate_tissue_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_hic_lysate_tissue_id ON public.hic_lysate_pre_v2 USING btree (tissue_id);
-
-
---
--- Name: idx_illumina_library_dna_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_illumina_library_dna_id ON public.illumina_library_pre_v2 USING btree (dna_id);
-
-
---
--- Name: idx_illumina_library_og_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_illumina_library_og_id ON public.illumina_library_pre_v2 USING btree (og_id);
-
-
---
--- Name: idx_ont_library_dna_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_ont_library_dna_id ON public.ont_library_pre_v2 USING btree (dna_id);
-
-
---
--- Name: idx_ont_library_og_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_ont_library_og_id ON public.ont_library_pre_v2 USING btree (og_id);
-
-
---
--- Name: idx_pacbio_library_dna_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_pacbio_library_dna_id ON public.pacbio_library_pre_v2 USING btree (dna_id);
-
-
---
--- Name: idx_pacbio_library_og_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_pacbio_library_og_id ON public.pacbio_library_pre_v2 USING btree (og_id);
+CREATE INDEX hic_lysate_tissue_id_idx ON public.hic_lysate USING btree (tissue_id);
 
 
 --
@@ -3773,101 +4335,94 @@ CREATE INDEX idx_ref_genomes_sra_uploads_og_id ON public.ref_genomes_sra_uploads
 
 
 --
--- Name: idx_rna_extraction_og_id; Type: INDEX; Schema: public; Owner: -
+-- Name: illumina_library_dna_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_rna_extraction_og_id ON public.rna_extraction_pre_v2 USING btree (og_id);
-
-
---
--- Name: idx_rna_extraction_tissue_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_rna_extraction_tissue_id ON public.rna_extraction_pre_v2 USING btree (tissue_id);
+CREATE INDEX illumina_library_dna_id_idx ON public.illumina_library USING btree (dna_id);
 
 
 --
--- Name: idx_rna_library_ilmn_og_id; Type: INDEX; Schema: public; Owner: -
+-- Name: import_quarantine_open_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_rna_library_ilmn_og_id ON public.rna_library_ilmn_pre_v2 USING btree (og_id);
-
-
---
--- Name: idx_rna_library_ilmn_rna_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_rna_library_ilmn_rna_id ON public.rna_library_ilmn_pre_v2 USING btree (rna_id);
+CREATE INDEX import_quarantine_open_idx ON public.import_quarantine USING btree (source_table, last_seen DESC) WHERE (resolved_at IS NULL);
 
 
 --
--- Name: idx_rna_library_kinx_og_id; Type: INDEX; Schema: public; Owner: -
+-- Name: import_quarantine_open_key; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_rna_library_kinx_og_id ON public.rna_library_kinx_pre_v2 USING btree (og_id);
-
-
---
--- Name: idx_rna_library_kinx_rna_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_rna_library_kinx_rna_id ON public.rna_library_kinx_pre_v2 USING btree (rna_id);
+CREATE UNIQUE INDEX import_quarantine_open_key ON public.import_quarantine USING btree (source_table, COALESCE(source_row_key, ''::text), violation_type) WHERE (resolved_at IS NULL);
 
 
 --
--- Name: idx_sequencing_hic_library_tube_id; Type: INDEX; Schema: public; Owner: -
+-- Name: lca_mitogenome_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_sequencing_hic_library_tube_id ON public.sequencing_pre_v2 USING btree (hic_library_tube_id);
-
-
---
--- Name: idx_sequencing_illumina_library_tube_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_sequencing_illumina_library_tube_id ON public.sequencing_pre_v2 USING btree (illumina_library_tube_id);
+CREATE INDEX lca_mitogenome_idx ON public.lca USING btree (og_id, tech, seq_date, code);
 
 
 --
--- Name: idx_sequencing_og_id; Type: INDEX; Schema: public; Owner: -
+-- Name: lca_og_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_sequencing_og_id ON public.sequencing_pre_v2 USING btree (og_id);
-
-
---
--- Name: idx_sequencing_ont_library_tube_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_sequencing_ont_library_tube_id ON public.sequencing_pre_v2 USING btree (ont_library_tube_id);
+CREATE INDEX lca_og_id_idx ON public.lca USING btree (og_id);
 
 
 --
--- Name: idx_sequencing_pacbio_library_tube_id; Type: INDEX; Schema: public; Owner: -
+-- Name: lca_raw_results_mito_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_sequencing_pacbio_library_tube_id ON public.sequencing_pre_v2 USING btree (pacbio_library_tube_id);
-
-
---
--- Name: idx_tissue_og_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_tissue_og_id ON public.tissue_pre_v2 USING btree (og_id);
+CREATE INDEX lca_raw_results_mito_idx ON public.lca_raw_results USING btree (og_id, tech, seq_date, code);
 
 
 --
--- Name: mitogenome_data_depth_method_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: lca_raw_results_og_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX mitogenome_data_depth_method_idx ON public."mitogenome_data_SS260818" USING btree (depth_method);
+CREATE INDEX lca_raw_results_og_id_idx ON public.lca_raw_results USING btree (og_id);
 
 
 --
--- Name: mitogenome_data_depth_method_idx_1; Type: INDEX; Schema: public; Owner: -
+-- Name: lca_validation_og_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX mitogenome_data_depth_method_idx_1 ON public.mitogenome_data_pre_v2 USING btree (depth_method);
+CREATE INDEX lca_validation_og_id_idx ON public.lca_validation USING btree (og_id);
+
+
+--
+-- Name: library_dna_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX library_dna_id_idx ON public.library USING btree (dna_id);
+
+
+--
+-- Name: library_lysate_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX library_lysate_id_idx ON public.library USING btree (lysate_id);
+
+
+--
+-- Name: library_rna_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX library_rna_id_idx ON public.library USING btree (rna_id);
+
+
+--
+-- Name: library_type_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX library_type_idx ON public.library USING btree (library_type);
+
+
+--
+-- Name: mitogenome_data_og_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX mitogenome_data_og_id_idx ON public.mitogenome_data USING btree (og_id);
 
 
 --
@@ -3885,10 +4440,52 @@ CREATE INDEX og_workflow_notification_created_at_idx ON public.og_workflow_notif
 
 
 --
+-- Name: ont_library_dna_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ont_library_dna_id_idx ON public.ont_library USING btree (dna_id);
+
+
+--
+-- Name: pacbio_library_dna_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX pacbio_library_dna_id_idx ON public.pacbio_library USING btree (dna_id);
+
+
+--
 -- Name: raw_qc_og_id_uq; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX raw_qc_og_id_uq ON public.raw_qc USING btree (og_id);
+
+
+--
+-- Name: rna_extraction_tissue_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX rna_extraction_tissue_id_idx ON public.rna_extraction USING btree (tissue_id);
+
+
+--
+-- Name: rna_library_ilmn_rna_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX rna_library_ilmn_rna_id_idx ON public.rna_library_ilmn USING btree (rna_id);
+
+
+--
+-- Name: rna_library_kinx_rna_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX rna_library_kinx_rna_id_idx ON public.rna_library_kinx USING btree (rna_id);
+
+
+--
+-- Name: sequencing_library_tube_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequencing_library_tube_id_idx ON public.sequencing USING btree (library_tube_id);
 
 
 --
@@ -3906,24 +4503,31 @@ CREATE INDEX species_ncbi_assembly_species_idx ON public.species_ncbi_assembly U
 
 
 --
--- Name: lca_pre_v2 lca_content_hash; Type: TRIGGER; Schema: public; Owner: -
+-- Name: tissue_og_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE TRIGGER lca_content_hash BEFORE INSERT OR UPDATE ON public.lca_pre_v2 FOR EACH ROW EXECUTE FUNCTION public.lca_set_content_hash();
-
-
---
--- Name: lca_raw_results_pre_v2 lca_raw_results_content_hash; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER lca_raw_results_content_hash BEFORE INSERT OR UPDATE ON public.lca_raw_results_pre_v2 FOR EACH ROW EXECUTE FUNCTION public.lca_set_content_hash();
+CREATE INDEX tissue_og_id_idx ON public.tissue USING btree (og_id);
 
 
 --
--- Name: rna_library_kinx_pre_v2 set_updated_at_rna_library_kinx; Type: TRIGGER; Schema: public; Owner: -
+-- Name: value_conversions_rule_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE TRIGGER set_updated_at_rna_library_kinx BEFORE UPDATE ON public.rna_library_kinx_pre_v2 FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE INDEX value_conversions_rule_idx ON public.value_conversions USING btree (rule);
+
+
+--
+-- Name: lca lca_content_hash; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER lca_content_hash BEFORE INSERT OR UPDATE ON public.lca FOR EACH ROW EXECUTE FUNCTION public.lca_set_content_hash();
+
+
+--
+-- Name: lca_raw_results lca_raw_results_content_hash; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER lca_raw_results_content_hash BEFORE INSERT OR UPDATE ON public.lca_raw_results FOR EACH ROW EXECUTE FUNCTION public.lca_set_content_hash();
 
 
 --
@@ -3941,10 +4545,19 @@ CREATE TRIGGER trg_lca_validation_report_view_upd INSTEAD OF UPDATE ON public.lc
 
 
 --
--- Name: lca_validation_report_view_SS260818 trg_lca_validation_report_view_upd; Type: TRIGGER; Schema: public; Owner: -
+-- Name: blast_filtered_lca blast_filtered_lca_og_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-CREATE TRIGGER trg_lca_validation_report_view_upd INSTEAD OF UPDATE ON public."lca_validation_report_view_SS260818" FOR EACH ROW EXECUTE FUNCTION public.lca_validation_report_view_upd();
+ALTER TABLE ONLY public.blast_filtered_lca
+    ADD CONSTRAINT blast_filtered_lca_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.sample(og_id);
+
+
+--
+-- Name: dna_extraction dna_extraction_tissue_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.dna_extraction
+    ADD CONSTRAINT dna_extraction_tissue_id_fkey FOREIGN KEY (tissue_id) REFERENCES public.tissue(tissue_id);
 
 
 --
@@ -3956,54 +4569,6 @@ ALTER TABLE ONLY public.ena_related_assemblies
 
 
 --
--- Name: illumina_library_pre_v2 fk_dna_id; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.illumina_library_pre_v2
-    ADD CONSTRAINT fk_dna_id FOREIGN KEY (dna_id) REFERENCES public.dna_extraction_pre_v2(dna_id);
-
-
---
--- Name: ont_library_pre_v2 fk_dna_id; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.ont_library_pre_v2
-    ADD CONSTRAINT fk_dna_id FOREIGN KEY (dna_id) REFERENCES public.dna_extraction_pre_v2(dna_id);
-
-
---
--- Name: pacbio_library_pre_v2 fk_dna_id; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.pacbio_library_pre_v2
-    ADD CONSTRAINT fk_dna_id FOREIGN KEY (dna_id) REFERENCES public.dna_extraction_pre_v2(dna_id);
-
-
---
--- Name: sequencing_pre_v2 fk_hic_library; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.sequencing_pre_v2
-    ADD CONSTRAINT fk_hic_library FOREIGN KEY (hic_library_tube_id) REFERENCES public.hic_library_pre_v2(hic_library_tube_id);
-
-
---
--- Name: sequencing_pre_v2 fk_illumina_library; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.sequencing_pre_v2
-    ADD CONSTRAINT fk_illumina_library FOREIGN KEY (illumina_library_tube_id) REFERENCES public.illumina_library_pre_v2(illumina_library_tube_id);
-
-
---
--- Name: hic_library_pre_v2 fk_lysate_id; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.hic_library_pre_v2
-    ADD CONSTRAINT fk_lysate_id FOREIGN KEY (lysate_id) REFERENCES public.hic_lysate_pre_v2(lysate_id);
-
-
---
 -- Name: master_species_genome fk_master_species_genome_species; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4012,107 +4577,171 @@ ALTER TABLE ONLY public.master_species_genome
 
 
 --
--- Name: lca_SS260818 fk_mitogenome; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: hic_library hic_library_lysate_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public."lca_SS260818"
-    ADD CONSTRAINT fk_mitogenome FOREIGN KEY (og_id, tech, seq_date, code) REFERENCES public."mitogenome_data_SS260818"(og_id, tech, seq_date, code);
-
-
---
--- Name: lca_raw_results_SS260818 fk_mitogenome; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public."lca_raw_results_SS260818"
-    ADD CONSTRAINT fk_mitogenome FOREIGN KEY (og_id, tech, seq_date, code) REFERENCES public."mitogenome_data_SS260818"(og_id, tech, seq_date, code);
+ALTER TABLE ONLY public.hic_library
+    ADD CONSTRAINT hic_library_lysate_id_fkey FOREIGN KEY (lysate_id) REFERENCES public.hic_lysate(lysate_id);
 
 
 --
--- Name: lca_pre_v2 fk_mitogenome_lca; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: hic_library hic_library_registry_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.lca_pre_v2
-    ADD CONSTRAINT fk_mitogenome_lca FOREIGN KEY (og_id, tech, seq_date, code) REFERENCES public.mitogenome_data_pre_v2(og_id, tech, seq_date, code);
-
-
---
--- Name: lca_raw_results_pre_v2 fk_mitogenome_lca_raw_results; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.lca_raw_results_pre_v2
-    ADD CONSTRAINT fk_mitogenome_lca_raw_results FOREIGN KEY (og_id, tech, seq_date, code) REFERENCES public.mitogenome_data_pre_v2(og_id, tech, seq_date, code);
+ALTER TABLE ONLY public.hic_library
+    ADD CONSTRAINT hic_library_registry_fkey FOREIGN KEY (hic_library_tube_id, lysate_id) REFERENCES public.library(library_tube_id, lysate_id);
 
 
 --
--- Name: lca_validation_pre_v2 fk_mitogenome_lca_validation; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: hic_lysate hic_lysate_tissue_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.lca_validation_pre_v2
-    ADD CONSTRAINT fk_mitogenome_lca_validation FOREIGN KEY (og_id, tech, seq_date, code) REFERENCES public.mitogenome_data_pre_v2(og_id, tech, seq_date, code);
-
-
---
--- Name: tissue_pre_v2 fk_og_id; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.tissue_pre_v2
-    ADD CONSTRAINT fk_og_id FOREIGN KEY (og_id) REFERENCES public.sample_pre_v2(og_id);
+ALTER TABLE ONLY public.hic_lysate
+    ADD CONSTRAINT hic_lysate_tissue_id_fkey FOREIGN KEY (tissue_id) REFERENCES public.tissue(tissue_id);
 
 
 --
--- Name: sequencing_pre_v2 fk_ont_library; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: illumina_library illumina_library_dna_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.sequencing_pre_v2
-    ADD CONSTRAINT fk_ont_library FOREIGN KEY (ont_library_tube_id) REFERENCES public.ont_library_pre_v2(ont_library_tube_id);
-
-
---
--- Name: sequencing_pre_v2 fk_pacbio_library; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.sequencing_pre_v2
-    ADD CONSTRAINT fk_pacbio_library FOREIGN KEY (pacbio_library_tube_id) REFERENCES public.pacbio_library_pre_v2(pacbio_library_tube_id);
+ALTER TABLE ONLY public.illumina_library
+    ADD CONSTRAINT illumina_library_dna_id_fkey FOREIGN KEY (dna_id) REFERENCES public.dna_extraction(dna_id);
 
 
 --
--- Name: rna_library_ilmn_pre_v2 fk_rna_id; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: illumina_library illumina_library_prep_automation_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.rna_library_ilmn_pre_v2
-    ADD CONSTRAINT fk_rna_id FOREIGN KEY (rna_id) REFERENCES public.rna_extraction_pre_v2(rna_id);
-
-
---
--- Name: dna_extraction_pre_v2 fk_tissue_id; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.dna_extraction_pre_v2
-    ADD CONSTRAINT fk_tissue_id FOREIGN KEY (tissue_id) REFERENCES public.tissue_pre_v2(tissue_id);
+ALTER TABLE ONLY public.illumina_library
+    ADD CONSTRAINT illumina_library_prep_automation_fkey FOREIGN KEY (prep_automation) REFERENCES public.prep_automation(prep_automation);
 
 
 --
--- Name: hic_lysate_pre_v2 fk_tissue_id; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: illumina_library illumina_library_registry_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.hic_lysate_pre_v2
-    ADD CONSTRAINT fk_tissue_id FOREIGN KEY (tissue_id) REFERENCES public.tissue_pre_v2(tissue_id);
-
-
---
--- Name: rna_extraction_pre_v2 fk_tissue_id; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.rna_extraction_pre_v2
-    ADD CONSTRAINT fk_tissue_id FOREIGN KEY (tissue_id) REFERENCES public.tissue_pre_v2(tissue_id);
+ALTER TABLE ONLY public.illumina_library
+    ADD CONSTRAINT illumina_library_registry_fkey FOREIGN KEY (illumina_library_tube_id, dna_id) REFERENCES public.library(library_tube_id, dna_id);
 
 
 --
--- Name: lca_validation_SS260818 lca_validation_mitogenome_data_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: lca lca_mitogenome_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public."lca_validation_SS260818"
-    ADD CONSTRAINT lca_validation_mitogenome_data_fk FOREIGN KEY (og_id, tech, seq_date, code) REFERENCES public."mitogenome_data_SS260818"(og_id, tech, seq_date, code);
+ALTER TABLE ONLY public.lca
+    ADD CONSTRAINT lca_mitogenome_fkey FOREIGN KEY (og_id, tech, seq_date, code) REFERENCES public.mitogenome_data(og_id, tech, seq_date, code);
+
+
+--
+-- Name: lca lca_og_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lca
+    ADD CONSTRAINT lca_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.sample(og_id);
+
+
+--
+-- Name: lca_raw_results lca_raw_results_mitogenome_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lca_raw_results
+    ADD CONSTRAINT lca_raw_results_mitogenome_fkey FOREIGN KEY (og_id, tech, seq_date, code) REFERENCES public.mitogenome_data(og_id, tech, seq_date, code);
+
+
+--
+-- Name: lca_raw_results lca_raw_results_og_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lca_raw_results
+    ADD CONSTRAINT lca_raw_results_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.sample(og_id);
+
+
+--
+-- Name: lca_validation lca_validation_mitogenome_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lca_validation
+    ADD CONSTRAINT lca_validation_mitogenome_fkey FOREIGN KEY (og_id, tech, seq_date, code) REFERENCES public.mitogenome_data(og_id, tech, seq_date, code);
+
+
+--
+-- Name: lca_validation lca_validation_og_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lca_validation
+    ADD CONSTRAINT lca_validation_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.sample(og_id);
+
+
+--
+-- Name: library library_dna_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.library
+    ADD CONSTRAINT library_dna_id_fkey FOREIGN KEY (dna_id) REFERENCES public.dna_extraction(dna_id);
+
+
+--
+-- Name: library library_lysate_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.library
+    ADD CONSTRAINT library_lysate_id_fkey FOREIGN KEY (lysate_id) REFERENCES public.hic_lysate(lysate_id);
+
+
+--
+-- Name: library library_rna_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.library
+    ADD CONSTRAINT library_rna_id_fkey FOREIGN KEY (rna_id) REFERENCES public.rna_extraction(rna_id);
+
+
+--
+-- Name: mitogenome_data mitogenome_data_og_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mitogenome_data
+    ADD CONSTRAINT mitogenome_data_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.sample(og_id);
+
+
+--
+-- Name: ont_library ont_library_dna_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ont_library
+    ADD CONSTRAINT ont_library_dna_id_fkey FOREIGN KEY (dna_id) REFERENCES public.dna_extraction(dna_id);
+
+
+--
+-- Name: ont_library ont_library_registry_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ont_library
+    ADD CONSTRAINT ont_library_registry_fkey FOREIGN KEY (ont_library_tube_id, dna_id) REFERENCES public.library(library_tube_id, dna_id);
+
+
+--
+-- Name: pacbio_library pacbio_library_dna_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pacbio_library
+    ADD CONSTRAINT pacbio_library_dna_id_fkey FOREIGN KEY (dna_id) REFERENCES public.dna_extraction(dna_id);
+
+
+--
+-- Name: pacbio_library pacbio_library_prep_automation_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pacbio_library
+    ADD CONSTRAINT pacbio_library_prep_automation_fkey FOREIGN KEY (prep_automation) REFERENCES public.prep_automation(prep_automation);
+
+
+--
+-- Name: pacbio_library pacbio_library_registry_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pacbio_library
+    ADD CONSTRAINT pacbio_library_registry_fkey FOREIGN KEY (pacbio_library_tube_id, dna_id) REFERENCES public.library(library_tube_id, dna_id);
 
 
 --
@@ -4124,6 +4753,54 @@ ALTER TABLE ONLY public.ref_genomes_sra_uploads
 
 
 --
+-- Name: rna_extraction rna_extraction_tissue_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rna_extraction
+    ADD CONSTRAINT rna_extraction_tissue_id_fkey FOREIGN KEY (tissue_id) REFERENCES public.tissue(tissue_id);
+
+
+--
+-- Name: rna_library_ilmn rna_library_ilmn_registry_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rna_library_ilmn
+    ADD CONSTRAINT rna_library_ilmn_registry_fkey FOREIGN KEY (rna_library_tube_id, rna_id) REFERENCES public.library(library_tube_id, rna_id);
+
+
+--
+-- Name: rna_library_ilmn rna_library_ilmn_rna_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rna_library_ilmn
+    ADD CONSTRAINT rna_library_ilmn_rna_id_fkey FOREIGN KEY (rna_id) REFERENCES public.rna_extraction(rna_id);
+
+
+--
+-- Name: rna_library_kinx rna_library_kinx_registry_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rna_library_kinx
+    ADD CONSTRAINT rna_library_kinx_registry_fkey FOREIGN KEY (rna_library_tube_id, rna_id) REFERENCES public.library(library_tube_id, rna_id);
+
+
+--
+-- Name: rna_library_kinx rna_library_kinx_rna_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rna_library_kinx
+    ADD CONSTRAINT rna_library_kinx_rna_id_fkey FOREIGN KEY (rna_id) REFERENCES public.rna_extraction(rna_id);
+
+
+--
+-- Name: sequencing sequencing_library_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sequencing
+    ADD CONSTRAINT sequencing_library_fkey FOREIGN KEY (library_tube_id) REFERENCES public.library(library_tube_id);
+
+
+--
 -- Name: species_ncbi_assembly species_ncbi_assembly_species_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4132,8 +4809,16 @@ ALTER TABLE ONLY public.species_ncbi_assembly
 
 
 --
+-- Name: tissue tissue_og_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tissue
+    ADD CONSTRAINT tissue_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.sample(og_id);
+
+
+--
 -- PostgreSQL database dump complete
 --
 
-\unrestrict B6VVfRqm5Wd1F04Hxrfh3zVozgrnRweCzufaX2vz2bbbe4jhjEoz9qF5dCNdKga
+\unrestrict aGHuynpE6OKn7NGFgmaVBcXCx52gQ5b2TyHDgg34g7MJnA7aNVtAHCGnBuIyyzZ
 

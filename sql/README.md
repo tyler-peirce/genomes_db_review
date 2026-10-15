@@ -6,8 +6,10 @@ evidence and for what that decision deliberately does not cover (the `v2` go/no-
 
 These files are the deployed system of record for the `oceanomics_genomes` schema: numbered,
 idempotent, hash-ledgered in `schema_migrations`, and applied with `bin/apply_migrations.py`.
-Sqitch is retired — `sqitch.conf` and `sqitch.plan` are gone, `migrations/` is historical, and
-the undeployed `v2` scaffold is reference DDL in [`../design/v2/`](../design/v2/).
+Sqitch is retired — `sqitch.conf` and `sqitch.plan` are gone, and `migrations/` is historical.
+The `v2` redesign was built by `035`–`046` in a schema `v2`, cut over by `045` (V.5) and moved
+into `public` by `048` (V.6, 2026-10-15). **Schema `v2` no longer exists.** Read `v2.` in
+`035`–`046` as "the table now in `public`".
 
 The working rule for anyone changing the schema is in
 [`../docs/database_change_checklist.md`](../docs/database_change_checklist.md) under
@@ -62,13 +64,16 @@ autocommit.
   carries its former verify script inside its own transaction, and those assert that the new
   tables and the quarantine are empty. That holds at creation, so the crash-recovery replay is
   safe, but a replay after `scripts/backfill_v2.sql` has run fails — loudly, and rolled back.
-  Once V.6 consolidates `v2` into `public`, fix forward rather than replaying.
-- **The `v2` cutover waits in `sql/cutover/`, unnumbered.** The runner reads only files
-  directly in `sql/`, and applies pending files in order, so a numbered cutover waiting for its
-  window would block every migration after it. On the day it is moved to the next free number
-  and applied like any other migration; `docs/phase_v5_plan.md` has the commands. It also
-  refuses to run unless the operator opts in with `PGOPTIONS="-c oceanomics.v2_cutover=go"`,
-  in case it is numbered early by mistake. Its replay is a no-op once applied.
+  Since `048` moved `v2` into `public`, they cannot replay at all: fix forward.
+- **A migration that must wait for a window waits in `sql/cutover/`, unnumbered.** The runner
+  reads only files directly in `sql/` and applies pending files in order, so a numbered file
+  waiting for its window would block every migration after it. On the day it is moved to the
+  next free number and applied like any other. `045` (V.5), `047` (Phase F) and `048` (V.6)
+  went this way, each with an opt-in `PGOPTIONS` setting so it could not run by accident;
+  `docs/phase_v5_plan.md` and `docs/phase_v6_plan.md` have the commands. `sql/cutover/` is
+  empty now.
+- **Reverting `045` requires reverting `048` first,** and `047`'s revert restores structure
+  only (the data is in `archive/snapshots_SS260818/` and `~/blast_filtered_lca_SS260818.csv.gz`).
 - **`000` cannot ledger itself.** The bootstrap file creates
   `schema_migrations`, and a file cannot contain its own SHA-256. On the live
   database it applies as a guarded no-op and is ledgered normally. On an empty

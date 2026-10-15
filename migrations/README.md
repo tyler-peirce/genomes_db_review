@@ -20,8 +20,8 @@ The live convention is numbered SQL files in [`../sql/`](../sql/), recorded in t
 | `sqitch_{deploy,revert,verify}_add_core_lookup_indexes.sql` | Sqitch (Aug 2026) | Superseded by `sql/030_core_lookup_indexes.sql`, which deployed this change extended from 19 to all 24 index candidates. **Do not deploy.** |
 | `sqitch_{deploy,revert,verify}_create_empty_lca_table_copies.sql` | Sqitch (Aug 2026) | Never deployed and no longer wanted — the August LCA rebuild took a different route. |
 
-The six Sqitch changes that built the `v2` scaffold are **not** here. They are live design work
-awaiting a decision and live in [`../design/v2/`](../design/v2/).
+The six Sqitch changes that built the `v2` scaffold are **not** here. They were ported to
+`sql/035`–`040` (Phase V.3) and are now the live schema in `public` (V.6, `048`).
 
 Sqitch itself was retired on 2026-10-05: it never ran against this database and left no
 registry schema. `sqitch.conf` and `sqitch.plan` are deleted. Do not reinstate it to deploy

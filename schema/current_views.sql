@@ -185,8 +185,8 @@ CREATE OR REPLACE VIEW public.goat_project_metadata_v1 AS
     CURRENT_DATE AS date_of_last_update,
     'ebp_species_goat_3.0'::text AS schema_version;;
 
--- View: public.goat_species_v1_pre_v2
-CREATE OR REPLACE VIEW public.goat_species_v1_pre_v2 AS
+-- View: public.goat_species_v1
+CREATE OR REPLACE VIEW public.goat_species_v1 AS
  SELECT s.ncbi_taxon_id,
     s.family,
     s.species,
@@ -197,21 +197,21 @@ CREATE OR REPLACE VIEW public.goat_species_v1_pre_v2 AS
         END AS target_list_status,
         CASE
             WHEN (EXISTS ( SELECT 1
-               FROM sample_pre_v2 samp
+               FROM sample samp
               WHERE samp.nominal_species_id = s.species)) THEN 'sample_collected'::text
             ELSE NULL::text
         END AS sampling_status,
         CASE
             WHEN (EXISTS ( SELECT 1
-               FROM sample_pre_v2 samp
+               FROM sample samp
               WHERE samp.nominal_species_id = s.species AND samp.ncbi_bioproject_id_lvl_3_hifi IS NOT NULL)) THEN 'submitted'::text
             WHEN (EXISTS ( SELECT 1
-               FROM sample_pre_v2 samp
+               FROM sample samp
                  JOIN ref_genomes rg ON rg.og_id = samp.og_id
               WHERE samp.nominal_species_id = s.species)) THEN 'in_assembly'::text
             WHEN (EXISTS ( SELECT 1
-               FROM sample_pre_v2 samp
-              WHERE samp.nominal_species_id = s.species AND (samp.pb_status = ANY (ARRAY['Library Prep - PacBio SMRTbell'::text, 'QC - Femto'::text, 'Sequenced'::text, 'Sequenced, SRE'::text, 'Sequence - PacBio'::text, 'Shearing'::text, 'SRE'::text, 'SRE - ULI'::text, 'ULI'::text])))) THEN 'in_lab'::text
+               FROM summary sm
+              WHERE sm.nominal_species_id = s.species AND (sm.pacbio_status = ANY (ARRAY['Library Prep - PacBio SMRTbell'::text, 'QC - Femto'::text, 'Sequenced'::text, 'Sequenced, SRE'::text, 'Sequence - PacBio'::text, 'Shearing'::text, 'SRE'::text, 'SRE - ULI'::text, 'ULI'::text])))) THEN 'in_lab'::text
             ELSE NULL::text
         END AS sequencing_status,
     NULL::text AS genome_publication,
@@ -221,8 +221,8 @@ CREATE OR REPLACE VIEW public.goat_species_v1_pre_v2 AS
         CASE
             WHEN s.species = ANY (ARRAY['Neophoca cinerea'::text, 'Careproctus sp.'::text, 'Lethrinus punctulatus'::text, 'Siphonognathus radiatus'::text, 'Dascyllus aruanus'::text, 'Carcharhinus galapagensis'::text]) THEN 'data_conflict'::text
             ELSE ( SELECT samp.collector
-               FROM sample_pre_v2 samp
-              WHERE samp.nominal_species_id = s.species AND samp.workflow::text = 'Reference'::text AND samp.collector IS NOT NULL
+               FROM sample samp
+              WHERE samp.nominal_species_id = s.species AND samp.workflow = 'Reference'::text AND samp.collector IS NOT NULL
              LIMIT 1)
         END AS collected_by,
     NULL::text AS priority_flags,
@@ -246,20 +246,6 @@ CREATE OR REPLACE VIEW public.lca_pivot_view AS
    FROM lca
   GROUP BY lca.og_id, lca.tech, lca.seq_date, lca.code, lca.annotation;;
 
--- View: public."lca_pivot_view_SS260818"
-CREATE OR REPLACE VIEW public."lca_pivot_view_SS260818" AS
- SELECT regexp_replace("lca_SS260818".og_id, 'OG'::text, ''::text, 'g'::text)::integer AS og_num,
-    "lca_SS260818".og_id AS og_id_lp,
-    "lca_SS260818".tech,
-    "lca_SS260818".seq_date,
-    "lca_SS260818".code,
-    "lca_SS260818".annotation,
-    max("lca_SS260818".species_in_lca) FILTER (WHERE "lca_SS260818".region = '12s'::text) AS s12_lca,
-    max("lca_SS260818".species_in_lca) FILTER (WHERE "lca_SS260818".region = '16s'::text) AS s16_lca,
-    max("lca_SS260818".species_in_lca) FILTER (WHERE "lca_SS260818".region = 'CO1'::text) AS co1_lca
-   FROM "lca_SS260818"
-  GROUP BY "lca_SS260818".og_id, "lca_SS260818".tech, "lca_SS260818".seq_date, "lca_SS260818".code, "lca_SS260818".annotation;;
-
 -- View: public.lca_results_view
 CREATE OR REPLACE VIEW public.lca_results_view AS
  SELECT lp.og_id_lp AS og_id_lr,
@@ -278,25 +264,6 @@ CREATE OR REPLACE VIEW public.lca_results_view AS
         END AS validation_status
    FROM lca_pivot_view lp
      JOIN sample s ON lp.og_id_lp = s.og_id;;
-
--- View: public."lca_results_view_SS260818"
-CREATE OR REPLACE VIEW public."lca_results_view_SS260818" AS
- SELECT lp.og_id_lp AS og_id_lr,
-    lp.tech,
-    lp.seq_date,
-    lp.code,
-    lp.annotation,
-    s.nominal_species_id,
-    lp.s12_lca,
-    lp.s16_lca,
-    lp.co1_lca,
-        CASE
-            WHEN s.nominal_species_id IS NULL THEN 'MISSING NOMINAL ID'::text
-            WHEN s.nominal_species_id = lp.s12_lca OR s.nominal_species_id = lp.s16_lca OR s.nominal_species_id = lp.co1_lca THEN s.nominal_species_id
-            ELSE 'INVESTIGATE'::text
-        END AS validation_status
-   FROM "lca_pivot_view_SS260818" lp
-     JOIN sample_pre_v2 s ON lp.og_id_lp = s.og_id;;
 
 -- View: public.lca_validation_report_view
 CREATE OR REPLACE VIEW public.lca_validation_report_view AS
@@ -351,62 +318,9 @@ CREATE OR REPLACE VIEW public.lca_validation_report_view AS
           GROUP BY lca.og_id, lca.tech, lca.seq_date, lca.code, lca.annotation) lca_tax ON lca_tax.og_id = lv.og_id AND lca_tax.tech = lv.tech AND lca_tax.seq_date = lv.seq_date AND lca_tax.code = lv.code AND lca_tax.annotation = lv.annotation
      LEFT JOIN sample_view sv ON lv.og_id = sv.og_id_sv;;
 
--- View: public."lca_validation_report_view_SS260818"
-CREATE OR REPLACE VIEW public."lca_validation_report_view_SS260818" AS
- SELECT regexp_replace(lv.og_id, 'OG'::text, ''::text, 'g'::text)::integer AS og_num,
-    sv.proj_id,
-    lv.og_id,
-    lv.tech,
-    lv.seq_date,
-    lv.code,
-    lv.annotation,
-    lp.s12_lca,
-    lp.s16_lca,
-    lp.co1_lca,
-    lr.validation_status,
-    sv.nom_id,
-    lv.validated_species_name,
-    lv.validator,
-    lv.validator_2,
-    lca_tax.lca_taxon_ranks,
-    lca_tax.lca_orders,
-    lca_tax.lca_families,
-    lca_tax.lca_genera,
-    lca_tax.lca_specific_epiphets,
-        CASE
-            WHEN flv.filtered_12s IS NOT NULL OR flv.filtered_16s IS NOT NULL OR flv.filtered_co1 IS NOT NULL THEN 'YES'::text
-            ELSE NULL::text
-        END AS nom_id_in_results,
-    lv.nominal_species_id_lca_comment AS comment,
-    lv.data_release,
-    flv.filtered_12s,
-    flv.filtered_16s,
-    flv.filtered_co1,
-    sv.photo_id_sv,
-    sv.photo_vouch_sv,
-    sv.specimen_vouch_sv,
-    sv.vouch_id_sv
-   FROM "lca_validation_SS260818" lv
-     LEFT JOIN "lca_pivot_view_SS260818" lp ON lp.og_id_lp = lv.og_id AND lp.tech = lv.tech AND lp.seq_date = lv.seq_date AND lp.code = lv.code::text AND lp.annotation = lv.annotation::text
-     LEFT JOIN "lca_results_view_SS260818" lr ON lr.og_id_lr = lv.og_id AND lr.tech = lv.tech AND lr.seq_date = lv.seq_date AND lr.code = lv.code::text AND lr.annotation = lv.annotation::text
-     LEFT JOIN filtered_lca_view flv ON flv.og_id_flv = lv.og_id AND flv.tech = lv.tech AND flv.seq_date = lv.seq_date AND flv.code = lv.code::text AND flv.annotation = lv.annotation::text
-     LEFT JOIN ( SELECT "lca_SS260818".og_id,
-            "lca_SS260818".tech,
-            "lca_SS260818".seq_date,
-            "lca_SS260818".code,
-            "lca_SS260818".annotation,
-            string_agg(DISTINCT "lca_SS260818".taxon_rank, ', '::text ORDER BY "lca_SS260818".taxon_rank) AS lca_taxon_ranks,
-            string_agg(DISTINCT "lca_SS260818"."order", ', '::text ORDER BY "lca_SS260818"."order") AS lca_orders,
-            string_agg(DISTINCT "lca_SS260818".family, ', '::text ORDER BY "lca_SS260818".family) AS lca_families,
-            string_agg(DISTINCT "lca_SS260818".genus, ', '::text ORDER BY "lca_SS260818".genus) AS lca_genera,
-            string_agg(DISTINCT "lca_SS260818".specific_epiphet, ', '::text ORDER BY "lca_SS260818".specific_epiphet) AS lca_specific_epiphets
-           FROM "lca_SS260818"
-          GROUP BY "lca_SS260818".og_id, "lca_SS260818".tech, "lca_SS260818".seq_date, "lca_SS260818".code, "lca_SS260818".annotation) lca_tax ON lca_tax.og_id = lv.og_id AND lca_tax.tech = lv.tech AND lca_tax.seq_date = lv.seq_date AND lca_tax.code = lv.code::text AND lca_tax.annotation = lv.annotation::text
-     LEFT JOIN sample_view sv ON lv.og_id = sv.og_id_sv;;
-
--- View: public.mitogenome_submission_view_pre_v2
-CREATE OR REPLACE VIEW public.mitogenome_submission_view_pre_v2 AS
- SELECT m.og_num,
+-- View: public.mitogenome_submission_view
+CREATE OR REPLACE VIEW public.mitogenome_submission_view AS
+ SELECT s.og_num,
     m.og_id,
     m.tech,
     m.seq_date,
@@ -430,9 +344,10 @@ CREATE OR REPLACE VIEW public.mitogenome_submission_view_pre_v2 AS
     e.submission_ready,
     l.validated_species_name,
     l.validator
-   FROM mitogenome_data_pre_v2 m
-     LEFT JOIN ena_validation_attempts e ON e.og_id = m.og_id AND e.tech = m.tech AND e.seq_date = m.seq_date AND e.code = m.code AND e.annotation = m.annotation::text
-     LEFT JOIN lca_validation_pre_v2 l ON l.og_id = m.og_id AND l.tech = m.tech AND l.seq_date = m.seq_date AND l.code::text = m.code AND l.annotation::text = m.annotation::text;;
+   FROM mitogenome_data m
+     LEFT JOIN sample s ON s.og_id = m.og_id
+     LEFT JOIN ena_validation_attempts e ON e.og_id = m.og_id AND e.tech = m.tech AND e.seq_date = m.seq_date AND e.code = m.code AND e.annotation = m.annotation
+     LEFT JOIN lca_validation l ON l.og_id = m.og_id AND l.tech = m.tech AND l.seq_date = m.seq_date AND l.code = m.code AND l.annotation = m.annotation;;
 
 -- View: public.sample_view
 CREATE OR REPLACE VIEW public.sample_view AS
@@ -448,135 +363,162 @@ CREATE OR REPLACE VIEW public.sample_view AS
            FROM lca_validation lv
           WHERE lv.og_id = s.og_id));;
 
--- View: public.summary_pre_v2
-CREATE OR REPLACE VIEW public.summary_pre_v2 AS
- SELECT regexp_replace(s.og_id, 'OG'::text, ''::text, 'g'::text)::integer AS og_num,
+-- View: public.summary
+CREATE OR REPLACE VIEW public.summary AS
+ SELECT s.og_num,
     s.og_id,
     s.project_id,
     s.workflow,
     s.priority,
     ( SELECT count(*) AS count
-           FROM tissue_pre_v2 t
+           FROM tissue t
           WHERE t.og_id = s.og_id) AS tissues,
     ( SELECT count(*) AS count
-           FROM dna_extraction_pre_v2 d
-          WHERE d.og_id = s.og_id AND d.status = 'Extracted'::text) AS extracted,
-    COALESCE(( SELECT d.status
-           FROM dna_extraction_pre_v2 d
-          WHERE d.og_id = s.og_id AND d.status_overwrite::text = 'Y'::text
-          ORDER BY d.ext_num DESC
-         LIMIT 1), ( SELECT d.status
-           FROM dna_extraction_pre_v2 d
-          WHERE d.og_id = s.og_id
-          ORDER BY d.ext_num DESC
-         LIMIT 1), 'Awaiting Status'::text) AS dna_extraction_status,
-    s.ilmn AS illumina_sequencing,
-        CASE
-            WHEN s.illumina_sequencing = 'N'::text THEN ''::text
-            ELSE COALESCE(( SELECT i.ilmn_status
-               FROM illumina_library_pre_v2 i
-              WHERE i.og_id = s.og_id AND i.status_overwrite::text = 'Y'::text
-              ORDER BY i.ilmn_num DESC
-             LIMIT 1), ( SELECT i.ilmn_status
-               FROM illumina_library_pre_v2 i
-              WHERE i.og_id = s.og_id
-              ORDER BY i.ilmn_num DESC
-             LIMIT 1), 'Awaiting Status'::text)
-        END AS illumina_status,
-    s.hifi AS hifi_sequencing,
-        CASE
-            WHEN s.hifi_sequencing = 'N'::text THEN ''::text
-            ELSE COALESCE(( SELECT p.pacb_status
-               FROM pacbio_library_pre_v2 p
-              WHERE p.og_id = s.og_id AND p.status_overwrite::text = 'Y'::text
-              ORDER BY p.pacb_num DESC
-             LIMIT 1), ( SELECT p.pacb_status
-               FROM pacbio_library_pre_v2 p
-              WHERE p.og_id = s.og_id
-              ORDER BY p.pacb_num DESC
-             LIMIT 1), 'Awaiting Status'::text)
-        END AS pacbio_status,
-    s.hic AS hic_sequencing,
-        CASE
-            WHEN s.hic_sequencing = 'N'::text THEN ''::text
-            ELSE COALESCE(( SELECT h.hic_status
-               FROM hic_library_pre_v2 h
-              WHERE h.og_id = s.og_id AND h.status_overwrite::text = 'Y'::text
-              ORDER BY h.hic_num DESC
-             LIMIT 1), ( SELECT h.hic_status
-               FROM hic_library_pre_v2 h
-              WHERE h.og_id = s.og_id
-              ORDER BY h.hic_num DESC
-             LIMIT 1), 'Awaiting Status'::text)
-        END AS hic_status,
-    s.nano AS nanopore_sequencing,
-        CASE
-            WHEN s.nanopore_sequencing = 'N'::text THEN ''::text
-            ELSE COALESCE(( SELECT o.ont_status
-               FROM ont_library_pre_v2 o
-              WHERE o.og_id = s.og_id AND o.status_overwrite::text = 'Y'::text
-              ORDER BY o.ont_num DESC
-             LIMIT 1), ( SELECT o.ont_status
-               FROM ont_library_pre_v2 o
-              WHERE o.og_id = s.og_id
-              ORDER BY o.ont_num DESC
-             LIMIT 1), 'Awaiting Status'::text)
-        END AS nanopore_status,
-    s.rna AS rna_extraction,
-        CASE
-            WHEN s.rna_extraction = 'N'::text THEN ''::text
-            ELSE COALESCE(( SELECT r.status
-               FROM rna_extraction_pre_v2 r
-              WHERE r.og_id = s.og_id AND r.status_overwrite::text = 'Y'::text
-              ORDER BY r.ext_num DESC
-             LIMIT 1), ( SELECT r.status
-               FROM rna_extraction_pre_v2 r
-              WHERE r.og_id = s.og_id
-              ORDER BY r.ext_num DESC
-             LIMIT 1), 'Awaiting Status'::text)
-        END AS rna_extraction_status,
-    s.ilrna AS rna_ilmn_sequencing,
-        CASE
-            WHEN s.rna_ilmn_sequencing = 'N'::text THEN ''::text
-            ELSE COALESCE(( SELECT ri.rna_status
-               FROM rna_library_ilmn_pre_v2 ri
-              WHERE ri.og_id = s.og_id AND ri.status_overwrite::text = 'Y'::text
-              ORDER BY ri.rna_num DESC
-             LIMIT 1), ( SELECT ri.rna_status
-               FROM rna_library_ilmn_pre_v2 ri
-              WHERE ri.og_id = s.og_id
-              ORDER BY ri.rna_num DESC
-             LIMIT 1), 'Awaiting Status'::text)
-        END AS rna_ilmn_status,
-    s.rna_kinnex_sequencing,
-        CASE
-            WHEN s.rna_kinnex_sequencing = 'N'::text THEN ''::character varying
-            ELSE COALESCE(( SELECT rk.rna_status
-               FROM rna_library_kinx_pre_v2 rk
-              WHERE rk.og_id = s.og_id AND rk.status_overwrite::text = 'Y'::text
-              ORDER BY rk.rna_num DESC
-             LIMIT 1), ( SELECT rk.rna_status
-               FROM rna_library_kinx_pre_v2 rk
-              WHERE rk.og_id = s.og_id
-              ORDER BY rk.rna_num DESC
-             LIMIT 1), 'Awaiting Status'::character varying)
-        END AS rna_kinnex_status,
+           FROM dna_extraction d
+             JOIN tissue t ON t.tissue_id = d.tissue_id
+          WHERE t.og_id = s.og_id AND d.status = 'Extracted'::text) AS extracted,
+    COALESCE(dna.status, 'Awaiting Status'::text) AS dna_extraction_status,
+    COALESCE(ilmn.status, 'Awaiting Status'::text) AS illumina_status,
+    COALESCE(pacb.status, 'Awaiting Status'::text) AS pacbio_status,
+    COALESCE(hic.status, 'Awaiting Status'::text) AS hic_status,
+    COALESCE(ont.status, 'Awaiting Status'::text) AS nanopore_status,
+    COALESCE(rna.status, 'Awaiting Status'::text) AS rna_extraction_status,
+    COALESCE(rilm.status, 'Awaiting Status'::text) AS rna_ilmn_status,
+    COALESCE(rkin.status, 'Awaiting Status'::text) AS rna_kinnex_status,
+    s.ilmn AS illumina_planned,
+    s.hifi AS hifi_planned,
+    s.hic AS hic_planned,
+    s.nano AS nanopore_planned,
+    s.rna AS rna_planned,
+    s.ilrna AS rna_ilmn_planned,
+    ( SELECT count(*) AS count
+           FROM illumina_library i
+             JOIN dna_extraction d ON d.dna_id = i.dna_id
+             JOIN tissue t ON t.tissue_id = d.tissue_id
+          WHERE t.og_id = s.og_id) AS illumina_actual,
+    ( SELECT count(*) AS count
+           FROM pacbio_library p
+             JOIN dna_extraction d ON d.dna_id = p.dna_id
+             JOIN tissue t ON t.tissue_id = d.tissue_id
+          WHERE t.og_id = s.og_id) AS hifi_actual,
+    ( SELECT count(*) AS count
+           FROM hic_library h
+             JOIN hic_lysate y ON y.lysate_id = h.lysate_id
+             JOIN tissue t ON t.tissue_id = y.tissue_id
+          WHERE t.og_id = s.og_id) AS hic_actual,
+    ( SELECT count(*) AS count
+           FROM ont_library o
+             JOIN dna_extraction d ON d.dna_id = o.dna_id
+             JOIN tissue t ON t.tissue_id = d.tissue_id
+          WHERE t.og_id = s.og_id) AS nanopore_actual,
+    ( SELECT count(*) AS count
+           FROM rna_extraction r
+             JOIN tissue t ON t.tissue_id = r.tissue_id
+          WHERE t.og_id = s.og_id) AS rna_actual,
+    ( SELECT count(*) AS count
+           FROM rna_library_ilmn x
+             JOIN rna_extraction r ON r.rna_id = x.rna_id
+             JOIN tissue t ON t.tissue_id = r.tissue_id
+          WHERE t.og_id = s.og_id) AS rna_ilmn_actual,
+    ( SELECT count(*) AS count
+           FROM rna_library_kinx k
+             JOIN rna_extraction r ON r.rna_id = k.rna_id
+             JOIN tissue t ON t.tissue_id = r.tissue_id
+          WHERE t.og_id = s.og_id) AS rna_kinnex_actual,
     ( SELECT string_agg(DISTINCT lv.validated_species_name, ', '::text ORDER BY lv.validated_species_name) AS string_agg
-           FROM lca_validation_pre_v2 lv
+           FROM lca_validation lv
           WHERE lv.og_id = s.og_id AND lv.tech = 'ilmn'::text AND lv.validated_species_name IS NOT NULL AND lv.validated_species_name <> ''::text) AS ilmn_validated_species_name,
     ( SELECT string_agg(DISTINCT lv.validated_species_name, ', '::text ORDER BY lv.validated_species_name) AS string_agg
-           FROM lca_validation_pre_v2 lv
+           FROM lca_validation lv
           WHERE lv.og_id = s.og_id AND lv.tech = 'hifi'::text AND lv.validated_species_name IS NOT NULL AND lv.validated_species_name <> ''::text) AS hifi_validated_species_name,
     ( SELECT string_agg(DISTINCT lv.validated_species_name, ', '::text ORDER BY lv.validated_species_name) AS string_agg
-           FROM lca_validation_pre_v2 lv
+           FROM lca_validation lv
           WHERE lv.og_id = s.og_id AND lv.tech = 'hic'::text AND lv.validated_species_name IS NOT NULL AND lv.validated_species_name <> ''::text) AS hic_validated_species_name,
     s.field_id,
     s.nominal_species_id,
     s.common_name,
     s.collector,
     s.contact,
-    s.summary_comments
-   FROM sample_pre_v2 s;;
+    s.comments
+   FROM sample s
+     LEFT JOIN LATERAL ( SELECT d.status
+           FROM dna_extraction d
+             JOIN tissue t ON t.tissue_id = d.tissue_id
+          WHERE t.og_id = s.og_id
+          ORDER BY d.status_overwrite DESC NULLS LAST, d.ext_num DESC
+         LIMIT 1) dna ON true
+     LEFT JOIN LATERAL ( SELECT i.ilmn_status AS status
+           FROM illumina_library i
+             JOIN dna_extraction d ON d.dna_id = i.dna_id
+             JOIN tissue t ON t.tissue_id = d.tissue_id
+          WHERE t.og_id = s.og_id
+          ORDER BY i.status_overwrite DESC NULLS LAST, i.ilmn_num DESC
+         LIMIT 1) ilmn ON true
+     LEFT JOIN LATERAL ( SELECT p.pacb_status AS status
+           FROM pacbio_library p
+             JOIN dna_extraction d ON d.dna_id = p.dna_id
+             JOIN tissue t ON t.tissue_id = d.tissue_id
+          WHERE t.og_id = s.og_id
+          ORDER BY p.status_overwrite DESC NULLS LAST, p.pacb_num DESC
+         LIMIT 1) pacb ON true
+     LEFT JOIN LATERAL ( SELECT h.hic_status AS status
+           FROM hic_library h
+             JOIN hic_lysate y ON y.lysate_id = h.lysate_id
+             JOIN tissue t ON t.tissue_id = y.tissue_id
+          WHERE t.og_id = s.og_id
+          ORDER BY h.status_overwrite DESC NULLS LAST, h.hic_num DESC
+         LIMIT 1) hic ON true
+     LEFT JOIN LATERAL ( SELECT o.ont_status AS status
+           FROM ont_library o
+             JOIN dna_extraction d ON d.dna_id = o.dna_id
+             JOIN tissue t ON t.tissue_id = d.tissue_id
+          WHERE t.og_id = s.og_id
+          ORDER BY o.status_overwrite DESC NULLS LAST, o.ont_num DESC
+         LIMIT 1) ont ON true
+     LEFT JOIN LATERAL ( SELECT r.status
+           FROM rna_extraction r
+             JOIN tissue t ON t.tissue_id = r.tissue_id
+          WHERE t.og_id = s.og_id
+          ORDER BY r.status_overwrite DESC NULLS LAST, r.ext_num DESC
+         LIMIT 1) rna ON true
+     LEFT JOIN LATERAL ( SELECT x.rna_status AS status
+           FROM rna_library_ilmn x
+             JOIN rna_extraction r ON r.rna_id = x.rna_id
+             JOIN tissue t ON t.tissue_id = r.tissue_id
+          WHERE t.og_id = s.og_id
+          ORDER BY x.status_overwrite DESC NULLS LAST, x.rna_num DESC
+         LIMIT 1) rilm ON true
+     LEFT JOIN LATERAL ( SELECT k.rna_status AS status
+           FROM rna_library_kinx k
+             JOIN rna_extraction r ON r.rna_id = k.rna_id
+             JOIN tissue t ON t.tissue_id = r.tissue_id
+          WHERE t.og_id = s.og_id
+          ORDER BY k.status_overwrite DESC NULLS LAST, k.rna_num DESC
+         LIMIT 1) rkin ON true;;
+
+-- View: public.v_dna_extraction_browse
+CREATE OR REPLACE VIEW public.v_dna_extraction_browse AS
+ SELECT s.og_num,
+    t.og_id,
+    d.tissue_id,
+    d.dna_id,
+    d.ext_num,
+    d.ext_num = max(d.ext_num) OVER (PARTITION BY d.tissue_id) AS is_latest,
+    d.status,
+    d.status_overwrite,
+    d.extraction_method,
+    d.extraction_date,
+    d.extraction_batch_id,
+    d.qubit_conc,
+    d.total_yield,
+    d.av_size,
+    d.extraction_qc,
+    d.extract_plate,
+    d.extract_plate_well,
+    d.comment
+   FROM dna_extraction d
+     JOIN tissue t ON t.tissue_id = d.tissue_id
+     JOIN sample s ON s.og_id = t.og_id;;
 
 -- View: public.v_genome_size_comparison
 CREATE OR REPLACE VIEW public.v_genome_size_comparison AS
@@ -598,4 +540,310 @@ CREATE OR REPLACE VIEW public.v_genome_size_comparison AS
      JOIN sample s ON s.og_id = d.og_id
      JOIN species sp ON s.nominal_species_id = sp.species
      LEFT JOIN species_ncbi_assembly a ON a.species = sp.species AND a.is_chosen;;
+
+-- View: public.v_hic_library_browse
+CREATE OR REPLACE VIEW public.v_hic_library_browse AS
+ SELECT s.og_num,
+    t.og_id,
+    y.tissue_id,
+    h.lysate_id,
+    h.hic_library_tube_id,
+    h.hic_num,
+    h.hic_num = max(h.hic_num) OVER (PARTITION BY h.lysate_id) AS is_latest,
+    h.hic_status,
+    h.status_overwrite,
+    h.library_method,
+    h.processing_notes,
+    h.library_date,
+    h.library_id,
+    y.prox_ligation_conc,
+    h.prox_ligation_conc AS prox_ligation_conc_legacy,
+    h.purified_dna_total,
+    h.index_set,
+    h.index_i5,
+    h.index_i7,
+    h.library_conc,
+    h.library_yield,
+    h.library_size,
+    h.pcr_dup_read_pairs,
+    h.nodup_cis_read_pairs_1kb,
+    h.expected_distinct_30m_reads,
+    h.hic_comments
+   FROM hic_library h
+     JOIN hic_lysate y ON y.lysate_id = h.lysate_id
+     JOIN tissue t ON t.tissue_id = y.tissue_id
+     JOIN sample s ON s.og_id = t.og_id;;
+
+-- View: public.v_hic_lysate_browse
+CREATE OR REPLACE VIEW public.v_hic_lysate_browse AS
+ SELECT s.og_num,
+    t.og_id,
+    y.tissue_id,
+    y.lysate_id,
+    y.lysate_num,
+    y.lysate_num = max(y.lysate_num) OVER (PARTITION BY y.tissue_id) AS is_latest,
+    y.lysate_status,
+    y.status_overwrite,
+    y.lysate_method,
+    y.lysate_prep_date,
+    y.lysate_batch_id,
+    y.lysate_conc,
+    y.total_lysate,
+    y.lysate_cde,
+    y.prox_ligation_date,
+    y.prox_ligation_conc,
+    y.prox_ligation_yield,
+    y.lysate_comments
+   FROM hic_lysate y
+     JOIN tissue t ON t.tissue_id = y.tissue_id
+     JOIN sample s ON s.og_id = t.og_id;;
+
+-- View: public.v_illumina_library_browse
+CREATE OR REPLACE VIEW public.v_illumina_library_browse AS
+ SELECT s.og_num,
+    t.og_id,
+    d.tissue_id,
+    i.dna_id,
+    i.illumina_library_tube_id,
+    i.ilmn_num,
+    i.ilmn_num = max(i.ilmn_num) OVER (PARTITION BY i.dna_id) AS is_latest,
+    i.ilmn_status,
+    i.status_overwrite,
+    i.library_method,
+    i.prep_automation,
+    i.library_date,
+    i.library_id,
+    i.library_plate_well,
+    i.index_plate,
+    i.index_set,
+    i.index_well,
+    i.index_idx,
+    i.library_qubit_conc,
+    i.il_comments
+   FROM illumina_library i
+     JOIN dna_extraction d ON d.dna_id = i.dna_id
+     JOIN tissue t ON t.tissue_id = d.tissue_id
+     JOIN sample s ON s.og_id = t.og_id;;
+
+-- View: public.v_library_browse
+CREATE OR REPLACE VIEW public.v_library_browse AS
+ SELECT s.og_num,
+    t.og_id,
+    t.tissue_id,
+    l.library_tube_id,
+    l.library_type,
+    COALESCE(l.dna_id, l.rna_id, l.lysate_id) AS parent_id,
+    l.dna_id,
+    l.rna_id,
+    l.lysate_id
+   FROM library l
+     LEFT JOIN dna_extraction d ON d.dna_id = l.dna_id
+     LEFT JOIN rna_extraction r ON r.rna_id = l.rna_id
+     LEFT JOIN hic_lysate y ON y.lysate_id = l.lysate_id
+     JOIN tissue t ON t.tissue_id = COALESCE(d.tissue_id, r.tissue_id, y.tissue_id)
+     JOIN sample s ON s.og_id = t.og_id;;
+
+-- View: public.v_ont_library_browse
+CREATE OR REPLACE VIEW public.v_ont_library_browse AS
+ SELECT s.og_num,
+    t.og_id,
+    d.tissue_id,
+    o.dna_id,
+    o.ont_library_tube_id,
+    o.ont_num,
+    o.ont_num = max(o.ont_num) OVER (PARTITION BY o.dna_id, o.library_method) AS is_latest,
+    o.ont_status,
+    o.status_overwrite,
+    o.library_method,
+    o.library_type,
+    o.library_date,
+    o.library_id,
+    o.est_loading_size,
+    o.ont_comments
+   FROM ont_library o
+     JOIN dna_extraction d ON d.dna_id = o.dna_id
+     JOIN tissue t ON t.tissue_id = d.tissue_id
+     JOIN sample s ON s.og_id = t.og_id;;
+
+-- View: public.v_pacbio_library_browse
+CREATE OR REPLACE VIEW public.v_pacbio_library_browse AS
+ SELECT s.og_num,
+    t.og_id,
+    d.tissue_id,
+    p.dna_id,
+    p.pacbio_library_tube_id,
+    p.pacb_num,
+    p.pacb_num = max(p.pacb_num) OVER (PARTITION BY p.dna_id) AS is_latest,
+    p.pacb_status,
+    p.status_overwrite,
+    p.dna_treatment,
+    p.sre_kit,
+    p.post_sre_conc,
+    p.final_pre_library_conc,
+    p.shear_femtol_id,
+    p.shear_av_size,
+    p.library_method,
+    p.prep_automation,
+    p.library_date,
+    p.library_id,
+    p.index_well,
+    p.barcode,
+    p.seq_femto_id,
+    p.seq_av_size,
+    p.library_conc,
+    p.comment
+   FROM pacbio_library p
+     JOIN dna_extraction d ON d.dna_id = p.dna_id
+     JOIN tissue t ON t.tissue_id = d.tissue_id
+     JOIN sample s ON s.og_id = t.og_id;;
+
+-- View: public.v_quarantine_displaced
+CREATE OR REPLACE VIEW public.v_quarantine_displaced AS
+ SELECT import_quarantine.source_table,
+    import_quarantine.source_row_key AS displaced_key,
+    import_quarantine.violation_detail AS replaced_by,
+    import_quarantine.first_seen AS displaced_at,
+    import_quarantine.raw_row
+   FROM import_quarantine
+  WHERE import_quarantine.resolved_at IS NULL AND import_quarantine.violation_type = 'displaced'::text
+  ORDER BY import_quarantine.first_seen DESC, import_quarantine.source_table, import_quarantine.source_row_key;;
+
+-- View: public.v_quarantine_open
+CREATE OR REPLACE VIEW public.v_quarantine_open AS
+ SELECT import_quarantine.source_table,
+    import_quarantine.violation_type,
+    count(*) AS rows_blocked,
+    min(import_quarantine.first_seen) AS oldest,
+    max(import_quarantine.last_seen) AS most_recent
+   FROM import_quarantine
+  WHERE import_quarantine.resolved_at IS NULL AND import_quarantine.violation_type <> 'displaced'::text
+  GROUP BY import_quarantine.source_table, import_quarantine.violation_type
+  ORDER BY (count(*)) DESC, import_quarantine.source_table, import_quarantine.violation_type;;
+
+-- View: public.v_rna_extraction_browse
+CREATE OR REPLACE VIEW public.v_rna_extraction_browse AS
+ SELECT s.og_num,
+    t.og_id,
+    r.tissue_id,
+    r.rna_id,
+    r.ext_num,
+    r.ext_num = max(r.ext_num) OVER (PARTITION BY r.tissue_id) AS is_latest,
+    r.status,
+    r.status_overwrite,
+    r.extraction_method,
+    r.extraction_date,
+    r.extraction_batch_id,
+    r.qubit_conc,
+    r.total_yield,
+    r.rna_dv200,
+    r.rin,
+    r.gdna_over_7kb_perc,
+    r.extraction_qc,
+    r.comment
+   FROM rna_extraction r
+     JOIN tissue t ON t.tissue_id = r.tissue_id
+     JOIN sample s ON s.og_id = t.og_id;;
+
+-- View: public.v_rna_library_ilmn_browse
+CREATE OR REPLACE VIEW public.v_rna_library_ilmn_browse AS
+ SELECT s.og_num,
+    t.og_id,
+    r.tissue_id,
+    x.rna_id,
+    x.rna_library_tube_id,
+    x.rna_num,
+    x.rna_num = max(x.rna_num) OVER (PARTITION BY x.rna_id, x.library_method) AS is_latest,
+    x.rna_status,
+    x.status_overwrite,
+    x.library_method,
+    x.library_date,
+    x.library_id,
+    x.library_size,
+    x.perc_product,
+    x.library_qubit_conc,
+    x.library_molarity,
+    x.index_set,
+    x.index_well,
+    x.index_inx,
+    x.final_plate_name,
+    x.final_plate_well,
+    x.well_position,
+    x.comments
+   FROM rna_library_ilmn x
+     JOIN rna_extraction r ON r.rna_id = x.rna_id
+     JOIN tissue t ON t.tissue_id = r.tissue_id
+     JOIN sample s ON s.og_id = t.og_id;;
+
+-- View: public.v_rna_library_kinx_browse
+CREATE OR REPLACE VIEW public.v_rna_library_kinx_browse AS
+ SELECT s.og_num,
+    t.og_id,
+    r.tissue_id,
+    k.rna_id,
+    k.rna_library_tube_id,
+    k.rna_num,
+    k.rna_num = max(k.rna_num) OVER (PARTITION BY k.rna_id) AS is_latest,
+    k.rna_status,
+    k.status_overwrite,
+    k.library_method,
+    k.processing_comment,
+    k.synthesis_date,
+    k.part1_batch_id,
+    k.synthesis_conc,
+    k.part2_batch_id,
+    k.final_qubit_conc,
+    k.library_size,
+    k.kinnex_primers,
+    k.kinnex_barcode,
+    k.pool_id,
+    k.plate,
+    k.plate_location,
+    k.sequencing_sample_id,
+    k.comments
+   FROM rna_library_kinx k
+     JOIN rna_extraction r ON r.rna_id = k.rna_id
+     JOIN tissue t ON t.tissue_id = r.tissue_id
+     JOIN sample s ON s.og_id = t.og_id;;
+
+-- View: public.v_sequencing_browse
+CREATE OR REPLACE VIEW public.v_sequencing_browse AS
+ SELECT b.og_num,
+    b.og_id,
+    b.tissue_id,
+    b.parent_id,
+    b.library_tube_id,
+    b.library_type,
+    q.sequencing_id,
+    q.status,
+    q.technology,
+    q.instrument,
+    q.run_date,
+    q.run_id,
+    q.seq_date,
+    q.cell_id,
+    q.smrt_num,
+    q.seq_type,
+    q.design_no,
+    q.hic_depth,
+    q.seq_comments
+   FROM sequencing q
+     JOIN v_library_browse b ON b.library_tube_id = q.library_tube_id;;
+
+-- View: public.v_tissue_browse
+CREATE OR REPLACE VIEW public.v_tissue_browse AS
+ SELECT s.og_num,
+    s.og_id,
+    s.nominal_species_id,
+    t.tissue_id,
+    t.tissue,
+    t.preservation,
+    t.extracted,
+    t.freezer,
+    t.shelf,
+    t.rack,
+    t.level,
+    t.box,
+    t.comment
+   FROM tissue t
+     JOIN sample s ON s.og_id = t.og_id;;
 
