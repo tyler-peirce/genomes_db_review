@@ -1232,6 +1232,8 @@ Less urgent since `030`: `summary` fell from 7.6 s to 2.0 s on indexing alone. T
 
 ### Phase F: Resolve the snapshots
 
+**2026-10-15: now a prerequisite of V.6, written as `sql/cutover/drop_ss260818_snapshots.sql`** (see `docs/phase_v6_plan.md`). Item 4 is done by V.6 itself, because the moved `v2.mitogenome_data` brings the clean index names.
+
 **Unblocked 2026-10-05.** Item 1 is done and items 2–4 are now a single operation.
 
 These eight objects (five tables, three views) account for 8 of the 39 still-uncovered objects and **need no catch-up migration at all** — they are being deleted, not brought under management. Dropping them is the cheapest way to shorten that list.
@@ -1455,7 +1457,15 @@ Both gates are now cleared. **V.0 was dropped by decision and V.1 is done**, bot
 
    Worth telling consumers in the same message that breaks them: most fixes are one word. The twelve **browse views** re-expose `og_id` and a derived `latest` on every child table and are inlined by the planner, so `illumina_library` → `v_illumina_library_browse` restores the removed join column at no cost. `summary` keeps all sixteen removed `sample` columns as derived output. Since `046` (2026-10-13) every browse view starts `og_num, og_id`, so `ORDER BY og_num` sorts samples numerically (`og_id` is text and puts `OG1000` before `OG703`).
 
-**V.6 — Consolidate into `public` and retire the parallel schema.** After a quiet period with no new breakage. The tables already carry their final names — decision 3 ensured `v2.sample` is schema `v2`, table `sample`, never `v2_sample` — so **nothing is renamed here; objects are moved**:
+**V.6 — Consolidate into `public` and retire the parallel schema.** After a quiet period with no new breakage.
+
+   **Status 2026-10-15: written and rehearsed, not applied.** Plan and rehearsal record: `docs/phase_v6_plan.md`. Owner decisions the same day: archive the `_pre_v2` objects in a schema `pre_v2_archive` rather than drop them (V.7 drops them), and apply once rehearsed with no further wait. Two files sit in `sql/cutover/` until the day: Phase F (`drop_ss260818_snapshots.sql`), now a prerequisite, because `lca_results_view_SS260818` reads `sample_pre_v2`; and `v2_consolidate.sql`. The catalog showed what the sketch below leaves out:
+   - Two index names collide (`rna_library_kinx_pkey`, `mitogenome_data_pkey`), and so does one function (`lca_set_content_hash`).
+   - Two functions bind to `v2` by text: `quarantine()`'s body, and `lca_set_content_hash`'s `search_path`.
+   - One untracked function has been landing in `v2` since the cutover.
+   - The nightly importer named `v2.` 38 times. It is now unqualified (deployed 2026-10-15).
+
+   The rehearsal on a fresh restore of live passed every check. Its revert is exact against `pg_dump -s`. Still open before applying: export `blast_filtered_lca_SS260818` outside git, and confirm the first nightly run of the changed importer. The tables already carry their final names — decision 3 ensured `v2.sample` is schema `v2`, table `sample`, never `v2_sample` — so **nothing is renamed here; objects are moved**:
 
    ```sql
    ALTER TABLE v2.sample SET SCHEMA public;

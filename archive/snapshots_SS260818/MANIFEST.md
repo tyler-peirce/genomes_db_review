@@ -27,6 +27,12 @@ database and the nightly S3 base backup
 
 If you drop that table later, export it somewhere else first.
 
+**Exported 2026-10-15, before Phase F dropped the table:** `/home/tyler/blast_filtered_lca_SS260818.csv.gz`
+(192,207 rows, 4.98 MB, sha256 `9e291c53e01413f6db85991d46c41769fad242736d01ed7c6d44c4d6627c3da4`). Outside the repo, by owner decision. Same
+format as the files here (CSV with header, no column list needed). Verified by reloading it
+into an empty table and comparing an md5 over every row, ordered, against live: identical
+(`046d2ddeb253a34760b6af546af00cca`).
+
 ## Restoring
 
 The exports **omit `og_num`** on every table. It is
