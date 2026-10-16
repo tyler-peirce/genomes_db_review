@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict oELm6GOaGduVp6ltSaMqG7OW0v0f7k9d1yQmUZ1Wvap6dkqZN9weHbyUIWtSizW
+\restrict 07ori6F6VgZ9YqbeIO9bHDYfta80xG6aVLnM25DIVDcRkU0PKp9s7fSGUDafjJU
 
 -- Dumped from database version 14.24 (Ubuntu 14.24-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 14.24 (Ubuntu 14.24-0ubuntu0.22.04.1)
@@ -4433,10 +4433,24 @@ CREATE INDEX og_workflow_assignment_log_assigned_at_idx ON public.og_workflow_as
 
 
 --
+-- Name: og_workflow_assignment_log_og_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX og_workflow_assignment_log_og_id_idx ON public.og_workflow_assignment_log USING btree (og_id);
+
+
+--
 -- Name: og_workflow_notification_created_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX og_workflow_notification_created_at_idx ON public.og_workflow_notification USING btree (created_at DESC);
+
+
+--
+-- Name: og_workflow_notification_og_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX og_workflow_notification_og_id_idx ON public.og_workflow_notification USING btree (og_id);
 
 
 --
@@ -4451,6 +4465,13 @@ CREATE INDEX ont_library_dna_id_idx ON public.ont_library USING btree (dna_id);
 --
 
 CREATE INDEX pacbio_library_dna_id_idx ON public.pacbio_library USING btree (dna_id);
+
+
+--
+-- Name: raw_data_og_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX raw_data_og_id_idx ON public.raw_data USING btree (og_id);
 
 
 --
@@ -4566,6 +4587,14 @@ ALTER TABLE ONLY public.dna_extraction
 
 ALTER TABLE ONLY public.ena_related_assemblies
     ADD CONSTRAINT ena_related_assemblies_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.ena_specimen_accessions(og_id);
+
+
+--
+-- Name: ena_specimen_accessions ena_specimen_accessions_og_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ena_specimen_accessions
+    ADD CONSTRAINT ena_specimen_accessions_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.sample(og_id);
 
 
 --
@@ -4705,6 +4734,30 @@ ALTER TABLE ONLY public.mitogenome_data
 
 
 --
+-- Name: og_workflow_assignment_log og_workflow_assignment_log_og_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.og_workflow_assignment_log
+    ADD CONSTRAINT og_workflow_assignment_log_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.sample(og_id);
+
+
+--
+-- Name: og_workflow_notification og_workflow_notification_og_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.og_workflow_notification
+    ADD CONSTRAINT og_workflow_notification_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.sample(og_id);
+
+
+--
+-- Name: og_workflow_recommendation og_workflow_recommendation_og_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.og_workflow_recommendation
+    ADD CONSTRAINT og_workflow_recommendation_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.sample(og_id);
+
+
+--
 -- Name: ont_library ont_library_dna_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4742,6 +4795,14 @@ ALTER TABLE ONLY public.pacbio_library
 
 ALTER TABLE ONLY public.pacbio_library
     ADD CONSTRAINT pacbio_library_registry_fkey FOREIGN KEY (pacbio_library_tube_id, dna_id) REFERENCES public.library(library_tube_id, dna_id);
+
+
+--
+-- Name: raw_data raw_data_og_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.raw_data
+    ADD CONSTRAINT raw_data_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.sample(og_id);
 
 
 --
@@ -4820,5 +4881,5 @@ ALTER TABLE ONLY public.tissue
 -- PostgreSQL database dump complete
 --
 
-\unrestrict oELm6GOaGduVp6ltSaMqG7OW0v0f7k9d1yQmUZ1Wvap6dkqZN9weHbyUIWtSizW
+\unrestrict 07ori6F6VgZ9YqbeIO9bHDYfta80xG6aVLnM25DIVDcRkU0PKp9s7fSGUDafjJU
 

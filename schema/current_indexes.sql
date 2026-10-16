@@ -55,8 +55,10 @@ CREATE INDEX mitogenome_data_og_id_idx ON public.mitogenome_data USING btree (og
 CREATE UNIQUE INDEX mitogenome_data_pkey ON public.mitogenome_data USING btree (og_id, tech, seq_date, code);
 CREATE UNIQUE INDEX ncbi_genome_assemblies_assembly_accession_key ON public.ncbi_genome_assemblies USING btree (assembly_accession);
 CREATE INDEX og_workflow_assignment_log_assigned_at_idx ON public.og_workflow_assignment_log USING btree (assigned_at);
+CREATE INDEX og_workflow_assignment_log_og_id_idx ON public.og_workflow_assignment_log USING btree (og_id);
 CREATE UNIQUE INDEX og_workflow_assignment_log_pkey ON public.og_workflow_assignment_log USING btree (id);
 CREATE INDEX og_workflow_notification_created_at_idx ON public.og_workflow_notification USING btree (created_at DESC);
+CREATE INDEX og_workflow_notification_og_id_idx ON public.og_workflow_notification USING btree (og_id);
 CREATE UNIQUE INDEX og_workflow_notification_pkey ON public.og_workflow_notification USING btree (id);
 CREATE UNIQUE INDEX og_workflow_recommendation_pkey ON public.og_workflow_recommendation USING btree (og_id);
 CREATE UNIQUE INDEX ont_library_attempt_key ON public.ont_library USING btree (dna_id, library_method, ont_num);
@@ -66,6 +68,7 @@ CREATE UNIQUE INDEX pacbio_library_attempt_key ON public.pacbio_library USING bt
 CREATE INDEX pacbio_library_dna_id_idx ON public.pacbio_library USING btree (dna_id);
 CREATE UNIQUE INDEX pacbio_library_pkey ON public.pacbio_library USING btree (pacbio_library_tube_id);
 CREATE UNIQUE INDEX prep_automation_pkey ON public.prep_automation USING btree (prep_automation);
+CREATE INDEX raw_data_og_id_idx ON public.raw_data USING btree (og_id);
 CREATE UNIQUE INDEX raw_data_pkey ON public.raw_data USING btree (run_id, lane_id, filename);
 CREATE UNIQUE INDEX raw_qc_og_id_uq ON public.raw_qc USING btree (og_id);
 CREATE UNIQUE INDEX raw_qc_pkey ON public.raw_qc USING btree (og_id);

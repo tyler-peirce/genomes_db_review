@@ -11,6 +11,7 @@ ALTER TABLE public.ena_related_assemblies ADD CONSTRAINT ena_related_assemblies_
 ALTER TABLE public.ena_related_assemblies ADD CONSTRAINT ena_related_assemblies_pkey PRIMARY KEY (id);
 ALTER TABLE public.ena_related_assemblies ADD CONSTRAINT ena_related_relationship_check CHECK (relationship_type = ANY (ARRAY['reference'::text, 'draft'::text]));
 ALTER TABLE public.ena_specimen_accessions ADD CONSTRAINT ena_specimen_accessions_ena_biosample_accession_key UNIQUE (ena_biosample_accession);
+ALTER TABLE public.ena_specimen_accessions ADD CONSTRAINT ena_specimen_accessions_og_id_fkey FOREIGN KEY (og_id) REFERENCES sample(og_id);
 ALTER TABLE public.ena_specimen_accessions ADD CONSTRAINT ena_specimen_accessions_og_numeric_key UNIQUE (og_numeric);
 ALTER TABLE public.ena_specimen_accessions ADD CONSTRAINT ena_specimen_accessions_pkey PRIMARY KEY (og_id);
 ALTER TABLE public.ena_specimen_accessions ADD CONSTRAINT ena_specimen_biosample_check CHECK (ena_biosample_accession IS NULL OR ena_biosample_accession ~ '^SAM(EA|N|D)[0-9]+$'::text);
@@ -77,11 +78,14 @@ ALTER TABLE public.mitogenome_data ADD CONSTRAINT mitogenome_data_annotation_key
 ALTER TABLE public.mitogenome_data ADD CONSTRAINT mitogenome_data_og_id_fkey FOREIGN KEY (og_id) REFERENCES sample(og_id);
 ALTER TABLE public.mitogenome_data ADD CONSTRAINT mitogenome_data_pkey PRIMARY KEY (og_id, tech, seq_date, code);
 ALTER TABLE public.ncbi_genome_assemblies ADD CONSTRAINT ncbi_genome_assemblies_assembly_accession_key UNIQUE (assembly_accession);
+ALTER TABLE public.og_workflow_assignment_log ADD CONSTRAINT og_workflow_assignment_log_og_id_fkey FOREIGN KEY (og_id) REFERENCES sample(og_id);
 ALTER TABLE public.og_workflow_assignment_log ADD CONSTRAINT og_workflow_assignment_log_pkey PRIMARY KEY (id);
 ALTER TABLE public.og_workflow_assignment_log ADD CONSTRAINT og_workflow_assignment_log_workflow_check CHECK (workflow = ANY (ARRAY['Reference'::text, 'Draft'::text]));
 ALTER TABLE public.og_workflow_notification ADD CONSTRAINT og_workflow_notification_kind_check CHECK (kind = ANY (ARRAY['recommendation'::text, 'assigned'::text]));
+ALTER TABLE public.og_workflow_notification ADD CONSTRAINT og_workflow_notification_og_id_fkey FOREIGN KEY (og_id) REFERENCES sample(og_id);
 ALTER TABLE public.og_workflow_notification ADD CONSTRAINT og_workflow_notification_pkey PRIMARY KEY (id);
 ALTER TABLE public.og_workflow_notification ADD CONSTRAINT og_workflow_notification_source_check CHECK (source = ANY (ARRAY['site'::text, 'database'::text]));
+ALTER TABLE public.og_workflow_recommendation ADD CONSTRAINT og_workflow_recommendation_og_id_fkey FOREIGN KEY (og_id) REFERENCES sample(og_id);
 ALTER TABLE public.og_workflow_recommendation ADD CONSTRAINT og_workflow_recommendation_pkey PRIMARY KEY (og_id);
 ALTER TABLE public.og_workflow_recommendation ADD CONSTRAINT og_workflow_recommendation_recommended_workflow_check CHECK (recommended_workflow = ANY (ARRAY['Reference'::text, 'Draft'::text]));
 ALTER TABLE public.ont_library ADD CONSTRAINT ont_library_attempt_key UNIQUE (dna_id, library_method, ont_num) DEFERRABLE;
@@ -94,6 +98,7 @@ ALTER TABLE public.pacbio_library ADD CONSTRAINT pacbio_library_pkey PRIMARY KEY
 ALTER TABLE public.pacbio_library ADD CONSTRAINT pacbio_library_prep_automation_fkey FOREIGN KEY (prep_automation) REFERENCES prep_automation(prep_automation);
 ALTER TABLE public.pacbio_library ADD CONSTRAINT pacbio_library_registry_fkey FOREIGN KEY (pacbio_library_tube_id, dna_id) REFERENCES library(library_tube_id, dna_id);
 ALTER TABLE public.prep_automation ADD CONSTRAINT prep_automation_pkey PRIMARY KEY (prep_automation);
+ALTER TABLE public.raw_data ADD CONSTRAINT raw_data_og_id_fkey FOREIGN KEY (og_id) REFERENCES sample(og_id);
 ALTER TABLE public.raw_data ADD CONSTRAINT raw_data_pkey PRIMARY KEY (run_id, lane_id, filename);
 ALTER TABLE public.raw_qc ADD CONSTRAINT raw_qc_pkey PRIMARY KEY (og_id);
 ALTER TABLE public.ref_genomes ADD CONSTRAINT ref_genomes_pkey PRIMARY KEY (og_id, seq_date, stage, haplotype, version);
