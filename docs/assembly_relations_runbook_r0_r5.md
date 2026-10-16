@@ -1,6 +1,25 @@
 # Phase R runbook, R.0 to R.5: assembly relations, up to the `v3` merge
 
-Status: **not started.** Written 2026-10-16. This is the "how" for
+Status: **done 2026-10-16**, R.0 to R.5 and S.1, with the one exception below. Records:
+[`assembly_relations_r0_record.md`](assembly_relations_r0_record.md) and
+[`assembly_relations_rehearsal_r5.md`](assembly_relations_rehearsal_r5.md). Written 2026-10-16.
+
+| Step | Outcome |
+|---|---|
+| R.0 | Done, except R.0.2 (`ENA-draft-genomes` not reachable) and R.0.4 (Pawsey unreachable). Both are carried to R.6 |
+| R.1 `050` | Live 05:33 UTC. 532 rows archived and removed |
+| R.2 `051` | Live 05:40 UTC. `v3` mitogenome tables; 0 differences from `public`; nightly sync at 18:30 UTC |
+| R.3 `052` | Live 05:43 UTC. `v3` draft tables; 0 differences |
+| R.4 `053`, `054` | Live 05:45 UTC. `v3.sequencing_run` (211 runs); five FKs to `sample`, including `raw_data` (its 30 blanks are NULL, which an FK allows) |
+| `055` (added) | Live 05:54 UTC. Run links match DNA libraries only; found by the R.5 rehearsal |
+| R.5 | Branches committed, not pushed or deployed; old and new writers give identical rows; readers identical on live |
+| S.1 | Committed. Tonight's 18:00 UTC import applies it |
+
+Departures from the text below, made while building:
+- `not_measured` depth rows are stored (plan §3.2);
+- GenomeScope's label is a generated `output_set`, not a `genomescope_version` a writer sets;
+- run links also match `library_type` (`055`);
+- the merge is now `056`, and R.7's migrations are `057`–`058`. This is the "how" for
 [`assembly_relations_plan.md`](assembly_relations_plan.md) (the "what and why"). Section numbers
 like §3.6 refer to the plan. It stops before R.6, the merge of `v3` into `public`, which gets
 its own runbook once R.5's gate is met.

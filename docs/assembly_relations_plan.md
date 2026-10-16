@@ -1,7 +1,10 @@
 # Phase R plan — assembly relations: mitogenome split, draft-genome split, unconnected tables
 
-Status: **plan only. Nothing in this plan is applied.** Written 2026-10-15, after V.6; revised
+Status: **R.0–R.5 done 2026-10-16** (`050`–`055` applied to live; pipeline branches ready, not
+deployed). R.6, the merge, is next and has not started. Written 2026-10-15, after V.6; revised
 2026-10-16 with the owner's answers, the draft pipeline's code, and the `v3` build approach.
+Execution records: [`assembly_relations_r0_record.md`](assembly_relations_r0_record.md),
+[`assembly_relations_rehearsal_r5.md`](assembly_relations_rehearsal_r5.md).
 Source: `database_review.md` §7 ("Mitogenome and LCA tables", "`draft_genomes`"), §10 Lower #4
 ("Split `draft_genomes`", now promoted), and `docs/bioinformatics_data_review.md` §8–9. Previous
 step: V.7 (close-out of the `v2` cutover). Migrations here number from `050` (`049` removed the
@@ -453,11 +456,15 @@ CREATE TABLE mito_assembly_depth (
 );
 ```
 
-- **`not_measured` is not stored here.** Today 412 rows carry `depth_method = 'not_measured'`
-  and nothing else, and 5 carry NULL. Under this design they are simply absent, which is the
-  point of the split. Every measured row today is `remap_full_v1`. No `legacy_*` label from
-  `003` survives in the data; if one reappears, it is information and belongs in this table.
-- `DEPTH_METHOD_NOT_MEASURED` in the writer becomes "write nothing".
+- **`not_measured` is stored (changed when built, `051`).** The first draft dropped these
+  rows, on the reading that the 412 carry nothing else. On live every one of them carries
+  `depth_measured_at`: the time the depth step ran and measured nothing. That is an event, so
+  each is a row with `depth_method = 'not_measured'` and NULL measurements. The 5 assemblies
+  with NULL `depth_method` were never touched by the step and have no row. Every measured row
+  today is `remap_full_v1`. No `legacy_*` label from `003` survives in the data; if one
+  reappears, it is information and belongs in this table.
+- `DEPTH_METHOD_NOT_MEASURED` keeps its meaning in the writer: a new assembly with no depth
+  gets a `not_measured` row.
 
 ### 3.3 `mito_annotation`
 
@@ -655,12 +662,13 @@ CREATE TABLE draft_genome_run (
 ```
 
 - `draft_genome_run` is backfilled from the join in §2.2: `(og_id, seq_date)` through
-  `v_sequencing_browse`, **Illumina only, and the instrument must match the draft's `mach`**
+  `v_sequencing_browse`, **Illumina DNA libraries only (`library_type = 'illumina'`, added by
+  `055`: RNA libraries share the technology), and the instrument must match the draft's `mach`**
   (`NOVA` → NovaSeq, `NEXT` → NextSeq). This keeps out the iSeq QC runs. On live (2026-10-16),
   that gives 1,715 drafts one row and 5 two rows (the pooled libraries in §2.2). Every draft
   gets at least one.
-- **Illumina only, enforced.** A trigger on `draft_genome_run` rejects a `sequencing_id` whose
-  `technology` is not `Illumina`. A plain `CHECK` cannot read another table. This is what stops
+- **Illumina only, enforced.** A trigger on `draft_genome_run` rejects a `sequencing_id` that
+  is not an Illumina DNA library (`055`). A plain `CHECK` cannot read another table. This is what stops
   a repeat of the 15 Hi-C drafts that `049` removed. A draft with no Illumina run cannot be
   linked, and R.0 lists any such draft.
 
@@ -675,7 +683,7 @@ step writes exactly one table.
 | Table | Columns from `draft_genomes` | Rows | Writer |
 |---|---|---:|---|
 | `draft_fastp` | `passed_filter_reads` … `gc_content` (23) | 1,734 | `fastp` |
-| `draft_genomescope` | the 7 core + 10 extended, nullable, + `host_assembly_size`, `host_assembly_fraction` (68 rows), + `genomescope_version` | 1,426 | `assembly` (GenomeScope summary + coverage summary) |
+| `draft_genomescope` | the 7 core + 10 extended, nullable, + `host_assembly_size`, `host_assembly_fraction` (68 rows), + generated `output_set` | 1,426 | `assembly` (GenomeScope summary + coverage summary) |
 | `draft_tiara` | `num_contigs_mitochondrion/plastid/prokarya`, `bp_*` (6) | 1,425 | `decontamination` (Tiara) |
 | `draft_contamination` | `num_contigs_exclude/trim/review`, `bp_exclude/trim/review` (6), and `num_contigs` stored as **`num_contigs_lt_500bp`** | 1,425 (701 with FCS-GX values) | `decontamination` (FCS-GX + BBMap) |
 | `draft_busco` | `complete` … `domain` (7); BUSCO's assembly stats `number_of_scaffolds`, `number_of_contigs`, `total_length`, `percent_gaps`, `scaffold_n50`, `contigs_n50` (6); `internal_stop_codon_count`, `_percent` (2) | 1,405 | `busco` |
@@ -703,7 +711,8 @@ step writes exactly one table.
 
 **Extended GenomeScope stays in the GenomeScope table.** It is the same tool's output from a
 newer version of the script, not a separate process. Its columns are NULL on the 1,346 older
-rows because that version did not compute them, and `genomescope_version` says which is which.
+rows because that version did not compute them, and `output_set` (`core` / `extended`, a
+generated column, so no writer has to set it) says which is which.
 That is the one place a NULL inside a process table is intended. It is labelled, not ambiguous.
 
 **gfastats and BUSCO both report N50, and on drafts they disagree badly.** Both report scaffold
@@ -1073,7 +1082,20 @@ whatever shape comes next (§3.6).
    `prepare_ena_metadata.py`, `v_genome_size_comparison` and the samplesheet builders. They
    should need no edit, except those found in R.0.3.
 
-### R.6 — Merge `v3` into `public` (`055`)
+### R.6 — Merge `v3` into `public` (`056`)
+
+**Carried from R.0–R.5 into the R.6 runbook:**
+- Gate: `ENA-draft-genomes` is still unseen (R.0.2). Confirm what it writes and that it reads
+  none of the 17 dropped columns.
+- Drop the window-only functions (`v3.sync_mito`, `sync_draft`, `sync_sequencing_run`,
+  `check_mito`, `check_draft`) and the 18:30 UTC `sync_v3.sh` cron line.
+- Re-point `v3.rebuild_mito_gene_views()`'s `search_path` setting to `public, pg_temp`. Its
+  body uses unqualified names.
+- Rebuild the two views that depend on the old tables: `mitogenome_submission_view` and
+  `v_genome_size_comparison` (R.0.3 found no others).
+- Drop the three four-column FKs from `lca`, `lca_raw_results` and `lca_validation` to the old
+  `mitogenome_data` (`blast_filtered_lca` has none).
+- Deploy the `phase-r-v3` branches the same day.
 
 Behind an opt-in, as §6.1 describes: final sync, move the two old tables to `pre_v3_archive`,
 move every `v3` object into `public`, rebuild the dependent views, drop the old LCA FKs, and drop
@@ -1081,9 +1103,9 @@ move every `v3` object into `public`, rebuild the dependent views, drop the old 
 into. Post-check: the next pipeline runs write the new tables, an old writer fails loudly on
 "cannot insert into view", and no `public` view depends on a `pre_v3_archive` table.
 
-### R.7 — Re-parent the LCA and ENA children; FKs to `sequencing_run` (`056`, `057`)
+### R.7 — Re-parent the LCA and ENA children; FKs to `sequencing_run` (`057`, `058`)
 
-1. **`056`:** add `annotation_id`, backfill it (proved in R.2.4), then `SET NOT NULL` on the
+1. **`057`:** add `annotation_id`, backfill it (proved in R.2.4), then `SET NOT NULL` on the
    four LCA tables and both ENA tables. Add each FK `NOT VALID`, then `VALIDATE`.
    - **Agree the ENA columns with the owner of the downstream submitter first.**
      `ena_submissions` is their ledger (`015`).
@@ -1091,7 +1113,7 @@ into. Post-check: the next pipeline runs write the new tables, an old writer fai
      until the writers stop sending them.
    - Update `push_lca_*`, `push_species_validation.py` and `push_ena_validation_results.py` to
      send `annotation_id`.
-2. **`057`:** FK `sequencing.run_id`, `raw_data.run_id`, `hifi_reads_qc.run_id` and
+2. **`058`:** FK `sequencing.run_id`, `raw_data.run_id`, `hifi_reads_qc.run_id` and
    `hic_reads_qc.run_id` to `sequencing_run`. Add the library-level QC links, now that §2.3 has
    made `(library_tube_id, run_id)` unique.
 3. Later, once a release has run clean: drop the natural columns from the LCA tables, re-key
