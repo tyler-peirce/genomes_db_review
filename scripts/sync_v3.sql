@@ -30,7 +30,12 @@ BEGIN
       CONTINUE;
     END IF;
     FOR r IN EXECUTE format('SELECT * FROM v3.%I()', fn) LOOP
-      IF r.problems <> 0 AND r.check_name NOT LIKE 'annotations selected%' THEN
+      CONTINUE WHEN r.problems = 0;
+      -- Informational, not a sync failure: a person chose an annotation, or a new draft
+      -- arrived before its run was entered in the workbook.
+      IF r.check_name LIKE 'annotations selected%' OR r.check_name = 'drafts with no Illumina run link' THEN
+        RAISE NOTICE 'sync_v3 note: %: % (%)', fn, r.check_name, r.problems;
+      ELSE
         RAISE EXCEPTION 'sync_v3 check failed after sync: %: % (%)', fn, r.check_name, r.problems;
       END IF;
     END LOOP;
