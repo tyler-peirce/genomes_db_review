@@ -3,7 +3,7 @@
 Runbook: [`ref_genomes_runbook_rg0_rg5.md`](ref_genomes_runbook_rg0_rg5.md) RG.2. Figures:
 [`ref_genomes_rg0_record.md`](ref_genomes_rg0_record.md) §4.
 
-**Status: rehearsed 2026-10-19; awaiting the owner's OK to apply on live.**
+**Status: done 2026-10-19.** Rehearsed, then applied on live at 06:30:31 UTC.
 
 ## What was built
 
@@ -62,6 +62,14 @@ Run on a throwaway PostgreSQL 14 cluster restored from a `pg_dump -Fc` of live t
 | Checks | All 0 |
 | An orphan `hifi_reads_qc` row (OG999999X) | **The night failed** (`hifi_reads_qc: differs from public`, exit 3) and nothing was written to v4 |
 
-## Apply on live
+## Apply on live, 2026-10-19
 
-Pending the owner's OK.
+| Step | Result |
+|---|---|
+| Pre-flight | `058` the only pending file; no drift (75); no active sessions. `raw_qc` 252, `hifi_reads_qc` 277, `hic_reads_qc` 552, as in the rehearsal dump |
+| **`058` applied** | **06:30:31 UTC**; ledger 59. Counts identical to the rehearsal: 248 / 143 / 277 / 552 |
+| `--verify`, `check_drift.py --update` | Clean; 75 objects, +0 / −0 (`public` only) |
+| `export_schema_baseline.sh` | The only diff is the `\restrict` token: `public` unchanged |
+| `sync_v4.sh` by hand | 06:30:33 UTC, exit 0. Notes: 61 assemblies, 15 HiFi and 77 Hi-C rows without a link. No `.FAILING` |
+
+The throwaway cluster was stopped and deleted after this record was written.

@@ -1,8 +1,8 @@
 # Phase RG runbook, RG.0 to RG.5: reference-genome tables in schema `v4`
 
-Status: **RG.0 and RG.1 done 2026-10-19.** Records: [`ref_genomes_rg0_record.md`](ref_genomes_rg0_record.md) and
-[`ref_genomes_rg1_record.md`](ref_genomes_rg1_record.md). `057` is live (06:20 UTC), and `sync_v4` runs at 19:00 UTC.
-RG.2 (`058`) is next.
+Status: **RG.0, RG.1 and RG.2 done 2026-10-19.** Records: [`ref_genomes_rg0_record.md`](ref_genomes_rg0_record.md),
+[`ref_genomes_rg1_record.md`](ref_genomes_rg1_record.md) and [`ref_genomes_rg2_record.md`](ref_genomes_rg2_record.md).
+`057` and `058` are live (06:20 and 06:30 UTC), and `sync_v4` runs at 19:00 UTC. RG.3 (`059`) is next.
 Written 2026-10-19, from read-only measurements on live taken the same day.
 
 Corrections from RG.0, which take precedence over the text below:
