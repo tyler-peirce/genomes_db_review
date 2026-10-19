@@ -839,11 +839,11 @@ This is the state after V.6 (75 objects). "In" and "out" mean declared foreign k
 | `ena_submissions` | 539 | none | → `mito_annotation` | 539/539 match | **R.7** |
 | `ena_specimen_accessions` | 2,848 | parent of `ena_related_assemblies` only | → `sample` | 2,848/2,848 match | **R.4** (`054`) |
 | `raw_data` | 8,010 | none | → `sample`; `run_id` → `sequencing_run` | 8,010/8,010 `run_id` match; 30 blank `og_id` | **R.4** (→ `sample`), **R.7** (→ `sequencing_run`) |
-| `hifi_reads_qc` | 277 | none | `run_id` → `sequencing_run`; later → `sequencing` by (tube, run) | 270/277 by `run_id`; (tube, run) 262/277 | **R.7** |
-| `hic_reads_qc` | 552 | none | `run_id` → `sequencing_run`; library resolvable through the lysate | 530/552 by `run_id`; a Hi-C library on that run for 526/552 | **R.7** |
-| `raw_qc` | 252 | none | → `sample` after 3 orphans fixed | | Phase C.5 (unchanged) |
+| `hifi_reads_qc` | 277 | none | `run_id` → `sequencing_run`; later → `sequencing` by (tube, run) | 270/277 by `run_id`; (tube, run) 262/277 | **Phase RG** in `v4` (moved from R.7, owner decision 2026-10-19; `ref_genomes_runbook_rg0_rg5.md`) |
+| `hic_reads_qc` | 552 | none | `run_id` → `sequencing_run`; library resolvable through the lysate | 530/552 by `run_id`; a Hi-C library on that run for 526/552 | **Phase RG** in `v4` (moved from R.7, as above) |
+| `raw_qc` | 252 | none | → `sample` after 3 orphans fixed | | **Phase RG** in `v4` (split per read set; orphans excluded) |
 | `rna_qc_kinnex` | 96 | none | PK + → `rna_library_kinx` | | Phase C.2 (unchanged) |
-| `ref_genomes`, `ref_genomes_assembly_uploads` | 2,036 / 88 | none / parent of SRA uploads | → `sample`, and the same split as §4 | 4 orphans in `ref_genomes` | **next phase** (owner decision 1) |
+| `ref_genomes`, `ref_genomes_assembly_uploads` | 2,036 / 88 | none / parent of SRA uploads | → `sample`, and the same split as §4 | 4 orphans in `ref_genomes` | **Phase RG** in `v4` (owner decision 1's "next phase") |
 | `species`, `species_ncbi_assembly`, `ncbi_genome_assemblies`; `sample.nominal_species_id` | | partial | Phase E | | Phase E (unchanged) |
 | `og_workflow_recommendation`, `_assignment_log`, `_notification` | 0 | none: each has an `og_id text` column, but **no declared FK** (live, 2026-10-16) | → `sample(og_id)` | 0 rows, so satisfiable trivially | **R.4** (`054`; declared, owner decision 9) |
 | `master_species`, `master_species_genome` | 19,817 | internal only | none | | colleague's work, untouched |
@@ -1134,9 +1134,10 @@ into. Post-check: the next pipeline runs write the new tables, an old writer fai
      until the writers stop sending them.
    - Update `push_lca_*`, `push_species_validation.py` and `push_ena_validation_results.py` to
      send `annotation_id`.
-2. **`059`:** FK `sequencing.run_id`, `raw_data.run_id`, `hifi_reads_qc.run_id` and
-   `hic_reads_qc.run_id` to `sequencing_run`. Add the library-level QC links, now that §2.3 has
-   made `(library_tube_id, run_id)` unique.
+2. **`059`:** FK `sequencing.run_id` and `raw_data.run_id` to `sequencing_run`. (Number taken
+   at landing; Phase RG may claim `057`–`059` first.) `hifi_reads_qc` and `hic_reads_qc`
+   moved to Phase RG on 2026-10-19: their `run_id` FK and library-level links are built in
+   `v4` and land with RG.6 (`ref_genomes_runbook_rg0_rg5.md`).
 3. Later, once a release has run clean: drop the natural columns from the LCA tables, re-key
    their PKs, and rebuild `lca_pivot_view`, `lca_results_view`, `lca_validation_report_view`
    (keeping its `INSTEAD OF UPDATE` path, see `033`), `filtered_lca_view`, `summary`,

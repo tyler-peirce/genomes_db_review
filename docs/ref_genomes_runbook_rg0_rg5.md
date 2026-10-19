@@ -1,7 +1,17 @@
 # Phase RG runbook, RG.0 to RG.5: reference-genome tables in schema `v4`
 
-Status: **planned, not started.** Written 2026-10-19, from read-only measurements on live taken
-the same day. This is the reference-genome counterpart of
+Status: **RG.0 done 2026-10-19** ([`ref_genomes_rg0_record.md`](ref_genomes_rg0_record.md)); RG.1 next.
+Written 2026-10-19, from read-only measurements on live taken the same day.
+
+Corrections from RG.0, which take precedence over the text below:
+- the hifi1 OMNIC rows are 140, on 70 assemblies; they are real, and kept;
+- OG90 also has `seq_date = 'bc2008'` (6 rows), which is excluded with OG90_bc2008;
+- the `*_size_mb` columns stay stored: the generated-column test failed;
+- `k_mer_set` is empty everywhere, so, like `hap2_chr_level_max_len`, it is only a NULL in the
+  compatibility view;
+- run links: exact matches only, and every match is linked (407 assemblies, 434 links);
+- the date in `ncbi_status` becomes `status_date`;
+- `oceangenom_web` also reads `ref_genomes_assembly_uploads`. This is the reference-genome counterpart of
 [`assembly_relations_runbook_r0_r5.md`](assembly_relations_runbook_r0_r5.md). It stops before
 RG.6, the move of `v4` into `public`, which gets its own runbook once the gate at the end is met.
 
