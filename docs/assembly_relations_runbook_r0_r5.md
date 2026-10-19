@@ -14,12 +14,13 @@ Status: **done 2026-10-16**, R.0 to R.5 and S.1, with the one exception below. R
 | `055` (added) | Live 05:54 UTC. Run links match DNA libraries only; found by the R.5 rehearsal |
 | R.5 | Branches committed, not pushed or deployed; old and new writers give identical rows; readers identical on live |
 | S.1 | Committed. Tonight's 18:00 UTC import applies it |
+| `056` (added) | Live 2026-10-19 02:51 UTC; rehearsed first, with its revert; checks 0 after. The v3 mito and draft views get `og_num` first and columns grouped by output; DepthSizer is out of `draft_genomes`, and the coverage columns are out of `mitogenome_submission_view` |
 
 Departures from the text below, made while building:
 - `not_measured` depth rows are stored (plan §3.2);
 - GenomeScope's label is a generated `output_set`, not a `genomescope_version` a writer sets;
 - run links also match `library_type` (`055`);
-- the merge is now `056`, and R.7's migrations are `057`–`058`. This is the "how" for
+- the merge is now `057`, and R.7's migrations are `058`–`059` (`056` reorders the views). This is the "how" for
 [`assembly_relations_plan.md`](assembly_relations_plan.md) (the "what and why"). Section numbers
 like §3.6 refer to the plan. It stops before R.6, the merge of `v3` into `public`, which gets
 its own runbook once R.5's gate is met.

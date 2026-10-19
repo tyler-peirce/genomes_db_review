@@ -1,7 +1,8 @@
 # Phase R plan — assembly relations: mitogenome split, draft-genome split, unconnected tables
 
 Status: **R.0–R.5 done 2026-10-16** (`050`–`055` applied to live; pipeline branches ready, not
-deployed). R.6, the merge, is next and has not started. Written 2026-10-15, after V.6; revised
+deployed). `056` (2026-10-19) reorders the `v3` mito and draft views: `og_num` first, columns
+grouped by output. R.6, the merge, is next and has not started. Written 2026-10-15, after V.6; revised
 2026-10-16 with the owner's answers, the draft pipeline's code, and the `v3` build approach.
 Execution records: [`assembly_relations_r0_record.md`](assembly_relations_r0_record.md),
 [`assembly_relations_rehearsal_r5.md`](assembly_relations_rehearsal_r5.md).
@@ -609,6 +610,13 @@ tables keep `full_seqid` permanently, because it is the identifier ENA knows the
     assembly is re-annotated.
   - An unannotated assembly shows NULLs there exactly as today. The difference is that the
     NULLs are now computed, not stored.
+  - **Column order (`056`, 2026-10-19).** The view no longer copies the old table's order, which
+    recorded when each column was added. It opens with `og_num`, `og_id` and
+    `nominal_species_id` (two columns more than the old table), then the assembly key, and then
+    one block per output: assembly, depth and coverage, annotation, and genes (rRNA, each
+    protein-coding gene beside its `_trans`, tRNA). `draft_genomes`, `mitogenome_submission_view`,
+    `v_mito_annotation_genes`, `v_genome_size_comparison` and `v_draft_genome_status` follow the
+    same rule. **Read these views by column name, never by position.**
   - Every reader in §2.1 keeps working on day one. **R.0 lists the readers that assume one row
     per assembly** (that select by `(og_id, tech, seq_date, code)` without `annotation`).
     Those must handle several rows (by grouping, or by choosing in their own logic) before the
@@ -704,8 +712,8 @@ step writes exactly one table.
   and has no writer. It is left out of `scripts/sync_v3.sql` after the first copy, and its
   object comment says it is retired and closed. `v_draft_genome_status` leaves it out of
   `processes_done` and the per-process flags, so a new draft is never shown as "missing
-  DepthSizer". The `draft_genomes` compatibility view still shows its six columns, NULL on
-  every new draft.
+  DepthSizer". The `draft_genomes` compatibility view no longer shows its six columns (`056`;
+  §4.3).
 - `draft_busco` gains `lineage` from the BUSCO filename tag (`buscoLineageTag`) if the writer
   passes it. Today `domain` is the only lineage information stored.
 
@@ -783,10 +791,21 @@ Seventeen `draft_genomes` columns are not carried onto the new tables (owner dec
 - Their values stay in `pre_v3_archive.draft_genomes` until R.8, and in the `pg_dump` taken
   then. The first draft's `draft_file` table is not built.
 
+**Not shown by the views (`056`, owner request 2026-10-19).** These columns are kept on the new
+tables but left out of the views, so after the merge they are dropped columns for readers too:
+- the six DepthSizer columns (`depmethod`, `adjust`, `readbp`, `mapadjust`, `scdepth`,
+  `estgenomesize`) are out of `draft_genomes`. `v3.draft_depthsizer` keeps the 701 frozen rows;
+- `avg_coverage` and `avg_base_coverage` are out of `mitogenome_submission_view`. They are
+  still in `mitogenome_data`.
+
+On 2026-10-19 the only code naming the DepthSizer columns was the decommissioned
+`OceanOmics-Database/SS/` importer, and no code read `mitogenome_submission_view`.
+
 ### 4.4 Views
 
 - **`draft_genomes`** is the compatibility view. It has today's 120 columns less the 17 dropped
-  in §4.3, so 103, in today's order, LEFT JOINed from the tables above.
+  in §4.3, so 103, LEFT JOINed from the tables above. Since `056` it shows 98: it adds
+  `nominal_species_id`, drops the six DepthSizer columns, and groups the rest by process.
   `v_genome_size_comparison` and every external reader keep working. As in §3.7, the old table
   moves to `pre_v3_archive` at the merge.
 - **`v_draft_genome_status`** is the view the owner asked for: one row per draft genome, with
@@ -1082,11 +1101,13 @@ whatever shape comes next (§3.6).
    `prepare_ena_metadata.py`, `v_genome_size_comparison` and the samplesheet builders. They
    should need no edit, except those found in R.0.3.
 
-### R.6 — Merge `v3` into `public` (`056`)
+### R.6 — Merge `v3` into `public` (`057`)
 
 **Carried from R.0–R.5 into the R.6 runbook:**
 - Gate: `ENA-draft-genomes` is still unseen (R.0.2). Confirm what it writes and that it reads
-  none of the 17 dropped columns.
+  none of the 17 dropped columns, nor the eight that `056` left out of the views (§4.3).
+- Confirm that no reader, OceanGenom_Web included, selects these views by column position.
+  `056` changed the column order.
 - Drop the window-only functions (`v3.sync_mito`, `sync_draft`, `sync_sequencing_run`,
   `check_mito`, `check_draft`) and the 18:30 UTC `sync_v3.sh` cron line.
 - Re-point `v3.rebuild_mito_gene_views()`'s `search_path` setting to `public, pg_temp`. Its
@@ -1103,9 +1124,9 @@ move every `v3` object into `public`, rebuild the dependent views, drop the old 
 into. Post-check: the next pipeline runs write the new tables, an old writer fails loudly on
 "cannot insert into view", and no `public` view depends on a `pre_v3_archive` table.
 
-### R.7 — Re-parent the LCA and ENA children; FKs to `sequencing_run` (`057`, `058`)
+### R.7 — Re-parent the LCA and ENA children; FKs to `sequencing_run` (`058`, `059`)
 
-1. **`057`:** add `annotation_id`, backfill it (proved in R.2.4), then `SET NOT NULL` on the
+1. **`058`:** add `annotation_id`, backfill it (proved in R.2.4), then `SET NOT NULL` on the
    four LCA tables and both ENA tables. Add each FK `NOT VALID`, then `VALIDATE`.
    - **Agree the ENA columns with the owner of the downstream submitter first.**
      `ena_submissions` is their ledger (`015`).
@@ -1113,7 +1134,7 @@ into. Post-check: the next pipeline runs write the new tables, an old writer fai
      until the writers stop sending them.
    - Update `push_lca_*`, `push_species_validation.py` and `push_ena_validation_results.py` to
      send `annotation_id`.
-2. **`058`:** FK `sequencing.run_id`, `raw_data.run_id`, `hifi_reads_qc.run_id` and
+2. **`059`:** FK `sequencing.run_id`, `raw_data.run_id`, `hifi_reads_qc.run_id` and
    `hic_reads_qc.run_id` to `sequencing_run`. Add the library-level QC links, now that §2.3 has
    made `(library_tube_id, run_id)` unique.
 3. Later, once a release has run clean: drop the natural columns from the LCA tables, re-key
