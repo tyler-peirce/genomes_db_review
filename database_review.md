@@ -1477,6 +1477,18 @@ Both gates are now cleared. **V.0 was dropped by decision and V.1 is done**, bot
 
 **V.7 — Close out.** Next. (1) Drop `pre_v2_archive` after a quiet period; `~/oceanomics_genomes_pre_v6_261015.dump` is the permanent copy. (2) Teach `bin/check_drift.py --coverage` that `035`–`046`'s `v2.x` became `public.x` via `048`. Today it counts those 39 objects baseline-only (50 in all). (3) Refresh the nine object comments that still say `v2.` (`schema/current_schema.sql`). The 17 objects become migration-covered; re-run `bin/check_drift.py --coverage` and update section 13. Phase H's remaining scope shrinks to what is genuinely beyond `v2`.
 
+### Phase R: assembly relations (planned 2026-10-15)
+
+**Plan only; nothing applied.** Plan document: `docs/assembly_relations_plan.md`.
+
+- Split `mitogenome_data` into `mito_assembly`, `mito_assembly_depth`, `mito_annotation` and `mito_annotation_gene`.
+- Split `draft_genomes` into `draft_genome` plus one table per process, with `v_draft_genome_status` showing the gaps.
+- Connect the tables that still have no relation in or out.
+
+The trigger is measured. A re-annotation currently overwrites the previous annotation in place, while the LCA and ENA children keep pointing at it. As of 2026-10-15 there are five such orphaned annotations, all from the 260909 batch, and three ENA attempts whose assembly no longer exists. Owner decisions: draft genomes only (`ref_genomes` is the next phase), and surrogate keys. Migrations from `049`.
+
+The live check on 2026-10-16 found one defect outside this phase that blocks two of its steps: **372 placeholder `sequencing` rows**. Their `sequencing_id` is `<tube>_`, with no run suffix, and 356 of them duplicate a canonical `<tube>_<run_id>` row for the same run. So `sequencing` is not unique on `(library_tube_id, run_id)`, and per-run counts double-count those runs. See the plan's §2.3.
+
 ## 10. Revised Priority Backlog
 
 ### Do now
@@ -1516,7 +1528,7 @@ All four are done. The follow-ons each item left behind are listed with their pa
 1. Convert legacy text date and numeric columns (not `seq_date`).
 2. Deprecate and remove the 16 confirmed-empty columns.
 3. Drop the two empty ENA archive tables.
-4. Split `draft_genomes`.
+4. ~~Split `draft_genomes`.~~ **Promoted 2026-10-15 to Phase R** (`docs/assembly_relations_plan.md`), together with the mitogenome split and the connectivity review.
 5. Unified library model / `v2` cutover.
 6. Full database comments.
 
@@ -1824,5 +1836,7 @@ Capture the eight `data_package_*` tables in a migration and the data dictionary
 | 3.14 | 2026-10-13 | **Phase V.5 done: the `v2` cutover is applied to live** as `045_v2_cutover.sql` (06:07 UTC), after a pre-flight and a rehearsal on a fresh dump of live. Unqualified names now resolve to `v2`, and the 20 replaced `public` objects are `*_pre_v2`. All post-checks passed, and the drift baseline accepts exactly the 20 renames. Next: the watch period, then V.6. |
 | 3.15 | 2026-10-13 | **Migration `046`: `og_num` is the first column of all twelve `v2` browse views**, followed by `og_id`, so they sort numerically. `037` exposed `og_num` only on `v_tissue_browse`, as column 2. `og_num` comes from a primary-key join to `v2.sample`, reusing its generated column. `CREATE OR REPLACE` cannot insert a column at position 1, so the views are dropped and recreated with their comments and `readonly` grant restored; the in-transaction verify block checks all three. Dry-run (apply and revert, rolled back), then applied: row counts identical in all twelve views, ledger and drift clean. Revert: `sql/revert/046_v2_browse_views_og_num_first_revert.sql`. |
 | 3.16 | 2026-10-15 | **Phase V.6 and Phase F done: `v2` is consolidated into `public`.** Steps in order: (1) `import_v2.py` made schema-agnostic (unqualified names, plus a start-up check), with a dry run identical to the night before. (2) `blast_filtered_lca_SS260818` exported to `~` and verified by content hash. (3) Rehearsed on a restore of live, including an exact revert and a no-op replay. (4) Applied at 06:18 UTC: `047` dropped the eight snapshots; `048` archived the 20 `_pre_v2` objects and two trigger functions in `pre_v2_archive`, moved 39 relations and 3 functions into `public`, rewrote `quarantine()`'s body and re-pinned `lca_set_content_hash`, reset the database `search_path` and dropped schema `v2`. Post-checks all passed. Drift re-baselined (+39 / −28, 75 objects). Cutover-only scripts moved to `scripts/archive/v2_cutover/`. Plan and records: `docs/phase_v6_plan.md`. |
+| 3.17 | 2026-10-15 | **Phase R planned: assembly relations.** `docs/assembly_relations_plan.md` sets out three changes: split `mitogenome_data` into assembly, depth, annotation and gene tables; split `draft_genomes` into an identity table plus one table per process, with a status view; and review every table that has no relation. First measured from the 06:02 UTC pre-V.6 dump, then re-checked against live on 2026-10-16. The mitogenome figures were identical. Corrections from live: `draft_genomes` has 120 columns; 15 drafts were built from a Hi-C run; gfastats and the assembly summary disagree on N50 for 608 of 696 drafts; and 372 placeholder `sequencing` rows were found. It found five annotations orphaned by re-annotation, and three ENA attempts (one `submission_ready`) whose assembly is gone. Lower #4 is promoted. Nothing applied. |
+| 3.18 | 2026-10-16 | **Two data fixes from Phase R's live check.** (1) `import_v2.py` now deletes `sequencing` rows the workbook no longer carries, keeping each one whole in `import_quarantine` as `displaced`. It refuses when more than `--max-stale-sequencing` rows (default 25) are stale, and it quarantines blank or incomplete run IDs. Its first live run removed 458 stale rows, 360 of them `<tube>_` placeholders, which leaves no duplicate `(library_tube_id, run_id)`. (2) Migration `049` deleted the 15 draft genomes assembled from Hi-C run `NEXT_251118_AD`. It is opt-in and guarded by a checksum; the rows are archived, and the revert re-inserts them exactly. Both were rehearsed on a restore of live, applied, and verified: live `sequencing` is md5-identical to the rehearsal, the ledger has 50 files, and there is no drift. Pre-change dump: `~/oceanomics_genomes_pre_049_261016.dump`. |
 
 The previous revision is preserved at `/tmp/database_review.prev.md` at the time of writing; the authoritative history is in git.
