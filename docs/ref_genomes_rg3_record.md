@@ -3,7 +3,7 @@
 Runbook: [`ref_genomes_runbook_rg0_rg5.md`](ref_genomes_runbook_rg0_rg5.md) RG.3. Figures:
 [`ref_genomes_rg0_record.md`](ref_genomes_rg0_record.md) §4.
 
-**Status: rehearsed 2026-10-19; awaiting the owner's OK to apply on live.**
+**Status: done 2026-10-19.** Rehearsed, then applied on live at 08:06:18 UTC.
 
 ## What was built
 
@@ -54,6 +54,14 @@ includes `057` and `058` (ledger at `058`). Same set-up as RG.1.
 | Checks | All 0 |
 | An SRA status `Pending` | **The night failed** (`uploads: public rows with an untriaged key problem (1)`); nothing written |
 
-## Apply on live
+## Apply on live, 2026-10-19
 
-Pending the owner's OK.
+| Step | Result |
+|---|---|
+| Pre-flight | `059` the only pending file; no drift; no active sessions. Uploads 88 / 304, as in the rehearsal dump |
+| **`059` applied** | **08:06:18 UTC**; ledger 60. Counts identical to the rehearsal: 88 / 84 linked / 174 / 304 |
+| `--verify`, `check_drift.py --update` | Clean; 75 objects, +0 / −0 (`public` only) |
+| `export_schema_baseline.sh` | No change beyond the `\restrict` token: `public` unchanged |
+| `sync_v4.sh` by hand | 08:06:19 UTC, exit 0. All three v4 syncs and checks pass. Notes: 61 / 15 / 77 / 4. No `.FAILING` |
+
+The throwaway cluster was stopped and deleted after this record was written.
