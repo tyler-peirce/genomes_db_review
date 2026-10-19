@@ -3,7 +3,8 @@
 Runbook: [`ref_genomes_runbook_rg0_rg5.md`](ref_genomes_runbook_rg0_rg5.md) RG.1. Figures:
 [`ref_genomes_rg0_record.md`](ref_genomes_rg0_record.md) §4.
 
-**Status: rehearsed 2026-10-19; awaiting the owner's OK to apply on live.**
+**Status: done 2026-10-19.** Rehearsed, then applied on live at 06:20:46 UTC. The nightly sync
+runs at 19:00 UTC.
 
 ## What was built
 
@@ -88,6 +89,22 @@ Measured on the rehearsal copy:
 v4 mirrors `public` faithfully. Whether to fold the two into one assembly is a question for the RG.4 writers and the
 RG.6 data rewrite, not for `057`.
 
-## Apply on live
+## Apply on live, 2026-10-19
 
-Pending the owner's OK.
+Applied at the owner's OK, the same morning as the rehearsal.
+
+| Step | Result |
+|---|---|
+| Pre-flight: ledger | `--dry-run`: 57 applied, `057` the only pending file |
+| Pre-flight: drift | None: 75 objects |
+| Pre-flight: sessions | 5, all idle: 2 `oceangenom_web`, 1 `postgres` via the web app, 1 DBeaver (120.19.27.46, last query on `ref_genomes_sra_uploads`), 1 local |
+| Pre-flight: data | `public.ref_genomes` 2,036 rows, as in the rehearsal dump |
+| **`057` applied** | **06:20:46 UTC**; ledger 58. Counts identical to the rehearsal: 468 / 2,024 / 1,294 / 781 / 968 / 878 / 576 / 300 / 300 / 434 |
+| `--verify` | Clean: 58 files, all hashes match |
+| `check_drift.py --update` | 75 objects, +0 / −0. Expected: the inventory covers `public` only, and `057` adds nothing there |
+| `export_schema_baseline.sh` | `public` only. The diff is `pg_dump`'s `\restrict` token alone, which confirms `public` is unchanged |
+| `sync_v4.sh` by hand | 06:20:59 UTC, exit 0: `sync_v4 ok`, `note: assemblies with no run link: 61`, no `.FAILING` |
+| Cron | `0 19 * * * /home/tyler/genomes_db_review/scripts/sync_v4.sh >/dev/null 2>&1` added to the `tyler` crontab after `sync_v3` (18:30); the other three lines unchanged |
+
+**Status: RG.1 done.** The throwaway cluster was stopped and deleted after this record was
+written.
