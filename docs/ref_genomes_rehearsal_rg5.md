@@ -110,11 +110,68 @@ with the new (`phase-rg-v4`, v4) for OG762, OG820, OG88 and OG2613:
 | Every reader accounted for | **Yes, except OceanGenom_Web**, which is still a condition. The two broken functions and three broken ref samplesheet scripts are an existing defect, to fix in their own change |
 | `check_drift.py` and `--verify` clean | **Yes:** no inventory drift; ledger 60, all hashes match |
 
-**Carried into the RG.6 runbook:**
-1. Deploy both `phase-rg-v4` branches before the swap, and verify by file, not exit code.
-2. The samplesheet functions: fix the `sequencing.og_id` join (a v2-cutover leftover), and move
+**Carried into the RG.6 runbook** (updated 2026-10-20, after the addendum below):
+1. **Deploy every `phase-rg-v4` branch as part of the swap, and verify by file, not exit code.**
+   - The branches are ref-genomes `47fd998`, post-curation `cd2001f` and `ENA-ref-genomes` `e79a33b`.
+   - None of them may run against live before the swap: until then the nightly sync would replace
+     what they write in v4 with `public`'s copy.
+2. **`OcOm_B219` `scripts/resolve_gca_accessions.py`** also updates `ref_genomes_assembly_uploads`, which
+   becomes a view. Its `ref_genomes_assembly_uploads` update needs the same change as `ENA-ref-genomes` step
+   `10` (or should call that step instead). Its `draft_genomes` update belongs to R.6. It is not
+   cloned here as a working repo, so no branch has been made.
+3. The samplesheet functions: fix the `sequencing.og_id` join (a v2-cutover leftover), and move
    the functions into migrations so pipeline scripts stop running DDL.
-3. The open writers: `hic_reads_qc` and the upload tables (RG.0 §3), and the meaning of
-   `status_date`.
-4. OceanGenom_Web's queries.
-5. Whether to fold the split hifi1 assemblies (RG.1 record, the observation section).
+   - Pawsey already has the scripts fixed (using `v_sequencing_browse`), uncommitted: commit that
+     work first.
+   - `ref_gen_automation`'s `poll-asana-yield.py` has the same defect.
+4. **`hic_reads_qc`: writer still unknown** (RG.0 record §5). It keeps its compatibility view, and the
+   writer is ported once it is found. Until then RG.6 must keep a write path: either keep
+   `public.hic_reads_qc` a table and sync it into v4 one way, or accept that the unknown writer fails.
+5. OceanGenom_Web's queries.
+6. Whether to fold the split hifi1 assemblies (RG.1 record, the observation section).
+7. Draft-side writers, for R.6 rather than RG: `ENA-draft-genomes` steps `06` and `07`, and `OcOm_B219`'s
+   resolver, all write `draft_genomes` (RG.0 record §5).
+
+## Addendum 2026-10-20: submission writers and `060`
+
+**`060_v4_ref_sra_release_date.sql`.** It renames `v4.ref_sra_upload.status_date` to
+`release_date`, and also renames the matching column of `v4.sync_ref_sra_source`, the CHECK
+constraint and the comments. It recreates `v4.sync_ref_submission()`. Before `COMMIT` it checks
+that the sync is a no-op and that every check passes.
+
+Rehearsed on a throwaway cluster restored from a `pg_dump -Fc` of live taken at 04:20 UTC:
+
+| Step | Result |
+|---|---|
+| Apply | Ledger 61. Columns `release_date` in both places; checks 0; 304 rows, `release_date` 132, status 164 |
+| Sync straight after | No-op |
+| Simulated changes in `public`: a new dated run, and a date changed | Sync: 2 rows upserted. The new row has `release_date` 2028-06-29, and the view shows `ncbi_status` `2028-06-29`. Checks 0. Full `sync_v4.sql`: `sync_v4 ok` |
+| Revert, delete the ledger row, re-run `059` | `pg_dump -s` identical to the pre-apply dump, apart from `pg_dump`'s random `\restrict` token |
+| Re-apply; replay with the ledger row deleted | Both clean. `--verify`: 61 files, all hashes match |
+
+**Not applied on live yet.** The live apply was blocked by this session's permission settings. It
+needs the owner to run it or allow it. Pre-flight at 04:21 UTC was clean: 1 pending, no drift, no
+open sessions.
+
+**`ENA-ref-genomes` `phase-rg-v4` (`e79a33b`).**
+- **Step `09`** writes `ref_submission`, `ref_submission_haplotype` (a row only for a haplotype with
+  something to record) and `ref_sra_upload` (`release_date` = `holdUntilDate`).
+  - It keeps the blank-only behaviour.
+  - All of an OG's writes, including `sample`, are now one transaction instead of three commits.
+  - It links the submission to the OG's one curated assembly, as the sync does, since there is no
+    sync after RG.6.
+  - When `sample.embargo_status` is NULL it falls back to the stored value, because `NOT NULL` is
+    checked before `ON CONFLICT`.
+- **Step `10`** updates `ref_submission_haplotype.gca_accession`.
+- **Tests:** 8 `unittest` tests with a fake connection, all passing.
+
+On the same restore (with `060`), using generated receipts for OG100 (new submission) and OG787
+(existing, partly filled):
+
+| Case | Result |
+|---|---|
+| Old step `09` → `public`, new step `09` → `v4` (`search_path=v4,public`), no sync between | Both exit 0. **`check_ref_submission`: 0 differences either way.** OG787's existing values were kept and its blanks filled; both OGs linked to their assembly |
+| New step `09` run again | Exit 0; v4 md5 unchanged, `loaded_at` included |
+| Step `10`, ENA Portal stubbed: new → v4, old → `public` | Both wrote 2 GCAs (OG100 hap1/hap2); 0 differences. A rerun writes 0 |
+| `sync_ref_submission()` afterwards | No-op: the new writers write what the sync would |
+| Old step `09` against the views (simulated RG.6) | **Exit 1** (`cannot insert into view`), so it fails visibly. But the `sample` update, committed separately, had already landed: a partial write. The new step avoids this |

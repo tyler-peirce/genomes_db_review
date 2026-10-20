@@ -5,6 +5,8 @@ Status: **RG.0–RG.5 done 2026-10-20.** Records: [`rg0`](ref_genomes_rg0_record
 [`rg5`](ref_genomes_rehearsal_rg5.md). `057`–`059` are live, and `sync_v4` runs at 19:00 UTC. Both pipelines have a tested
 `phase-rg-v4` branch, not deployed. The RG.6 gate is met except the sync period (owner's call) and OceanGenom_Web
 (rehearsal record, gate section).
+2026-10-20: the upload writers were found (`ENA-ref-genomes` steps `09`/`10`) and ported on its `phase-rg-v4`
+branch, and `060` (`status_date` → `release_date`) was rehearsed; it is not yet live (RG.5 record, addendum).
 Written 2026-10-19, from read-only measurements on live taken the same day.
 
 Corrections from RG.0, which take precedence over the text below:
@@ -14,7 +16,7 @@ Corrections from RG.0, which take precedence over the text below:
 - `k_mer_set` is empty everywhere, so, like `hap2_chr_level_max_len`, it is only a NULL in the
   compatibility view;
 - run links: exact matches only, and every match is linked (407 assemblies, 434 links);
-- the date in `ncbi_status` becomes `status_date`;
+- the date in `ncbi_status` becomes `status_date`, renamed `release_date` by `060` once its meaning was known;
 - `oceangenom_web` also reads `ref_genomes_assembly_uploads`. This is the reference-genome counterpart of
 [`assembly_relations_runbook_r0_r5.md`](assembly_relations_runbook_r0_r5.md). It stops before
 RG.6, the move of `v4` into `public`, which gets its own runbook once the gate at the end is met.

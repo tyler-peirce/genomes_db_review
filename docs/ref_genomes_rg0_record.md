@@ -177,8 +177,8 @@ rest stay NULL and are listed by the readiness view.
 
 | Check | Result |
 |---|---|
-| Writer of `hic_reads_qc` | **None found.** Grepped every repo under `~` for the table and for its BaseSpace-style columns (`totalreadspf`, `isfiledeleted`). The postgres logs are not readable by `tyler` |
-| Writer of the two upload tables | **None found** in any repo |
+| Writer of `hic_reads_qc` | **None found.** Grepped every repo under `~` for the table and for its BaseSpace-style columns (`totalreadspf`, `isfiledeleted`). The postgres logs are not readable by `tyler`. Still none after the wider search of §5 |
+| Writer of the two upload tables | **None found** in any repo here on 2026-10-19. **Found 2026-10-20** (§5): `ENA-ref-genomes` steps `09` and `10`, and `OcOm_B219`'s GCA resolver |
 | `stage3_backfill_push.py` | One-off: a hard-coded list of 13 OGs. Not changed in RG.4 |
 | `OceanOmics-Database/SS/ref_genomes_table/*` | Last commit 2026-01-20; the same scripts as the ref repo's `03_compile_results`, before samplesheet versioning. Treated as retired. Its compiled TSVs (OG762 hic1 241019, stages 0 and 2) are the RG.5 fixtures |
 | Pawsey, for RG.5 inputs | **Unreachable** (`setonix-08` SSH timed out), as in R.0. RG.5 uses the local fixtures, plus stage-3 TSVs rebuilt from one curated OG's live values |
@@ -214,9 +214,9 @@ means a row in `v4.ref_excluded_rows`. Excluded rows stay in `public` until RG.6
 
 | Item | Answer | Effect |
 |---|---|---|
-| Writer of `hic_reads_qc` | "Another repo, not sure which" | Synced as is. Its writer changes once the repo is found |
-| Writer of the upload tables | "Another repo" (not named) | Synced as is, likewise |
-| Meaning of the date in `ncbi_status` | Unknown | v4 splits it into `ncbi_status` (`Released`/`ToBeReleased`) and a neutral **`status_date`**. The compatibility view recombines them exactly |
+| Writer of `hic_reads_qc` | "Another repo, not sure which" | Synced as is. **Still not found** after §5; the one unread place is a permission-denied script on Pawsey |
+| Writer of the upload tables | "Another repo" (not named) | Synced as is. **Answered 2026-10-20** (§5): `ENA-ref-genomes` `09`/`10`, plus `OcOm_B219`. Ported on `ENA-ref-genomes` `phase-rg-v4` |
+| Meaning of the date in `ncbi_status` | Unknown | v4 splits it into `ncbi_status` (`Released`/`ToBeReleased`) and a neutral **`status_date`**. The compatibility view recombines them exactly. **Answered 2026-10-20** (§5): the scheduled release (embargo end) date. `060` renames the column `release_date` |
 | OceanGenom_Web queries | Not available now | Recorded as unchecked in RG.5. **Checking them is a condition of the RG.6 gate.** The role's grants are mirrored in `v4` (`ref_genomes`, `ref_genomes_assembly_uploads`) |
 
 ## 4. Figures `057`–`059` will assert
@@ -261,3 +261,56 @@ explained by pipeline writes, and be re-recorded here before applying.
 | `ref_sra_upload` | 304: status 164, `status_date` 132, neither 8 |
 
 **Gate: met.** Every number is recorded and every triage row has a decision.
+
+## 5. Writers and readers, wider search (2026-10-20)
+
+After RG.5 the search for the missing writers was widened, read-only throughout:
+- `~/ref_gen_automation`, a clone;
+- the live Pawsey checkout;
+- every public repo of the GitHub org `Minderoo-OceanOmics-Centre-UWA`: 36 of 41 cloned, with the
+  5 large data repos skipped;
+- the private `ENA-ref-genomes`, `ENA-draft-genomes` and `ENA-mito-genomes`, cloned here by the owner.
+
+**Writers found:**
+
+| Table | Writer | What it does |
+|---|---|---|
+| `ref_genomes_assembly_uploads` | `ENA-ref-genomes` `workflow/09_push_submission_data_to_db.py` (last step of the Nextflow chain, `--prod_mode` only) | `INSERT … ON CONFLICT (og_id)`, blank-only (`COALESCE(existing, new)`): BioSample, BioProjects, ERZ accessions; `embargo_status` copied from `sample` |
+| `ref_genomes_sra_uploads` | the same step `09` | One row per ERR run, inserted if the `srr_accession` is new. **`ncbi_status` = the ENA `holdUntilDate`, "the embargo end date"**. Fills an empty `filenames` |
+| `sample` (BioSample and BioProject columns) | the same step `09` | Blank-only. Committed separately from the two tables above |
+| `ref_genomes_assembly_uploads.gca_accession_hap1/2` | `ENA-ref-genomes` `10_resolve_gca_accessions.py` (by hand) and `OcOm_B219` `scripts/resolve_gca_accessions.py` (each quarterly report) | Blank-only `UPDATE` from the ENA Portal API |
+| `hic_reads_qc` | **not found** | Not in any repo above, nor in the readable parts of Pawsey. Unread: `og_automation/hifi_hic/poll-hichifi-assembly-trigger.py` on Pawsey (permission denied) |
+
+**The release-date question is settled by two sources.** Step `09` writes the hold-until date. `OcOm_B219`
+`scripts/queries.py` (`RELEASE_STATE_SQL`) reads `Released` and a date `<= CURRENT_DATE` as
+public, and `ToBeReleased` and a later date as embargoed.
+
+**Writers outside Phase RG,** for the draft and mitogenome phases:
+- `ENA-draft-genomes` step `06` updates `draft_genomes` and `sample`, and step `07` does
+  `UPDATE draft_genomes SET assembly_accession … WHERE og_id AND seq_date`. `OcOm_B219`'s resolver
+  updates `draft_genomes.assembly_accession` too. **R.6 (v3) must cover these.**
+- `ENA-mito-genomes` step `06` upserts `ena_submissions` on `(full_seqid, webin_mode)`, and step `07` fills
+  `ena_assembly_accession`. Its `manual_scripts/` write `sample`. Not a v3 or v4 table.
+
+**Readers found:**
+
+| Reader | Reads | Under the compatibility views |
+|---|---|---|
+| `ENA-ref-genomes` step `00` | `ref_genomes WHERE stage = 3`, `coverage_summary`, both upload tables, `ena_submissions` | Works: same names and columns |
+| `OcOm_B219` `scripts/queries.py` | `ref_genomes` (stage 3), both upload tables, a regex on raw `ncbi_status` | Works: the view gives back the raw text |
+| `genomenotes` `generate_genome_note.py` (Pawsey) | `SELECT * FROM ref_genomes_assembly_uploads` | Works: same columns in the same order |
+| `query_hichifi_results.py` (Pawsey) | `ref_genomes` | Already on `phase-rg-v4` (RG.4) |
+
+**Other findings, for RG.6:**
+- **The Pawsey checkout** is `/scratch/pawsey0964/lhuet/ref-gen/OceanOmics-OceanGenomes-ref-genomes`.
+  - Its push scripts are byte-identical to our clone's `master`, so `phase-rg-v4` needs no rebase.
+  - Its three samplesheet scripts are already fixed for the `sequencing.og_id` defect (they use
+    `v_sequencing_browse`), but **the fix is not committed**. `create_samplesheet_from_config.py`
+    there filters on `technology = 'PacBio'` only.
+- **The automation is half consolidated:**
+  - `og_automation`'s `compile_push` is empty;
+  - `post-assembly.py` is gone from `ref_gen_automation`;
+  - the call `0b --accumulate` is not supported by `0b`;
+  - `ref_gen_automation` has older copies of the push scripts (`01a` among them);
+  - its `poll-asana-yield.py` queries `sequencing.og_id`, so it has the same defect.
+
