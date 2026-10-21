@@ -1,0 +1,249 @@
+og_id	genomescope_read_set_id	hifi_adapter_read_set_id	seq_date	sequencing_ids	status	genomescope_backup	run_match	note
+OG1	8		230525	OG1G_D_SBL_PACB_230525_AD	dated	equal	barcode	one PacBio run date
+OG2	1		230413	OG2G_D_SBL_PACB_230413_AD	dated	equal	barcode	one PacBio run date
+OG3	13		230825	OG3G_D_SBL_PACB_230825_AD	dated	equal	barcode	one PacBio run date
+OG5	152		230628	OG5G_D_SBL2_PACB_230628_AD,OG5G_D_SBL_PACB_230609_AD	dated	equal	barcode+date	3 run dates; version v230628 current at 2024-01-20
+OG6	58		230628	OG6G_D_SBL2_PACB_230628_AD	dated	equal	barcode	one PacBio run date
+OG7	62		230915	OG7G_D2_SBL_PACB_230915_LP	dated	equal	barcode	one PacBio run date
+OG8	57		230512	OG8G_D_SBL_PACB_230512_AD	dated	equal	barcode	one PacBio run date
+OG9	237		240206	OG9G_D3_SBL_PACB_240206_AD	dated	equal	barcode	one PacBio run date
+OG10	37		230209	OG10G_D_SBL_PACB_230209_LP	dated	equal	barcode	one PacBio run date
+OG11	14		230825	OG11G_D_SBL_PACB_230825_AD	dated	equal	barcode	one PacBio run date
+OG12	6		230512	OG12G_D_SBL_PACB_230512_AD	dated	equal	barcode	one PacBio run date
+OG13	41		230209	OG13G_D_SBL_PACB_230209_LP	dated	equal	barcode	one PacBio run date
+OG14	42		230209	OG14G_D_SBL_PACB_230209_LP	dated	equal	barcode	one PacBio run date
+OG15	2		230413	OG15G_D_SBL_PACB_230413_AD	dated	equal	barcode	one PacBio run date
+OG16	43		240427	OG16G_D_SBL_PACB_240427_LA	dated	equal	date	one PacBio run date
+OG27	7		230512	OG27B_D_SBL_PACB_230512_AD	dated	equal	barcode	one PacBio run date
+OG28	12		230811	OG28B_D4_SBL_PACB_230811_AD,OG28B_D5_SBL_PACB_230811_AD,OG28B_D6_SBL_PACB_230811_AD,OG28B_D7_SBL_PACB_230811_AD	dated	equal	barcode	one PacBio run date
+OG35	66		231027	OG35W_D_SBL_PACB_231027_ADLA	dated	equal	barcode	one PacBio run date
+OG36	10		230724	OG36W_D_SBL_PACB_230724_AD	dated	equal	barcode	one PacBio run date
+OG37	23	6	240116	OG37G_D_SBL_PACB_240116_LAAD	dated	equal	date	one PacBio run date
+OG38	9		230609	OG38G_D_SBL_PACB_230609_AD	dated	equal	barcode	one PacBio run date
+OG39	24	7	241018	OG39H_D_SBL_PACB_241018_LA	dated	equal	barcode	one PacBio run date
+OG40	25	8	241004	OG40H_D2_SBL_PACB_241004_LA	dated	equal	barcode	one PacBio run date
+OG42	26		240215	OG42G_D_SBL2_PACB_240215_AD	dated	equal	barcode	one PacBio run date
+OG46	27		240215	OG46G_D_SBL_PACB_240215_AD	dated	equal	barcode	one PacBio run date
+OG47	46		231115	OG47G_D_SBL_PACB_231115_LA	dated	equal	barcode	one PacBio run date
+OG52	15		230825	OG52G_D_SBL_PACB_230825_AD	dated	equal	barcode	one PacBio run date
+OG53	16		230915	OG53G_D2_SBL2_PACB_230915_LP,OG53G_D2_SBL_PACB_230915_LP	dated	equal	barcode	one PacBio run date
+OG54	81	25	241004	OG54G_D_SBL_PACB_241004_LA	dated	equal	barcode	one PacBio run date
+OG55	67	19	231115	OG55G_D_SBL_PACB_231115_LA	dated	refit	date	one PacBio run date
+OG56	128	49	240116	OG56G_D_SBL_PACB_240116_LAAD	dated	refit	date	one PacBio run date
+OG57	17	2	231027	OG57G_D_SBL_PACB_231027_ADLA	dated	differs (acacia 535,239,373 2024-01-19, db 532109732)	barcode	one PacBio run date
+OG58	129	50	250704	OG58W_D2_SBL_PACB_250704_AD	dated	equal	barcode	one PacBio run date
+OG60	130		241127	OG60M_D_SBL_PACB_241127_AD	dated	equal	barcode	one PacBio run date
+OG61	131	51	250317	OG61W_D_SBL_PACB_250317_AD	dated_from_sequencing	no_acacia_file	sequencing_only	no HiFiAdapterFilt .stats on Acacia; the OG's only PacBio run date
+OG62	132	52	250317	OG62G_D_SBL_PACB_250317_AD	dated	equal	barcode	2 run dates; movies backed up with the summary OG62_genomescope_summary.txt (2025-06-17)
+OG64	133	53	250307	OG64W_D_SBL_PACB_250307_AD	dated	equal	barcode	one PacBio run date
+OG65	174	89	250704	OG65W_D_SBL_PACB_250704_AD	dated	equal	barcode	one PacBio run date
+OG67	175	90	241127	OG67W_D_SBL_PACB_241127_AD	dated	equal	barcode	one PacBio run date
+OG70	199	108	250307	OG70W_D_SBL_PACB_250307_AD	dated	equal	barcode	one PacBio run date
+OG72	209	113	241023	OG72H_D_SBL_PACB_241023_AD	dated	equal	barcode	one PacBio run date
+OG73	150	67			no_acacia_reads	equal		no HiFiAdapterFilt .stats on Acacia; PacBio run dates in sequencing: 250307,250704
+OG76	61		230825	OG76G_D_SBL_PACB_230825_AD	dated	equal	barcode+date	one PacBio run date
+OG78	134	54	260626	OG78W_D2_SBL_PACB_260626_AMDTW	dated	equal	barcode	one PacBio run date
+OG79	102	31	240427	OG79G_D_SBL_PACB_240427_LA	dated	equal	date	one PacBio run date
+OG81	186	98	250704	OG81W_D_SBL_PACB_250704_AD	dated	equal	barcode	one PacBio run date
+OG85	167	82	240927	OG85H_D_SBL_PACB_240927_LA	dated	equal	barcode	one PacBio run date
+OG88	60		230724	OG88G_D_SBL_PACB_230724_AD	dated	equal	barcode	one PacBio run date
+OG90	238	134	240821	OG90H_D2_SBL2_PACB_240821_AD	dated	differs (acacia 614,215,512 2024-09-09, db 546685376)	barcode	one PacBio run date
+OG95	103		230525	OG95H_D_SBL_PACB_230525_AD	dated	equal	barcode	one PacBio run date
+OG99	240		240215	OG99G_D2_SBL_PACB_240215_AD	dated	equal	barcode	one PacBio run date
+OG100	31	11	240116	OG100W_D2_SBL_PACB_240116_LAAD	dated	differs (acacia 446,824,504 2026-04-21, db 446688936)	date	one PacBio run date
+OG101	4		240206	OG101H_D_SBL2_PACB_240206_AD	dated	equal	barcode	one PacBio run date
+OG104	11		250113	OG104M_D_SBL2_PACB_241127_AD,OG104M_D_SBL_PACB_250113_AD	dated	equal	barcode	2 run dates; movies backed up with the summary OG104_genomescope_summary.txt (2025-01-28)
+OG105	22		231027	OG105H_D_SBL_PACB_231027_ADLA	dated	equal	barcode	one PacBio run date
+OG106	32	12	240927	OG106G_D2_SBL_PACB_240927_LA	dated	equal	barcode	one PacBio run date
+OG107	68	20	240125	OG107G_D_SBL_PACB_240125_LA	dated	equal	barcode	one PacBio run date
+OG108	20		231027	OG108H_D_SBL_PACB_231027_ADLA	dated	equal	barcode	one PacBio run date
+OG111	151	68	241018	OG111H_D_SBL_PACB_241018_LA	dated	equal	barcode	one PacBio run date
+OG113	28	9	231027	OG113G_D_SBL_PACB_231027_ADLA	dated	equal	barcode	one PacBio run date
+OG114	18	3	240116	OG114H_D_SBL2_PACB_240116_LAAD	dated	equal	date	one PacBio run date
+OG115	70		240125	OG115H_D_SBL_PACB_240125_LA	dated	equal	barcode	one PacBio run date
+OG637	82		240206	OG637B_D3_SBL2_PACB_240206_AD,OG637B_D3_SBL_PACB_240206_AD	dated	equal	barcode	one PacBio run date
+OG645	59		240427	OG645H_D_SBL_PACB_240427_LA	dated	equal	date	one PacBio run date
+OG646	83		240821	OG646G_D_SBL_PACB_240821_AD	dated	equal	barcode	one PacBio run date
+OG647	87		240501	OG647H_D_SBL_PACB_240501_AD	dated	equal	barcode	one PacBio run date
+OG648	77	21	250704	OG648G_D2_SBL_PACB_250704_AD	dated	equal	barcode	one PacBio run date
+OG649	5	1	240427	OG649H_D2_SBL2_PACB_240427_LA	dated	no_acacia_file	date	one PacBio run date
+OG650	63		240327	OG650H_D_SBL_PACB_240327_LA	dated	equal	date	one PacBio run date
+OG651	64		240327	OG651H_D_SBL_PACB_240327_LA	dated	equal	date	one PacBio run date
+OG652	78	22	240327	OG652H_D_SBL_PACB_240327_LA	dated	equal	date	one PacBio run date
+OG654	65		240327	OG654H_D_SBL_PACB_240327_LA	dated	equal	date	one PacBio run date
+OG657	177		240501	OG657H_D_SBL_PACB_240501_AD	dated	equal	barcode	one PacBio run date
+OG658	79	23	240327	OG658H_D_SBL_PACB_240327_LA	dated	equal	date	one PacBio run date
+OG659	100	29	240427	OG659H_D_SBL2_PACB_240427_LA	dated	equal	date	one PacBio run date
+OG660	178		240228	OG660H_D2_SBL2_PACB_240228_AD,OG660H_D2_SBL_PACB_240228_AD	dated	equal	barcode	one PacBio run date
+OG662	98	27	240327	OG662G_D_SBL_PACB_240327_LA	dated	equal	date	one PacBio run date
+OG664	153	69	241018	OG664H_D_SBL_PACB_241018_LA	dated	equal	barcode	one PacBio run date
+OG665	179	92	240501	OG665H_D_SBL_PACB_240501_AD	dated	equal	barcode	one PacBio run date
+OG666	180	93	241004	OG666H_D_SBL_PACB_241004_LA	dated	equal	barcode	one PacBio run date
+OG672	181		240215	OG672H_D2_SBL_PACB_240215_AD	dated	equal	barcode	one PacBio run date
+OG673	69		240427	OG673H_D_SBL2_PACB_240427_LA	dated	refit	date	one PacBio run date
+OG675	118	42	250828	OG675G_D2_SBL2_PACB_250828_AD	dated	equal	date	one PacBio run date
+OG676	99	28	240327	OG676H_D_SBL_PACB_240327_LA	dated	equal	date	one PacBio run date
+OG678	101	30	240327	OG678H_D_SBL_PACB_240327_LA	dated	equal	date	one PacBio run date
+OG679	190	102	250307	OG679H_D_SBL_PACB_250307_AD	dated	equal	barcode	one PacBio run date
+OG680	191	103	241004	OG680G_D_SBL_PACB_241004_LA	dated	equal	barcode	one PacBio run date
+OG681	192	104	250307	OG681H_D_SBL_PACB_250307_AD	dated	equal	barcode	one PacBio run date
+OG683	193		241023	OG683H_D_SBL2_PACB_241023_AD	dated	equal	barcode	2 run dates; movies backed up with the summary OG683_genomescope_summary.txt (2024-11-19)
+OG686	194	105	241004	OG686H_D_SBL_PACB_241004_LA	dated	equal	barcode	one PacBio run date
+OG695	195		240520	OG695H_D_SBL3_PACB_240520_LA	dated	equal	barcode	one PacBio run date
+OG696	196	106	240228	OG696H_D_SBL_PACB_240228_AD	dated	equal	barcode	one PacBio run date
+OG698	197		241004	OG698H_D_SBL_PACB_241004_LA	dated	equal	barcode	one PacBio run date
+OG699	198	107	250317	OG699H_D_SBL_PACB_250317_AD	dated	equal	barcode	one PacBio run date
+OG701	71		240427	OG701H_D_SBL2_PACB_240427_LA	dated	equal	date	one PacBio run date
+OG702	200	109	240501	OG702G_D_SBL_PACB_240501_AD	dated	equal	barcode	one PacBio run date
+OG704	80	24	240417	OG704H_D_SBL2_PACB_240417_LA	dated	equal	date	one PacBio run date
+OG706	201		240206	OG706H_D_SBL2_PACB_240206_AD,OG706H_D_SBL_PACB_240206_AD	dated	equal	barcode	2 run dates; version v240206 current at 2024-07-12
+OG709	202		240501	OG709G_D_SBL_PACB_240501_AD	dated	equal	barcode	one PacBio run date
+OG711	203		260603	OG711O_D3_SBL_PACB_260603_AMD	dated	equal	barcode	2 run dates; movies backed up with the summary OG711_genomescope_summary.txt (2026-06-10)
+OG716	247	142	260730	OG716O_D_SBL2_PACB_260730_AMD	dated	equal	barcode	2 run dates; movies backed up with the summary OG716_genomescope_summary.txt (2026-08-13)
+OG721	244	139	240501	OG721G_D2_SBL_PACB_240501_AD	dated	equal	barcode	one PacBio run date
+OG748	210	114	241018	OG748H_D_SBL_PACB_241018_LA	dated	equal	barcode	one PacBio run date
+OG749	211	115	250331	OG749H_D_SBL_PACB_250331_LA	dated	equal	barcode+date	2 run dates; movies backed up with the summary OG749_genomescope_summary.txt (2025-06-16)
+OG750	242	137	241004	OG750G_D_SBL_PACB_241004_LA	dated	equal	barcode	one PacBio run date
+OG751	241	136	250317	OG751G_D_SBL_PACB_250317_AD	dated	equal	barcode	one PacBio run date
+OG755	212		240821	OG755H_D_SBL_PACB_240821_AD	dated	equal	barcode	one PacBio run date
+OG756	245	140	250704	OG756G_D_SBL_PACB_250704_AD	dated	equal	barcode	one PacBio run date
+OG757	213		241018	OG757G_D_SBL_PACB_241018_LA	dated	equal	barcode	one PacBio run date
+OG758	214	116	241127	OG758M_D_SBL_PACB_241127_AD	dated	differs (acacia 523,664,469 2025-01-28, db 523203132)	barcode	one PacBio run date
+OG759	215		240520	OG759H_D_SBL_PACB_240520_LA	dated	equal	barcode	one PacBio run date
+OG762	216	117	241018	OG762H_D_SBL2_PACB_241018_LA	dated	equal	date	one PacBio run date
+OG763	141	58			no_acacia_reads	no_acacia_file		no HiFiAdapterFilt .stats on Acacia; PacBio run dates in sequencing: none
+OG765	217	118	240821	OG765W_D_SBL_PACB_240821_AD	dated	refit	barcode	one PacBio run date
+OG766	218	119	241004	OG766G_D_SBL_PACB_241004_LA	dated	equal	barcode	one PacBio run date
+OG767	219	120	241004	OG767G_D_SBL_PACB_241004_LA	dated	equal	barcode	one PacBio run date
+OG769	119	43	250828	OG769G_D_SBL_PACB_250828_AD	dated	equal	date	one PacBio run date
+OG770	220	121	241127	OG770M_D_SBL_PACB_241127_AD	dated	equal	barcode	one PacBio run date
+OG775	221	122	241004	OG775G_D_SBL_PACB_241004_LA	dated	equal	barcode	one PacBio run date
+OG777	222		240520	OG777G_D_SBL_PACB_240520_LA	dated	equal	barcode	one PacBio run date
+OG778	223	123	241018	OG778H_D_SBL_PACB_241018_LA	dated	equal	barcode	one PacBio run date
+OG781	248	143			ambiguous	differs (acacia 630,514,356 2026-08-27, db 633246488)	barcode	2 run dates 250317,260421; GenomeScope backup differs (acacia 630,514,356 2026-08-27, db 633246488)
+OG784	224	124	241018	OG784G_D_SBL_PACB_241018_LA	dated	equal	barcode	one PacBio run date
+OG785	225	125	241004	OG785G_D_SBL_PACB_241004_LA	dated	equal	barcode	one PacBio run date
+OG787	226		240927	OG787G_D_SBL_PACB_240927_LA	dated	equal	barcode	one PacBio run date
+OG788	227	126	240927	OG788G_D_SBL_PACB_240927_LA	dated	equal	barcode	one PacBio run date
+OG790	246	141	250704	OG790G_D_SBL_PACB_250704_AD	dated	equal	barcode	one PacBio run date
+OG793	204	110	250317	OG793G_D_SBL_PACB_250317_AD	dated	equal	barcode	one PacBio run date
+OG794	205		250307	OG794G_D_SBL_PACB_250307_AD	dated	equal	barcode	one PacBio run date
+OG799	182	94	241018	OG799H_D2_SBL_PACB_241018_LA	dated	equal	barcode	one PacBio run date
+OG800	183	95	241004	OG800H_D_SBL_PACB_241004_LA	dated	equal	barcode	one PacBio run date
+OG801	176	91	250828	OG801L_D_SBL_PACB_250828_AD	dated	equal	barcode	one PacBio run date
+OG803	184	96	240927	OG803G_D_SBL_PACB_240927_LA	dated	equal	barcode	one PacBio run date
+OG804	206	111	260522	OG804G_D_SBL2_PACB_260522_AMD	dated	equal	barcode	2 run dates; movies backed up with the summary OG804_genomescope_summary.txt (2026-06-10); unmapped movies m84154_250717_121941_s3
+OG808	185	97	240520	OG808H_D_SBL_PACB_240520_LA	dated	equal	barcode	one PacBio run date
+OG810	207		241004	OG810G_D_SBL_PACB_241004_LA	dated	equal	barcode	one PacBio run date
+OG811	187	99	241004	OG811G_D_SBL_PACB_241004_LA	dated	equal	barcode	one PacBio run date
+OG813	208	112	250704	OG813G_D_SBL_PACB_250704_AD	dated	equal	barcode	one PacBio run date
+OG819	173	88	250704	OG819H_D_SBL_PACB_250704_AD	dated	equal	date	one PacBio run date
+OG820	188	100	240501	OG820G_D_SBL_PACB_240501_AD	dated	equal	barcode	one PacBio run date
+OG824	189	101	241004	OG824H_D_SBL_PACB_241004_LA	dated	equal	barcode	one PacBio run date
+OG829	159	75	240927	OG829H_D2_SBL_PACB_240927_LA	dated	equal	barcode	one PacBio run date
+OG834	160	76	240927	OG834H_D2_SBL_PACB_240927_LA	dated	differs (acacia 1,137,308,587 2024-10-14, db 1136083427)	barcode	one PacBio run date
+OG836	161	77	240520	OG836B_D_SBL_PACB_240520_LA	dated	refit	barcode	one PacBio run date
+OG837	162	78	240813	OG837B_D3_SBL_PACB_240813_AD	dated	refit	barcode	one PacBio run date
+OG838	163	79	240813	OG838B2_D_SBL_PACB_240813_AD,OG838B_D_SBL_PACB_240520_LA	dated	refit	barcode+date	2 run dates; version v240813 current at 2024-09-11
+OG844	172	87	260511	OG844H_D5_SBL_PACB_260511_AMD	dated	equal	barcode	2 run dates; movies backed up with the summary OG844_genomescope_summary.txt (2026-06-10)
+OG845	164	80			no_acacia_reads	differs (acacia 2,762,183,022 2024-11-22, db 2759672662)		no HiFiAdapterFilt .stats on Acacia; PacBio run dates in sequencing: 241018,241023
+OG847	135	55	260626	OG847M_D2_SBL_PACB_260626_AMDTW	dated	equal	barcode	one PacBio run date
+OG848	165		250113	OG848U_D_SBL2_PACB_241127_AD,OG848U_D_SBL_PACB_250113_AD	dated	equal	barcode	2 run dates; movies backed up with the summary OG848_genomescope_summary.txt (2025-01-28)
+OG849	166	81	241127	OG849U_D_SBL_PACB_241127_AD	dated	equal	barcode	one PacBio run date
+OG852	228	127	250704	OG852O_D_SBL_PACB_250704_AD	dated	equal	date	one PacBio run date
+OG853	229	128	250704	OG853O_D_SBL_PACB_250704_AD	dated	equal	date	one PacBio run date
+OG855	230	129	240821	OG855H_D_SBL_PACB_240821_AD	dated	no_acacia_file	barcode	one PacBio run date
+OG856	231	130	240821	OG856H_D_SBL_PACB_240821_AD	dated_from_sequencing	equal	sequencing_only	no HiFiAdapterFilt .stats on Acacia; the OG's only PacBio run date
+OG859	232		241023	OG859B_D2_SBL_PACB_241023_AD,OG859B_D_SBL_PACB_241023_AD	dated	equal	barcode	one PacBio run date
+OG860	233		240927	OG860H_D_SBL_PACB_240927_LA	dated	equal	barcode	one PacBio run date
+OG863	234	131	241004	OG863G_D_SBL_PACB_241004_LA	dated	differs (acacia 1,056,432,028 2024-10-14, db 1055370755)	barcode	one PacBio run date
+OG865	137	57	250818	OG865G_D_SBL2_PACB_250818_AD	dated	equal	date	one PacBio run date
+OG866	235	132	241023	OG866G_D_SBL_PACB_241023_AD	dated	equal	barcode	one PacBio run date
+OG868	236	133	250317	OG868M_D_SBL_PACB_250317_AD	dated	equal	date	one PacBio run date
+OG869	136	56	250818	OG869M_D_SBL3_PACB_250818_AD	dated	equal	date	one PacBio run date
+OG906	92				no_acacia_reads	equal		no HiFiAdapterFilt .stats on Acacia; PacBio run dates in sequencing: none
+OG907	243	138	250828	OG907H_D_SBL_PACB_250828_AD	dated	equal	barcode	one PacBio run date
+OG910	239	135	241127	OG910H_D_SBL_PACB_241127_AD	dated	equal	barcode	one PacBio run date
+OG1161	19	4	250113	OG1161B_D4_SBL_PACB_250113_AD,OG1161B_D5_SBL_PACB_250113_AD	dated	equal	barcode	one PacBio run date
+OG1297	21	5	250818	OG1297B_D_SBL_PACB_250818_AD	dated	equal	barcode	one PacBio run date
+OG1326	142	59	260730	OG1326H_D2_SBL_PACB_260730_AMD	dated	equal	barcode	one PacBio run date
+OG1369	145	62	260227	OG1369H_D_SBL_PACB_260227_AMD	dated	equal	barcode	one PacBio run date
+OG1422	104	32	260227	OG1422H_D_SBL_PACB_260227_AMD	dated	equal	barcode	one PacBio run date
+OG1454	154	70	260227	OG1454H_D_SBL_PACB_260227_AMD	dated	equal	barcode	one PacBio run date
+OG1455	155	71	260331	OG1455H_D_SBL_PACB_260331_AMDLA	dated	equal	barcode	one PacBio run date
+OG1560	156	72	260408	OG1560G_D_SBL_PACB_260408_AMD	dated	equal	barcode	one PacBio run date
+OG1573	143	60	260626	OG1573M_D_SBL_PACB_260626_AMDTW	dated	equal	barcode	one PacBio run date
+OG1613	30	10	260603	OG1613M_D_SBL_PACB_260603_AMD	dated	equal	barcode	one PacBio run date
+OG1639	144	61	260626	OG1639G_D_SBL_PACB_260626_AMDTW	dated	equal	barcode	one PacBio run date
+OG1650	105		260331	OG1650H_D_SBL_PACB_260331_AMDLA	dated	equal	barcode	one PacBio run date
+OG1651	33		260522	OG1651G_D2_SBL_PACB_260522_AMD	dated	equal	barcode	one PacBio run date
+OG1663	34	13	260603	OG1663G_D_SBL_PACB_260603_AMD	dated	equal	barcode	one PacBio run date
+OG1678	35		260603	OG1678G_D2_SBL_PACB_260603_AMD	dated	equal	barcode	one PacBio run date
+OG1699	146	63	260421	OG1699G_D_SBL_PACB_260421_AMD	dated	equal	barcode	one PacBio run date
+OG1701	76		260428	OG1701G_D_SBL_PACB_260428_AMD	dated	differs (acacia 255,861,259 2026-05-02, db 646335281)	date	one PacBio run date
+OG2088	36	14	260414	OG2088G_D_SBL_PACB_260414_AMD	dated	equal	barcode	one PacBio run date
+OG2089	107	34	260227	OG2089G_D_SBL_PACB_260227_AMD	dated	equal	barcode	one PacBio run date
+OG2090	157	73	260303	OG2090E_D_SBL_PACB_260303_AD	dated	equal	barcode	one PacBio run date
+OG2092	147	64	260626	OG2092E_D_SBL_PACB_260626_AMDTW	dated	equal	barcode	one PacBio run date
+OG2093	108	35	260227	OG2093E_D_SBL_PACB_260227_AMD	dated	equal	barcode	one PacBio run date
+OG2098	38		260511	OG2098M_D_SBL_PACB_260511_AMD	dated	equal	barcode	one PacBio run date
+OG2099	39		260603	OG2099M_D_SBL_PACB_260603_AMD	dated	equal	barcode	one PacBio run date
+OG2100	109	36	260227	OG2100G_D_SBL_PACB_260227_AMD	dated	equal	barcode	one PacBio run date
+OG2102	110	37	260227	OG2102G_D_SBL_PACB_260227_AMD	dated	equal	barcode	one PacBio run date
+OG2104	40	15	260414	OG2104E_D_SBL_PACB_260414_AMD	dated	equal	barcode	one PacBio run date
+OG2105	148	65	260421	OG2105G_D_SBL2_PACB_260421_AMD,OG2105G_D_SBL_PACB_260421_AMD	dated	equal	barcode	one PacBio run date
+OG2109	149	66	260626	OG2109M_D_SBL_PACB_260626_AMDTW	dated	equal	barcode	one PacBio run date
+OG2112	44		260603	OG2112M_D_SBL_PACB_260603_AMD	dated	equal	barcode	one PacBio run date
+OG2113	45		260522	OG2113M_D_SBL_PACB_260522_AMD	dated	equal	barcode	one PacBio run date
+OG2116	47		260603	OG2116M_D_SBL_PACB_260603_AMD	dated	equal	barcode	one PacBio run date
+OG2118	106	33	260626	OG2118E_D_SBL_PACB_260626_AMDTW	dated	equal	barcode	one PacBio run date
+OG2119	158	74	260408	OG2119E_D_SBL_PACB_260408_AMD	dated	equal	barcode	one PacBio run date
+OG2121	48		260511	OG2121E_D_SBL_PACB_260511_AMD	dated	equal	barcode	one PacBio run date
+OG2122	49		260511	OG2122E_D_SBL_PACB_260511_AMD	dated	equal	barcode	one PacBio run date
+OG2124	111	38	260421	OG2124G_D_SBL_PACB_260421_AMD	dated	equal	barcode	one PacBio run date
+OG2126	50	16	260730	OG2126E_D_SBL_PACB_260730_AMD	dated	equal	barcode	2 run dates; movies backed up with the summary OG2126_genomescope_summary.txt (2026-08-13)
+OG2127	112	39	260603	OG2127E_D_SBL_PACB_260603_AMD	dated	equal	barcode	one PacBio run date
+OG2128	51		260603	OG2128E_D_SBL_PACB_260603_AMD	dated	equal	barcode	one PacBio run date
+OG2130	84		260428	OG2130G_D_SBL_PACB_260428_AMD	dated	equal	date	one PacBio run date
+OG2131	52		260511	OG2131E_D_SBL_PACB_260511_AMD	dated	equal	barcode	one PacBio run date
+OG2132	168	83	260408	OG2132E_D_SBL_PACB_260408_AMD	dated	equal	barcode	one PacBio run date
+OG2133	85		260522	OG2133E_D_SBL_PACB_260522_AMD	dated	equal	barcode	one PacBio run date
+OG2134	86		260511	OG2134E_D_SBL_PACB_260511_AMD	dated	equal	barcode	one PacBio run date
+OG2135	113	40	260730	OG2135E_D_SBL_PACB_260730_AMD	dated	equal	barcode	one PacBio run date
+OG2136	114	41	260730	OG2136E_D_SBL_PACB_260730_AMD	dated	equal	barcode	one PacBio run date
+OG2138	122	44	260626	OG2138E_D_SBL_PACB_260626_AMDTW	dated	equal	barcode	one PacBio run date
+OG2142	88		260603	OG2142G_D_SBL_PACB_260603_AMD	dated	equal	barcode	one PacBio run date
+OG2143	123	45	260421	OG2143E_D_SBL_PACB_260421_AMD	dated	equal	barcode	one PacBio run date
+OG2145	94	26	260730	OG2145G_D_SBL_PACB_260730_AMD	dated	equal	barcode	2 run dates; movies backed up with the summary OG2145_genomescope_summary.txt (2026-08-13)
+OG2146	53	17	260414	OG2146H_D_SBL_PACB_260414_AMD	dated	equal	barcode	one PacBio run date
+OG2151	124	46	260421	OG2151H_D_SBL_PACB_260421_AMD	dated	equal	barcode	one PacBio run date
+OG2156	169	84	260408	OG2156H_D_SBL_PACB_260408_AMD	dated	equal	barcode	one PacBio run date
+OG2159	54		260408	OG2159H_D_SBL_PACB_260408_AMD	dated	differs (acacia 345,515,006 2026-05-01, db 768842548)	barcode	one PacBio run date
+OG2161	115		260331	OG2161H_D_SBL_PACB_260331_AMDLA	dated	equal	barcode+date	one PacBio run date
+OG2163	95		260603	OG2163H_D_SBL_PACB_260603_AMD	dated	equal	barcode	one PacBio run date
+OG2164	116		260331	OG2164H_D_SBL_PACB_260331_AMDLA	dated	equal	barcode	one PacBio run date
+OG2165	96		260428	OG2165H_D_SBL_PACB_260428_AMD	dated	equal	date	one PacBio run date
+OG2166	117		260331	OG2166H_D_SBL_PACB_260331_AMDLA	dated	equal	barcode	one PacBio run date
+OG2177	97		260603	OG2177H_D_SBL_PACB_260603_AMD	dated	equal	barcode	one PacBio run date
+OG2178	55		260408	OG2178H_D_SBL_PACB_260408_AMD	dated	equal	barcode	one PacBio run date
+OG2179	72		260428	OG2179M_D_SBL_PACB_260428_AMD	dated	equal	date	one PacBio run date
+OG2182	120		260331	OG2182H_D2_SBL_PACB_260331_AMDLA	dated	equal	barcode	one PacBio run date
+OG2188	3		260408	OG2188H_D_SBL_PACB_260408_AMD	dated	equal	barcode	one PacBio run date
+OG2189	56	18	260414	OG2189H_D_SBL_PACB_260414_AMD	dated	equal	barcode	one PacBio run date
+OG2200	73		260603	OG2200H_D_SBL_PACB_260603_AMD	dated	equal	barcode	one PacBio run date
+OG2202	121		260331	OG2202H_D_SBL_PACB_260331_AMDLA	dated	equal	barcode	one PacBio run date
+OG2203	29		260408	OG2203H_D_SBL_PACB_260408_AMD	dated	differs (acacia 304,439,963 2026-05-01, db 682313069)	barcode	one PacBio run date
+OG2205	74		260522	OG2205H_D_SBL_PACB_260522_AMD	dated	equal	barcode	one PacBio run date
+OG2209	126	47	260626	OG2209H_D_SBL_PACB_260626_AMDTW	dated	equal	barcode	one PacBio run date
+OG2218	75		260428	OG2218H_D_SBL_PACB_260428_AMD	dated	equal	date	one PacBio run date
+OG2220	127	48	260421	OG2220H_D_SBL_PACB_260421_AMD	dated	equal	barcode	one PacBio run date
+OG2227	125		260414	OG2227H_D2_SBL_PACB_260414_AMD	dated	differs (acacia 400,519,593 2026-04-29, db 832708979)	barcode	one PacBio run date
+OG2237	138		260414	OG2237H_D_SBL_PACB_260414_AMD	dated	equal	barcode	one PacBio run date
+OG2241	139		260414	OG2241H_D2_SBL_PACB_260414_AMD	dated	equal	barcode	one PacBio run date
+OG2242	140		260414	OG2242H_D_SBL_PACB_260414_AMD	dated	equal	barcode	one PacBio run date
+OG2266	89		260511	OG2266H_D_SBL_PACB_260511_AMD	dated	equal	barcode	one PacBio run date
+OG2268	90		260428	OG2268H_D2_SBL_PACB_260428_AMD	dated	equal	date	one PacBio run date
+OG2269	91		260428	OG2269G_D_SBL_PACB_260428_AMD	dated	equal	date	one PacBio run date
+OG2317	170	85	260303	OG2317B_D_SBL2_PACB_260303_AD,OG2317B_D_SBL_PACB_260303_AD	dated	equal	barcode	one PacBio run date
+OG2320	171	86	260303	OG2320B_D2_SBL_PACB_260303_AD	dated	equal	barcode	one PacBio run date
+OG2325	93		260428	OG2325H_D2_SBL_PACB_260428_AMD	dated	equal	date	one PacBio run date
