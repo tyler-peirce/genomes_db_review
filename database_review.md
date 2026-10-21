@@ -899,7 +899,7 @@ For `lca` and `lca_raw_results` the unique content index is the real key, and th
 
 `ncbi_genome_assemblies` should simply have `assembly_accession` as its PK; the unique index is already there.
 
-`rna_qc_kinnex` is the genuine gap: 96 rows, no PK, no unique constraint, and no FK — revision 1 noted its tube IDs match `rna_library_kinx` but the link is unenforced. Nothing prevents duplicate QC rows for one library.
+`rna_qc_kinnex` is the genuine gap: 96 rows, no PK and no FK — revision 1 noted its tube IDs match `rna_library_kinx` but the link is unenforced. **Correction (2026-10-20):** it does have `UNIQUE (run_id, rna_tube_id)` (`rna_qc_run_id_tube_uniq`), so duplicates per library and run were already refused. **Migration `061`** makes that key the primary key, captures the table, and FKs both `rna_tube_id` and `rna_tube_id_2` to `rna_library_kinx`. The primary key is `(run_id, rna_tube_id)`, not `rna_tube_id` alone as recommended below, so a resequenced library can have a QC row per run. `run_id` → `sequencing_run` waits for R.7 (`059`).
 
 The snapshot and archive tables were created with `CREATE TABLE AS`, which does not carry constraints. Acceptable for frozen data, but it is why they cannot be verified.
 

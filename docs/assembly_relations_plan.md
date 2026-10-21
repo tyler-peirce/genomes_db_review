@@ -1134,7 +1134,15 @@ into. Post-check: the next pipeline runs write the new tables, an old writer fai
      until the writers stop sending them.
    - Update `push_lca_*`, `push_species_validation.py` and `push_ena_validation_results.py` to
      send `annotation_id`.
-2. **`059`:** FK `sequencing.run_id` and `raw_data.run_id` to `sequencing_run`. (Number taken
+   - **`ena_submissions` and `ena_validation_attempts` connect to `mito_annotation`, not to
+     `sample`** (owner decision 2026-10-20). No `og_id` → `sample` FK is added to either, even
+     as a stopgap. On 2026-10-20 all 1,898 rows (539 + 1,359) resolved to exactly one
+     annotation by `(og_id, tech, seq_date, code, annotation)`, none to two. Writers to change:
+     `ENA-mito-genomes/workflow/06_push_submission_data_to_db.py` (and `07_resolve_gca_accessions.py`
+     if it writes these tables) and `Oceanomics-OceanGenomes-Mitogenomes/bin/push_ena_validation_results.py`.
+2. **`059`:** FK `sequencing.run_id`, `raw_data.run_id` and `rna_qc_kinnex.run_id` to
+   `sequencing_run` (2026-10-20: 4,448, 8,010 and 96 rows, 0 unmatched in each; `rna_qc_kinnex`
+   got its primary key and its FKs to `rna_library_kinx` in `061`). (Number taken
    at landing; Phase RG may claim `057`–`059` first.) `hifi_reads_qc` and `hic_reads_qc`
    moved to Phase RG on 2026-10-19: their `run_id` FK and library-level links are built in
    `v4` and land with RG.6 (`ref_genomes_runbook_rg0_rg5.md`).
