@@ -306,6 +306,10 @@ separate from them, so `v4` stands alone.
 - RG.5 recorded and passed;
 - every reader accounted for;
 - `check_drift.py` and `--verify` clean.
+- **Read sets (`062`):** every undated `v4.ref_read_set` is dated or removed before the swap. After
+  RG.6 nothing re-creates them, and `v4.raw_qc` sorts an undated read set ahead of any dated one.
+  On 2026-10-22 there were 5: OG73, OG763, OG781, OG845, OG906 (062's header says why). The
+  `phase-rg-v4` writers (ref-genomes `58fdb1d`) write read sets, and need the samplesheet.
 
 RG.6 is when it moves into `public`: the old tables go to `pre_v4_archive`, the `v4` tables move
 into `public`, and the writers switch on that day.
