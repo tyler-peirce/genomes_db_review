@@ -63,7 +63,9 @@ def bare(name):
 
 
 def tube_in(tube, files):
-    return any(re.search(re.escape(tube) + r"[_.]", fn) for fn in files)
+    # File names call a tube's first Hi-C library HICL1; the workbook calls it HICL (owner,
+    # 2026-10-22: "HICL1 are the HICL files"). No workbook tube ends in HICL1.
+    return any(re.search(re.escape(tube) + r"[_.]", re.sub(r"_HICL1(?=[_.])", "_HICL", fn)) for fn in files)
 
 
 seq = defaultdict(list)

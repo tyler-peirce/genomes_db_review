@@ -45,13 +45,13 @@ OG716 and OG756 really were sequenced on both runs; keep their 250704 rows.
 171 GiB, every hash identical). If nobody needs it, it can be deleted. It also holds two run
 set-ups from 4 July with no reads (`r84154_20250704_040418` and `_052951`, transfer tests only).
 
-## 4. Two library questions
+## 4. One missing library row
 
 - **`OG650L-1_HICL` on `NOVA_240501_LA`.** Reads from this run were submitted to the SRA, but the
   workbook only has this library's iSeq run (`ISEQ_240426_LA`). Please add the NovaSeq row.
-- **OG706's `HICL1` files.** The submitted files are named `OG706L-7_HICL1_…` and `OG706L-8_HICL1_…`,
-  but the workbook records `OG706L-7_HICL`, `_HICL2`, `OG706L-8_HICL` and `_HICL2`. Which library is
-  `HICL1`?
+
+(Answered 2026-10-22: sample sheets call a tube's first Hi-C library `HICL1`, the workbook calls it
+`HICL`. The database now treats them as the same, so no workbook change is needed.)
 
 Once 1–3 are in, the next nightly import updates the Sequencing table, and the QC results link up
 on their own. The SRA submissions are re-linked on the database side afterwards. Questions to Tyler.
