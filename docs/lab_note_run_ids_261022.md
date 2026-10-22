@@ -3,7 +3,7 @@
 For: whoever maintains the Sequencing sheet of the OceanGenomes workbook.
 
 The database links each submitted read file, and each read-QC result, to its row on the Sequencing
-sheet. These rows don't match the raw data, so 13 SRA submissions and 29 QC results can't be
+sheet. These rows don't match the raw data, so 11 SRA submissions and 29 QC results can't be
 linked. Each fix is a cell edit in the workbook; the nightly import carries it into the database.
 
 ## 1. `NOVA_240718_AD` should be `NOVA_240719_AD` (5 rows)
