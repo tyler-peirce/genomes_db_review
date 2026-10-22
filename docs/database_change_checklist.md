@@ -37,6 +37,16 @@ Use this checklist before changing the Ocean Genomes database schema, data-clean
 - Keep column names and semantics stable unless a versioned contract change is approved.
 - Add smoke tests for API-backed views.
 - Compare row counts and selected known examples after changes.
+- **Name views by what they are** (decided 2026-10-22):
+  - **A new view gets a `v_` prefix**: `v_sequencing_browse`, `v_read_set_run_readiness`. A
+    readiness or issue list ends in `_readiness` or `_issues`.
+  - **A compatibility view keeps the exact name of the table it stands in for** (`v3.draft_genomes`,
+    `v4.raw_qc`), so existing queries keep working when it replaces that table. No prefix.
+  - **An external contract keeps its versioned name** (`goat_species_v1`). A breaking change is a
+    new version (`_v2`) beside the old one, never a rename.
+  - **Window-only sync helpers start `sync_`** and are dropped when their window closes.
+  - **Older views keep their names** (`summary`, `sample_view`, `lca_results_view`, ...).
+    Readers depend on them; renaming one is a contract change, not a tidy-up.
 
 
 ## Migration Governance
