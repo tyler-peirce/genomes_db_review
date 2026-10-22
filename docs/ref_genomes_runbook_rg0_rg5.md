@@ -310,6 +310,10 @@ separate from them, so `v4` stands alone.
   RG.6 nothing re-creates them, and `v4.raw_qc` sorts an undated read set ahead of any dated one.
   On 2026-10-22 there were 5: OG73, OG763, OG781, OG845, OG906 (062's header says why). The
   `phase-rg-v4` writers (ref-genomes `58fdb1d`) write read sets, and need the samplesheet.
+- **SRA links (`064`):** `resolve_sra_upload_runs()` is `SET search_path = v4, public`; re-point it to
+  `public` in the swap. ENA-ref-genomes step 09 (`db5651a`) calls it unqualified. Uploads in
+  `ref_sra_upload_unlinked` whose cause the lab has fixed (docs/lab_note_run_ids_261022.md) have
+  their row deleted, so the next sync links them.
 
 RG.6 is when it moves into `public`: the old tables go to `pre_v4_archive`, the `v4` tables move
 into `public`, and the writers switch on that day.
