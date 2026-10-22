@@ -314,6 +314,12 @@ separate from them, so `v4` stands alone.
   `public` in the swap. ENA-ref-genomes step 09 (`db5651a`) calls it unqualified. Uploads in
   `ref_sra_upload_unlinked` whose cause the lab has fixed (docs/lab_note_run_ids_261022.md) have
   their row deleted, so the next sync links them.
+- **`PACB_250717_AD` (lab note §3):** once the workbook has the 250717 rows, re-derive the run links
+  that were matched to the wrong run. These are the `062` read sets of OG716, OG750, OG819, OG852 and
+  OG853, and the `ref_assembly_run` links of their `250704`-dated assemblies, which were built from
+  250717 reads. The pipeline takes its HiFi reads from `pacbio-sra/{OG}/` (filled by
+  `ref_gen_automation/stage-hifi-bams.py` from the instrument's yield report), not from the
+  workbook, so a version's date is a label from `sequencing`, not proof of which run it read.
 
 RG.6 is when it moves into `public`: the old tables go to `pre_v4_archive`, the `v4` tables move
 into `public`, and the writers switch on that day.

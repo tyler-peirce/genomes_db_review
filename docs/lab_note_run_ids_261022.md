@@ -22,22 +22,28 @@ The raw data is in `illumina-hic/NOVA_250114_AD/`:
 
 `OG665L-1_HICL`, `OG673L-1_HICL`, `OG676G-1_HICL`, `OG678G-1_HICL`, `OG683L-1_HICL`, `OG702G-1_HICL`
 
-## 3. PacBio run `PACB_250717_AD` is missing (7 rows to add)
+## 3. PacBio run `PACB_250717_AD` (4 rows to correct, 3 to add)
 
-The run's raw data is in `pacbio/PACB_250717_AD/` and its HiFi QC exists, but the workbook has
-no rows for it. Libraries and barcodes from the QC:
+This is a separate Revio run on 17 July 2025. The instrument calls it `PACB_250717_AD`, and its
+data is in `s3://ocom.oceangenomes/pacbio/PACB_250717_AD/`. The workbook has no rows for it.
+Instead, four of its libraries are recorded as Plate 2 of `PACB_250704_AD`, but 250704 only ran
+Plate 1, and none of their reads are in its data.
 
-| Library | Barcode |
-|---|---|
-| `OG716O_D_SBL` | bc2007 |
-| `OG750G_D_SBL` | bc2073 |
-| `OG756G_D_SBL` | bc2008 |
-| `OG804G_D_SBL` | bc2010 |
-| `OG819H_D_SBL` | bc2012 |
-| `OG852O_D_SBL` | bc2013 |
-| `OG853O_D_SBL` | bc2014 |
+| Library | Barcode | In 250704's data | In 250717's data | Workbook now | Change |
+|---|---|---|---|---|---|
+| `OG750G_D_SBL` | bc2073 | no | cell B01 | `PACB_250704_AD`, Plate 2 D01 | run ID to `PACB_250717_AD`, cell B01 |
+| `OG819H_D_SBL` | bc2012 | no | cell D01 | `PACB_250704_AD`, Plate 2 C01 | run ID to `PACB_250717_AD`, cell D01 |
+| `OG852O_D_SBL` | bc2013 | no | cell D01 | `PACB_250704_AD`, Plate 2 B01 | run ID to `PACB_250717_AD`, cell D01 |
+| `OG853O_D_SBL` | bc2014 | no | cell B01 | `PACB_250704_AD`, Plate 2 D01 | run ID to `PACB_250717_AD`, cell B01 |
+| `OG716O_D_SBL` | bc2007 | cell D01 | cell A01 | `PACB_250704_AD` only | **add** a `PACB_250717_AD` row, cell A01 |
+| `OG756G_D_SBL` | bc2008 | cell C01 | cell C01 | `PACB_250704_AD` only | **add** a `PACB_250717_AD` row, cell C01 |
+| `OG804G_D_SBL` | bc2010 | no | cell C01 | no row for either run | **add** a `PACB_250717_AD` row, cell C01 |
 
-Several of these were also sequenced on `PACB_250704_AD`; this is a second run, not a duplicate.
+OG716 and OG756 really were sequenced on both runs; keep their 250704 rows.
+
+**`pacbio/PACB_250704_AD2/` is a byte-for-byte copy of `pacbio/PACB_250704_AD/`** (254 files,
+171 GiB, every hash identical). If nobody needs it, it can be deleted. It also holds two run
+set-ups from 4 July with no reads (`r84154_20250704_040418` and `_052951`, transfer tests only).
 
 ## 4. Two library questions
 
