@@ -240,10 +240,13 @@ CREATE OR REPLACE VIEW public.lca_pivot_view AS
     lca.seq_date,
     lca.code,
     lca.annotation,
-    max(lca.species_in_lca) FILTER (WHERE lca.region = '12s'::text) AS s12_lca,
-    max(lca.species_in_lca) FILTER (WHERE lca.region = '16s'::text) AS s16_lca,
-    max(lca.species_in_lca) FILTER (WHERE lca.region = 'CO1'::text) AS co1_lca
+    string_agg(DISTINCT t.sp, ', '::text ORDER BY t.sp) FILTER (WHERE lca.region = '12s'::text) COLLATE "default" AS s12_lca,
+    string_agg(DISTINCT t.sp, ', '::text ORDER BY t.sp) FILTER (WHERE lca.region = '16s'::text) COLLATE "default" AS s16_lca,
+    string_agg(DISTINCT t.sp, ', '::text ORDER BY t.sp) FILTER (WHERE lca.region = 'CO1'::text) COLLATE "default" AS co1_lca
    FROM lca
+     LEFT JOIN LATERAL ( SELECT btrim(x.x) COLLATE "C" AS sp
+           FROM unnest(string_to_array(lca.species_in_lca, ','::text)) x(x)
+          WHERE btrim(x.x) <> ''::text) t ON true
   GROUP BY lca.og_id, lca.tech, lca.seq_date, lca.code, lca.annotation;;
 
 -- View: public.lca_results_view
@@ -259,7 +262,8 @@ CREATE OR REPLACE VIEW public.lca_results_view AS
     lp.co1_lca,
         CASE
             WHEN s.nominal_species_id IS NULL THEN 'MISSING NOMINAL ID'::text
-            WHEN s.nominal_species_id = lp.s12_lca OR s.nominal_species_id = lp.s16_lca OR s.nominal_species_id = lp.co1_lca THEN s.nominal_species_id
+            WHEN s.nominal_species_id = ANY ((ARRAY( SELECT split_part(btrim(t.t), ';'::text, 1) AS split_part
+               FROM unnest(string_to_array(concat_ws(','::text, lp.s12_lca, lp.s16_lca, lp.co1_lca), ','::text)) t(t)))) THEN s.nominal_species_id
             ELSE 'INVESTIGATE'::text
         END AS validation_status
    FROM lca_pivot_view lp
@@ -287,10 +291,6 @@ CREATE OR REPLACE VIEW public.lca_validation_report_view AS
     lca_tax.lca_families,
     lca_tax.lca_genera,
     lca_tax.lca_specific_epiphets,
-        CASE
-            WHEN flv.filtered_12s IS NOT NULL OR flv.filtered_16s IS NOT NULL OR flv.filtered_co1 IS NOT NULL THEN 'YES'::text
-            ELSE NULL::text
-        END AS nom_id_in_results,
     lv.nominal_species_id_lca_comment AS comment,
     lv.data_release,
     flv.filtered_12s,
