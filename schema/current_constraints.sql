@@ -4,6 +4,8 @@ ALTER TABLE public.design_description ADD CONSTRAINT design_description_pk PRIMA
 ALTER TABLE public.dna_extraction ADD CONSTRAINT dna_extraction_attempt_key UNIQUE (tissue_id, ext_num) DEFERRABLE;
 ALTER TABLE public.dna_extraction ADD CONSTRAINT dna_extraction_pkey PRIMARY KEY (dna_id);
 ALTER TABLE public.dna_extraction ADD CONSTRAINT dna_extraction_tissue_id_fkey FOREIGN KEY (tissue_id) REFERENCES tissue(tissue_id);
+ALTER TABLE public.draft_genomes ADD CONSTRAINT draft_genomes_genomescope_fit_check CHECK (genomescope_fit = ANY (ARRAY['original'::text, 'reseeded'::text]));
+ALTER TABLE public.draft_genomes ADD CONSTRAINT draft_genomes_partition_confidence_check CHECK (partition_confidence = ANY (ARRAY['high'::text, 'low'::text]));
 ALTER TABLE public.draft_genomes ADD CONSTRAINT draft_genomes_pkey PRIMARY KEY (og_id, seq_date);
 ALTER TABLE public.ena_related_assemblies ADD CONSTRAINT ena_related_archive_check CHECK (archive = ANY (ARRAY['ENA'::text, 'NCBI'::text, 'OTHER'::text]));
 ALTER TABLE public.ena_related_assemblies ADD CONSTRAINT ena_related_assemblies_og_id_fkey FOREIGN KEY (og_id) REFERENCES ena_specimen_accessions(og_id);
@@ -116,10 +118,13 @@ ALTER TABLE public.rna_library_kinx ADD CONSTRAINT rna_library_kinx_attempt_key 
 ALTER TABLE public.rna_library_kinx ADD CONSTRAINT rna_library_kinx_pkey PRIMARY KEY (rna_library_tube_id);
 ALTER TABLE public.rna_library_kinx ADD CONSTRAINT rna_library_kinx_registry_fkey FOREIGN KEY (rna_library_tube_id, rna_id) REFERENCES library(library_tube_id, rna_id);
 ALTER TABLE public.rna_library_kinx ADD CONSTRAINT rna_library_kinx_rna_id_fkey FOREIGN KEY (rna_id) REFERENCES rna_extraction(rna_id);
-ALTER TABLE public.rna_qc_kinnex ADD CONSTRAINT rna_qc_run_id_tube_uniq UNIQUE (run_id, rna_tube_id);
+ALTER TABLE public.rna_qc_kinnex ADD CONSTRAINT rna_qc_kinnex_pkey PRIMARY KEY (run_id, rna_tube_id);
+ALTER TABLE public.rna_qc_kinnex ADD CONSTRAINT rna_qc_kinnex_rna_tube_id_2_fkey FOREIGN KEY (rna_tube_id_2) REFERENCES rna_library_kinx(rna_library_tube_id);
+ALTER TABLE public.rna_qc_kinnex ADD CONSTRAINT rna_qc_kinnex_rna_tube_id_fkey FOREIGN KEY (rna_tube_id) REFERENCES rna_library_kinx(rna_library_tube_id);
 ALTER TABLE public.sample ADD CONSTRAINT sample_depth_range_check CHECK (depth_min_m IS NULL OR depth_max_m IS NULL OR depth_min_m <= depth_max_m);
 ALTER TABLE public.sample ADD CONSTRAINT sample_pkey PRIMARY KEY (og_id);
 ALTER TABLE public.schema_migrations ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (filename);
+ALTER TABLE public.sequencing ADD CONSTRAINT sequencing_design_no_fkey FOREIGN KEY (design_no) REFERENCES design_description(design_no);
 ALTER TABLE public.sequencing ADD CONSTRAINT sequencing_library_fkey FOREIGN KEY (library_tube_id) REFERENCES library(library_tube_id);
 ALTER TABLE public.sequencing ADD CONSTRAINT sequencing_pkey PRIMARY KEY (sequencing_id);
 ALTER TABLE public.species ADD CONSTRAINT "Species_pkey" PRIMARY KEY (species);

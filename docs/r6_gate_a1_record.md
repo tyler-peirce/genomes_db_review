@@ -36,12 +36,34 @@ Restored from a `pg_dump -Fc` of live (`~/oceanomics_genomes_pre_067_261028.dump
 
 ## Live
 
-**Not applied yet.** The apply was stopped at the session's permission check for production changes. It waits for the owner. When it runs:
-1. Take a fresh pre-change dump.
-2. Run `bin/apply_migrations.py`.
-3. Check `v3.check_draft()` is all 0.
-4. Refresh `schema/current_schema.sql` and `schema/current_views.sql` only, because the og drift is left out.
-5. Wait for the next 18:30 UTC `sync_v3` to report ok.
+**Applied 2026-10-28 at 07:41 UTC**, with the owner's go-ahead, by `bin/apply_migrations.py`. The pre-change dump was retaken immediately before: `~/oceanomics_genomes_pre_067_261028.dump`, 24 MB.
+
+| Check | Result |
+|---|---|
+| Apply | `draft_genomescope upserted 261`; ledger 68 |
+| `--verify` | 68 applied files, all hashes match |
+| `v3.check_draft()` | Every check 0 |
+| `v3.draft_genomes` | 104 columns. Host columns 261 / 261; `busco_read_depth` 0, waiting for A.3 and A.4. `readonly` and `oceangenom_web` keep `SELECT` |
+| `check_drift.py` | Only the known og drift (`og_priority_log` +, `og_workflow_recommendation` −) |
+
+**Baseline.** These files were refreshed from a read-only export:
+- `schema/current_schema.sql`
+- `schema/current_constraints.sql`
+- `schema/current_indexes.sql`
+
+Each change was taken hunk by hunk, keeping only what a ledgered migration explains:
+- `067`;
+- `066`'s LCA views;
+- `061`'s `rna_qc_kinnex` key and FKs;
+- `063`'s `design_description` comment and `sequencing.design_no` FK.
+
+The last three had never reached these three files; only `current_views.sql` was refreshed then.
+
+Left out, as live changes no migration explains, so the old baseline text stays:
+- every `og_priority_log` / `og_workflow_*` change (the colleague's OceanGenom_Web work);
+- four `master_species` columns (`ref_genome_country`, `ref_genome_country_source`, `first_reference_for_family`, `first_reference_for_genus`) and its comments, which are a colleague's species work.
+
+`schema/object_inventory.tsv` is not regenerated, because that would accept the og drift. `current_views.sql` is unchanged, since it does not cover `v3`.
 
 ## Writers that depend on it
 

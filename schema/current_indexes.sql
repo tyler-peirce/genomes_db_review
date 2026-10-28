@@ -85,7 +85,9 @@ CREATE INDEX rna_library_ilmn_rna_id_idx ON public.rna_library_ilmn USING btree 
 CREATE UNIQUE INDEX rna_library_kinx_attempt_key ON public.rna_library_kinx USING btree (rna_id, rna_num);
 CREATE UNIQUE INDEX rna_library_kinx_pkey ON public.rna_library_kinx USING btree (rna_library_tube_id);
 CREATE INDEX rna_library_kinx_rna_id_idx ON public.rna_library_kinx USING btree (rna_id);
-CREATE UNIQUE INDEX rna_qc_run_id_tube_uniq ON public.rna_qc_kinnex USING btree (run_id, rna_tube_id);
+CREATE UNIQUE INDEX rna_qc_kinnex_pkey ON public.rna_qc_kinnex USING btree (run_id, rna_tube_id);
+CREATE INDEX rna_qc_kinnex_rna_tube_id_2_idx ON public.rna_qc_kinnex USING btree (rna_tube_id_2);
+CREATE INDEX rna_qc_kinnex_rna_tube_id_idx ON public.rna_qc_kinnex USING btree (rna_tube_id);
 CREATE UNIQUE INDEX sample_pkey ON public.sample USING btree (og_id);
 CREATE UNIQUE INDEX schema_migrations_pkey ON public.schema_migrations USING btree (filename);
 CREATE INDEX sequencing_library_tube_id_idx ON public.sequencing USING btree (library_tube_id);

@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict zgVe5MU7grfntVKbZniz0lD5dGEU8xMXfIFqqlvlcTo1UY4TZKzCzp4d2jhi1wV
+\restrict 2ucHcOK282bQ26ZUgfYpH6qXiJqFrt5w3cjQzrUahwfEchesNLI5bD7cp9vwudB
 
 -- Dumped from database version 14.24 (Ubuntu 14.24-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 14.24 (Ubuntu 14.24-0ubuntu0.22.04.1)
@@ -882,7 +882,7 @@ CREATE TABLE public.design_description (
 -- Name: TABLE design_description; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.design_description IS 'Lookup of sequencing design numbers to descriptions. Two rows, no foreign keys in or out, and no reference from either repository. Captured by 034_catchup_design_description.sql so it is not lost on a rebuild; a candidate for removal once open question 15 confirms no external consumer.';
+COMMENT ON TABLE public.design_description IS 'Illumina prep protocols, named by sequencing.design_no (FK, migration 063).';
 
 
 --
@@ -1073,7 +1073,13 @@ CREATE TABLE public.draft_genomes (
     host_assembly_size bigint,
     host_assembly_fraction numeric,
     host_haploid_size bigint,
-    partition_confidence text
+    partition_confidence text,
+    busco_read_depth numeric(10,4),
+    genomescope_fit text,
+    busco_regions integer,
+    partition_note text,
+    CONSTRAINT draft_genomes_genomescope_fit_check CHECK ((genomescope_fit = ANY (ARRAY['original'::text, 'reseeded'::text]))),
+    CONSTRAINT draft_genomes_partition_confidence_check CHECK ((partition_confidence = ANY (ARRAY['high'::text, 'low'::text])))
 );
 
 
@@ -1089,6 +1095,48 @@ COMMENT ON COLUMN public.draft_genomes.ena_analysis_accession IS 'ENA analysis (
 --
 
 COMMENT ON COLUMN public.draft_genomes.assembly_accession IS 'Public INSDC assembly accession (GCA_...) assigned once the ERZ is processed; filled by ENA-draft-genomes workflow/07_resolve_gca_accessions.py. Previously held NCBI JB... accessions.';
+
+
+--
+-- Name: COLUMN draft_genomes.host_haploid_size; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomes.host_haploid_size IS 'Host assembly mass with haplotype-split contigs (those at about half the host depth) counted once. A lower bound, like host_assembly_size. From *_kmer_depth.json.';
+
+
+--
+-- Name: COLUMN draft_genomes.partition_confidence; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomes.partition_confidence IS 'high or low: whether the BUSCO depth anchor of the host partition can be trusted. Do not quote a host size from a low partition; partition_note says why it is low.';
+
+
+--
+-- Name: COLUMN draft_genomes.busco_read_depth; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomes.busco_read_depth IS 'Mean per-base read depth over the Complete single-copy BUSCO genes (busco_mean_depth in *_kmer_depth.json, from MEASURE_KMER_COVERAGE). The sequencing depth of the host genome, and what ENA COVERAGE should carry; the successor to DepthSizer''s scdepth. Not lambda_depth, which is this halved and scaled into k-mer space.';
+
+
+--
+-- Name: COLUMN draft_genomes.genomescope_fit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomes.genomescope_fit IS 'original or reseeded: which GenomeScope fit genomesize, kmercov and the model fit come from (genomescope_fit in *_coverage_summary.json; GENOMESCOPE_RESEED keeps the refit only when it wins). NULL before the reseed existed.';
+
+
+--
+-- Name: COLUMN draft_genomes.busco_regions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomes.busco_regions IS 'Number of Complete BUSCO regions busco_read_depth and the host partition were measured over (busco_regions in *_kmer_depth.json).';
+
+
+--
+-- Name: COLUMN draft_genomes.partition_note; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomes.partition_note IS 'Why partition_confidence is low: few_busco_regions, no_dominant_mode or anchor_off_mode. NULL when it is high.';
 
 
 --
@@ -1685,10 +1733,13 @@ CREATE VIEW public.lca_pivot_view AS
     lca.seq_date,
     lca.code,
     lca.annotation,
-    max(lca.species_in_lca) FILTER (WHERE (lca.region = '12s'::text)) AS s12_lca,
-    max(lca.species_in_lca) FILTER (WHERE (lca.region = '16s'::text)) AS s16_lca,
-    max(lca.species_in_lca) FILTER (WHERE (lca.region = 'CO1'::text)) AS co1_lca
-   FROM public.lca
+    (string_agg(DISTINCT t.sp, ', '::text ORDER BY t.sp) FILTER (WHERE (lca.region = '12s'::text)) COLLATE "default") AS s12_lca,
+    (string_agg(DISTINCT t.sp, ', '::text ORDER BY t.sp) FILTER (WHERE (lca.region = '16s'::text)) COLLATE "default") AS s16_lca,
+    (string_agg(DISTINCT t.sp, ', '::text ORDER BY t.sp) FILTER (WHERE (lca.region = 'CO1'::text)) COLLATE "default") AS co1_lca
+   FROM (public.lca
+     LEFT JOIN LATERAL ( SELECT (btrim(x.x) COLLATE "C") AS sp
+           FROM unnest(string_to_array(lca.species_in_lca, ','::text)) x(x)
+          WHERE (btrim(x.x) <> ''::text)) t ON (true))
   GROUP BY lca.og_id, lca.tech, lca.seq_date, lca.code, lca.annotation;
 
 
@@ -1708,7 +1759,8 @@ CREATE VIEW public.lca_results_view AS
     lp.co1_lca,
         CASE
             WHEN (s.nominal_species_id IS NULL) THEN 'MISSING NOMINAL ID'::text
-            WHEN ((s.nominal_species_id = lp.s12_lca) OR (s.nominal_species_id = lp.s16_lca) OR (s.nominal_species_id = lp.co1_lca)) THEN s.nominal_species_id
+            WHEN (s.nominal_species_id = ANY (ARRAY( SELECT split_part(btrim(t.t), ';'::text, 1) AS split_part
+               FROM unnest(string_to_array(concat_ws(','::text, lp.s12_lca, lp.s16_lca, lp.co1_lca), ','::text)) t(t)))) THEN s.nominal_species_id
             ELSE 'INVESTIGATE'::text
         END AS validation_status
    FROM (public.lca_pivot_view lp
@@ -2601,10 +2653,6 @@ CREATE VIEW public.lca_validation_report_view AS
     lca_tax.lca_families,
     lca_tax.lca_genera,
     lca_tax.lca_specific_epiphets,
-        CASE
-            WHEN ((flv.filtered_12s IS NOT NULL) OR (flv.filtered_16s IS NOT NULL) OR (flv.filtered_co1 IS NOT NULL)) THEN 'YES'::text
-            ELSE NULL::text
-        END AS nom_id_in_results,
     lv.nominal_species_id_lca_comment AS comment,
     lv.data_release,
     flv.filtered_12s,
@@ -3046,10 +3094,17 @@ CREATE TABLE public.rna_qc_kinnex (
     rna_tube_id text NOT NULL,
     rna_tube_id_2 text,
     read_count bigint,
-    run_id text,
+    run_id text NOT NULL,
     read_length_mean integer,
     read_length_n50 integer
 );
+
+
+--
+-- Name: TABLE rna_qc_kinnex; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.rna_qc_kinnex IS 'Kinnex RNA read QC: one row per library (rna_tube_id) per sequencing run (run_id). rna_tube_id_2 is a second library pooled into the same QC row. Keys and FKs: migration 061.';
 
 
 --
@@ -4194,11 +4249,11 @@ ALTER TABLE ONLY public.rna_library_kinx
 
 
 --
--- Name: rna_qc_kinnex rna_qc_run_id_tube_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: rna_qc_kinnex rna_qc_kinnex_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.rna_qc_kinnex
-    ADD CONSTRAINT rna_qc_run_id_tube_uniq UNIQUE (run_id, rna_tube_id);
+    ADD CONSTRAINT rna_qc_kinnex_pkey PRIMARY KEY (run_id, rna_tube_id);
 
 
 --
@@ -4500,6 +4555,20 @@ CREATE INDEX rna_library_ilmn_rna_id_idx ON public.rna_library_ilmn USING btree 
 --
 
 CREATE INDEX rna_library_kinx_rna_id_idx ON public.rna_library_kinx USING btree (rna_id);
+
+
+--
+-- Name: rna_qc_kinnex_rna_tube_id_2_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX rna_qc_kinnex_rna_tube_id_2_idx ON public.rna_qc_kinnex USING btree (rna_tube_id_2);
+
+
+--
+-- Name: rna_qc_kinnex_rna_tube_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX rna_qc_kinnex_rna_tube_id_idx ON public.rna_qc_kinnex USING btree (rna_tube_id);
 
 
 --
@@ -4854,6 +4923,30 @@ ALTER TABLE ONLY public.rna_library_kinx
 
 
 --
+-- Name: rna_qc_kinnex rna_qc_kinnex_rna_tube_id_2_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rna_qc_kinnex
+    ADD CONSTRAINT rna_qc_kinnex_rna_tube_id_2_fkey FOREIGN KEY (rna_tube_id_2) REFERENCES public.rna_library_kinx(rna_library_tube_id);
+
+
+--
+-- Name: rna_qc_kinnex rna_qc_kinnex_rna_tube_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rna_qc_kinnex
+    ADD CONSTRAINT rna_qc_kinnex_rna_tube_id_fkey FOREIGN KEY (rna_tube_id) REFERENCES public.rna_library_kinx(rna_library_tube_id);
+
+
+--
+-- Name: sequencing sequencing_design_no_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sequencing
+    ADD CONSTRAINT sequencing_design_no_fkey FOREIGN KEY (design_no) REFERENCES public.design_description(design_no);
+
+
+--
 -- Name: sequencing sequencing_library_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4881,5 +4974,5 @@ ALTER TABLE ONLY public.tissue
 -- PostgreSQL database dump complete
 --
 
-\unrestrict zgVe5MU7grfntVKbZniz0lD5dGEU8xMXfIFqqlvlcTo1UY4TZKzCzp4d2jhi1wV
+\unrestrict 2ucHcOK282bQ26ZUgfYpH6qXiJqFrt5w3cjQzrUahwfEchesNLI5bD7cp9vwudB
 
