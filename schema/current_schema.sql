@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 2ucHcOK282bQ26ZUgfYpH6qXiJqFrt5w3cjQzrUahwfEchesNLI5bD7cp9vwudB
+\restrict o92hsMyMKXkBS6pxj3IRvzvOTkP1QSatRtpbuR1Ho4NypNdrOi9M8XudYJ5MzPT
 
 -- Dumped from database version 14.24 (Ubuntu 14.24-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 14.24 (Ubuntu 14.24-0ubuntu0.22.04.1)
@@ -2846,7 +2846,17 @@ CREATE TABLE public.mitogenome_data (
     mtmuts integer,
     mtmuts_trans integer,
     annotation_stats_version text,
-    annotation_updated_at timestamp with time zone
+    annotation_updated_at timestamp with time zone,
+    completeness_profile text,
+    qc_status text,
+    manual_review_reason text,
+    numt_flag boolean,
+    frameshift_flag boolean,
+    reference_species text,
+    reference_accession text,
+    qc_updated_at timestamp with time zone,
+    CONSTRAINT mitogenome_data_completeness_profile_check CHECK ((completeness_profile = ANY (ARRAY['vertebrate'::text, 'core'::text]))),
+    CONSTRAINT mitogenome_data_qc_status_check CHECK ((qc_status = ANY (ARRAY['complete'::text, 'manual_review'::text, 'failed'::text, 'superseded'::text])))
 );
 
 
@@ -2855,6 +2865,62 @@ CREATE TABLE public.mitogenome_data (
 --
 
 COMMENT ON TABLE public.mitogenome_data IS 'Assembled mitogenome per (og_id, tech, seq_date, code). Parent of the LCA tables. Unlike the live table it has a foreign key to sample, so an assembly cannot reference a specimen that does not exist.';
+
+
+--
+-- Name: COLUMN mitogenome_data.completeness_profile; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_data.completeness_profile IS 'vertebrate or core: the gene-set standard passed and missing_genes were judged against (annotation_stats.completeness_profile(), from the genetic code and class). core is the reduced set for invertebrate classes.';
+
+
+--
+-- Name: COLUMN mitogenome_data.qc_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_data.qc_status IS 'Assembly QC verdict from mitogenome_assembly_summary.py: complete, manual_review, failed or superseded (a reseed or collapse replaced this assembly).';
+
+
+--
+-- Name: COLUMN mitogenome_data.manual_review_reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_data.manual_review_reason IS 'Why the assembly needs review, ;-separated, as mitogenome_assembly_summary.py writes it.';
+
+
+--
+-- Name: COLUMN mitogenome_data.numt_flag; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_data.numt_flag IS 'True when the run carries a NUMT signal for this assembly.';
+
+
+--
+-- Name: COLUMN mitogenome_data.frameshift_flag; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_data.frameshift_flag IS 'True when the assembler or annotation reported a frameshift.';
+
+
+--
+-- Name: COLUMN mitogenome_data.reference_species; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_data.reference_species IS 'Species of the reference MitoHiFi or OATK assembled against.';
+
+
+--
+-- Name: COLUMN mitogenome_data.reference_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_data.reference_accession IS 'Accession of that reference.';
+
+
+--
+-- Name: COLUMN mitogenome_data.qc_updated_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_data.qc_updated_at IS 'When the verdict was last written (database clock).';
 
 
 --
@@ -4974,5 +5040,5 @@ ALTER TABLE ONLY public.tissue
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 2ucHcOK282bQ26ZUgfYpH6qXiJqFrt5w3cjQzrUahwfEchesNLI5bD7cp9vwudB
+\unrestrict o92hsMyMKXkBS6pxj3IRvzvOTkP1QSatRtpbuR1Ho4NypNdrOi9M8XudYJ5MzPT
 

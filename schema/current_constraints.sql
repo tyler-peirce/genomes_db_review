@@ -77,8 +77,10 @@ ALTER TABLE public.master_species ADD CONSTRAINT master_species_pkey PRIMARY KEY
 ALTER TABLE public.master_species_genome ADD CONSTRAINT fk_master_species_genome_species FOREIGN KEY (species) REFERENCES master_species(species) ON UPDATE CASCADE ON DELETE CASCADE;
 ALTER TABLE public.master_species_genome ADD CONSTRAINT master_species_genome_pkey PRIMARY KEY (species);
 ALTER TABLE public.mitogenome_data ADD CONSTRAINT mitogenome_data_annotation_key UNIQUE (og_id, tech, seq_date, code, annotation);
+ALTER TABLE public.mitogenome_data ADD CONSTRAINT mitogenome_data_completeness_profile_check CHECK (completeness_profile = ANY (ARRAY['vertebrate'::text, 'core'::text]));
 ALTER TABLE public.mitogenome_data ADD CONSTRAINT mitogenome_data_og_id_fkey FOREIGN KEY (og_id) REFERENCES sample(og_id);
 ALTER TABLE public.mitogenome_data ADD CONSTRAINT mitogenome_data_pkey PRIMARY KEY (og_id, tech, seq_date, code);
+ALTER TABLE public.mitogenome_data ADD CONSTRAINT mitogenome_data_qc_status_check CHECK (qc_status = ANY (ARRAY['complete'::text, 'manual_review'::text, 'failed'::text, 'superseded'::text]));
 ALTER TABLE public.ncbi_genome_assemblies ADD CONSTRAINT ncbi_genome_assemblies_assembly_accession_key UNIQUE (assembly_accession);
 ALTER TABLE public.og_workflow_assignment_log ADD CONSTRAINT og_workflow_assignment_log_og_id_fkey FOREIGN KEY (og_id) REFERENCES sample(og_id);
 ALTER TABLE public.og_workflow_assignment_log ADD CONSTRAINT og_workflow_assignment_log_pkey PRIMARY KEY (id);
