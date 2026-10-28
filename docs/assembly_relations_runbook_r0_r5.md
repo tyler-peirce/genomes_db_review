@@ -6,7 +6,7 @@ Status: **done 2026-10-16**, R.0 to R.5 and S.1, with the one exception below. R
 
 | Step | Outcome |
 |---|---|
-| R.0 | Done, except R.0.2 (`ENA-draft-genomes` not reachable) and R.0.4 (Pawsey unreachable). Both are carried to R.6 |
+| R.0 | Done, except R.0.4 (Pawsey unreachable), carried to R.6. R.0.2 (`ENA-draft-genomes`) done 2026-10-28: it updates `draft_genomes` in steps 06–07 and reads the hidden `scdepth` in step 00, so it needs a branch before R.6 (plan §R.6 gate; `database_review.md` Finding 17) |
 | R.1 `050` | Live 05:33 UTC. 532 rows archived and removed |
 | R.2 `051` | Live 05:40 UTC. `v3` mitogenome tables; 0 differences from `public`; nightly sync at 18:30 UTC |
 | R.3 `052` | Live 05:43 UTC. `v3` draft tables; 0 differences |
@@ -110,7 +110,7 @@ task, each with the query, the result and the date.
    - BUSCO vs gfastats N50, with the L50 bounds test.
 2. **`ENA-draft-genomes`:** clone it. Record:
    - every SQL statement that touches `draft_genomes`, and its `ON CONFLICT` target;
-   - that it reads none of the 17 columns dropped in §4.3.
+   - that it reads none of the columns dropped in §4.3 (15 since 2026-10-28; it reads none).
 
    If it reads any, stop and raise it before `052`.
 3. **Readers that assume one row per assembly** (§3.7). Go through each reader of

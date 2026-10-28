@@ -4,6 +4,11 @@ Status: **R.0–R.5 done 2026-10-16** (`050`–`055` applied to live; pipeline b
 deployed). `056` (2026-10-19) reorders the `v3` mito and draft views: `og_num` first, columns
 grouped by output. R.6, the merge, is next and has not started. Written 2026-10-15, after V.6; revised
 2026-10-16 with the owner's answers, the draft pipeline's code, and the `v3` build approach.
+**Revised 2026-10-28** (`database_review.md` Finding 17):
+- **Decision 14 is reversed for `host_haploid_size` and `partition_confidence`.** They have a live writer, so §4.3 now drops 15 columns, not 17.
+- **R.0.2 is done.** `ENA-draft-genomes` is cloned. It needs a branch, because steps 06 and 07 update `draft_genomes` and step 00 reads the hidden `scdepth`.
+- **The R.6 gate gains both items, plus bringing the writer branches up to date with their remotes.**
+
 Execution records: [`assembly_relations_r0_record.md`](assembly_relations_r0_record.md),
 [`assembly_relations_rehearsal_r5.md`](assembly_relations_rehearsal_r5.md).
 Source: `database_review.md` §7 ("Mitogenome and LCA tables", "`draft_genomes`"), §10 Lower #4
@@ -43,10 +48,16 @@ sections named):
     writer, no new rows (§4.2).
 13. **`import_v2.py` derives `seq_type` again**, with the old importer's rule (§2.3). This is an
     `OceanOmics-Database` change, outside the R steps.
-14. **The 14 file columns, `host_haploid_size` and `partition_confidence` are dropped.** The file
-    columns are historical and were not kept up to date. The upload scripts never push the two
-    host columns (`FAMILY_COLUMNS` in `bin/draft_genome_stats.py` has only `host_assembly_size`
-    and `host_assembly_fraction`). Their values stay in the archived table until R.8 (§4.3).
+14. **The 14 file columns are dropped.** They are historical and were not kept up to date. Their
+    values stay in the archived table until R.8 (§4.3).
+    - **Reversed 2026-10-28 for `host_haploid_size` and `partition_confidence`, which are kept.**
+    - The original decision dropped them because "the upload scripts never push" them. That was read
+      from a stale clone: local `master` was still at `d384e4c` (2026-10-02).
+    - Draft pipeline `2de4e1e` (2026-10-14) added both to `FAMILY_COLUMNS["assembly"]`, and on live
+      they hold 261 rows (260909 and 260925).
+    - They go on `draft_genomescope` beside `host_assembly_size` and `host_assembly_fraction`, by a
+      `v3` migration before R.6.
+    - See `database_review.md` Finding 17.1.
 
 > **Evidence.** The first draft (2026-10-15) was measured from
 > `~/oceanomics_genomes_pre_v6_261015.dump`, because live reads were unavailable that day. **Every
@@ -221,7 +232,7 @@ blocks below, with no column unassigned and none in two blocks:
 | DepthSizer | 6 | 701 | **Retired** (owner decision 12). The only writer found is the legacy `OceanOmics-Database/SS/import_data_draft_mergedresults.py` |
 | Internal stop codons | 2 | 701 | `busco` (**BUSCO**, confirmed) |
 | gfastats (`gfa_*`) | 7 | 696 | `gfastats`; overlaps the assembly summary |
-| Host partition | 4 | 68 | `host_assembly_size`, `_fraction`: `assembly`, from the coverage summary. `host_haploid_size`, `partition_confidence`: **no writer; dropped** (owner decision 14) |
+| Host partition | 4 | 68 (261 on 2026-10-28) | All four: `assembly`, from the coverage summary. `host_haploid_size` and `partition_confidence` were first marked "no writer; dropped". **Kept since 2026-10-28:** they have had a writer since `2de4e1e` (owner decision 14, reversed) |
 | Files: `aws_r1/r2/assm`, `fastp_r1/r2`, `sra_r1/r2`, each with a size | 14 | 697 / 642 / 164 | not this pipeline; historical, **dropped** (owner decision 14) |
 | Submission: SRA, BioSample, BioProject, study, ERZ, GCA, comment, `sra_date_submitted` | 8 | 579 | `ENA-draft-genomes` steps 06–07 (column comments); `sra_date_submitted` is **0** |
 
@@ -776,18 +787,19 @@ cause. Until then, **nobody should report a draft N50 from `scaffold_n50` or `co
 
 ### 4.3 Dropped columns
 
-Seventeen `draft_genomes` columns are not carried onto the new tables (owner decision 14):
+Fifteen `draft_genomes` columns are not carried onto the new tables (owner decision 14). This
+section listed seventeen until 2026-10-28, when `host_haploid_size` and `partition_confidence`
+were found to have a live writer and came off the list (decision 14, reversed).
 
 | Columns | Rows filled | Why |
 |---|---:|---|
 | `aws_r1`, `aws_r2`, `aws_assm`, `fastp_r1`, `fastp_r2`, `sra_r1`, `sra_r2`, each with `_size` (14) | 697 / 642 / 164 | historical file paths, not kept up to date; last filled for `seq_date` 250520 |
-| `host_haploid_size`, `partition_confidence` | 68 | one-off load for the 260909 batch; no upload script pushes them |
 | `sra_date_submitted` | 0 | never populated |
 
-- **Nothing reads them.** On live (2026-10-16), no view depends on any of the 16 file and host
-  columns, and no code in the draft pipeline, `OceanOmics-Database`, the ref-genomes pipeline,
-  the mitogenome pipeline or this repository names them. `ENA-draft-genomes` is not cloned
-  here, so R.0.2 checks it before the merge.
+- **Nothing reads them.** On live (2026-10-16), no view depended on any of the 14 file columns.
+  No code in the draft pipeline, `OceanOmics-Database`, the ref-genomes pipeline, the mitogenome
+  pipeline or this repository named them. `ENA-draft-genomes` was checked on 2026-10-28 (R.0.2)
+  and does not name them either.
 - Their values stay in `pre_v3_archive.draft_genomes` until R.8, and in the `pg_dump` taken
   then. The first draft's `draft_file` table is not built.
 
@@ -801,11 +813,20 @@ tables but left out of the views, so after the merge they are dropped columns fo
 On 2026-10-19 the only code naming the DepthSizer columns was the decommissioned
 `OceanOmics-Database/SS/` importer, and no code read `mitogenome_submission_view`.
 
+**Correction 2026-10-28:** `ENA-draft-genomes` reads one of them.
+- `workflow/00_create_draft_samplesheet.py` selects `dg.scdepth`, and step 03 writes it into the ENA
+  manifest as `COVERAGE`. After the merge, step 00 would fail with "column does not exist".
+- Its branch should read the read depth measured by the draft pipeline (`busco_mean_depth`, to be
+  uploaded) and fall back to `v3.draft_depthsizer.scdepth` for drafts up to 250520.
+- See `database_review.md` Finding 17.2.
+
 ### 4.4 Views
 
-- **`draft_genomes`** is the compatibility view. It has today's 120 columns less the 17 dropped
-  in §4.3, so 103, LEFT JOINed from the tables above. Since `056` it shows 98: it adds
-  `nominal_species_id`, drops the six DepthSizer columns, and groups the rest by process.
+- **`draft_genomes`** is the compatibility view. It was built as today's 120 columns less the 17 then
+  dropped in §4.3, so 103, LEFT JOINed from the tables above. Since `056` it shows 98: it adds
+  `nominal_species_id`, drops the six DepthSizer columns, and groups the rest by process. The
+  2026-10-28 gate migration adds `host_haploid_size`, `partition_confidence` and the measured
+  read depth back (decision 14, reversed).
   `v_genome_size_comparison` and every external reader keep working. As in §3.7, the old table
   moves to `pre_v3_archive` at the merge.
 - **`v_draft_genome_status`** is the view the owner asked for: one row per draft genome, with
@@ -1005,11 +1026,16 @@ then V.6 moved everything back into `public`. Here the objects move straight int
    ```
 
 2. **Writers: located** (§2.2). DepthSizer is retired, and the file and two host columns are
-   dropped. Still to check: `ENA-draft-genomes` (steps 06–07 write the submission block), which
-   is not cloned here. Confirm what it writes, and that it reads none of the 17 dropped columns
-   (§4.3).
-   `ENA-draft-genomes` steps 06–07 are not cloned here yet. R.6 cannot land until each live
-   writer has a version that writes the new tables.
+   dropped. ~~Still to check: `ENA-draft-genomes`.~~ **Checked 2026-10-28**; it has been cloned
+   at `~/ENA-draft-genomes` since RG.0.
+   - Step 06 runs `UPDATE draft_genomes SET biosample_accession, sra_accession,
+     ena_analysis_accession … WHERE og_id AND seq_date`, and updates `sample`.
+   - Step 07 runs `UPDATE draft_genomes SET assembly_accession`.
+   - Step 00 reads `dg.scdepth`, one of the columns `056` left out of the views.
+   - It reads none of the 15 dropped columns.
+
+   R.6 cannot land until it has a branch that writes the new tables and reads the new depth
+   column. No branch exists yet.
 3. **List the readers that assume one row per assembly** (§3.7): grep the mitogenome pipeline,
    the views and `summary` for reads of `mitogenome_data` that do not carry `annotation`.
 4. **Open one BUSCO short-summary JSON from each population** (§4.2): OG2649 260909 (count) and
@@ -1104,8 +1130,17 @@ whatever shape comes next (§3.6).
 ### R.6 — Merge `v3` into `public` (`057`)
 
 **Carried from R.0–R.5 into the R.6 runbook:**
-- Gate: `ENA-draft-genomes` is still unseen (R.0.2). Confirm what it writes and that it reads
-  none of the 17 dropped columns, nor the eight that `056` left out of the views (§4.3).
+- ~~Gate: `ENA-draft-genomes` is still unseen (R.0.2).~~ Seen 2026-10-28.
+  - **Gate:** its `phase-r-v3` branch is written and rehearsed.
+    - Steps 06 and 07 write the `v3` submission table.
+    - Step 00 stops reading `scdepth` from the view.
+    - Step 03 stops sending `total_bases / genomesize` as `COVERAGE`.
+- **Gate (2026-10-28):** a `v3` migration adds `host_haploid_size` and `partition_confidence`
+  (decision 14, reversed), and the measured read depth, to `draft_genomescope`. The same migration
+  adds them to the `draft_genomes` view, `sync_draft` and `check_draft`, and backfills them.
+- **Gate (2026-10-28):** each `phase-r-v3` branch is brought up to date with its remote default
+  branch before rehearsal: draft is 8 commits behind `origin/master`, mito is 10 behind
+  `origin/inverts-dev`. Fetch every clone first; the branches were cut from stale local copies.
 - Confirm that no reader, OceanGenom_Web included, selects these views by column position.
   `056` changed the column order.
 - Drop the window-only functions (`v3.sync_mito`, `sync_draft`, `sync_sequencing_run`,
@@ -1165,11 +1200,11 @@ into. Post-check: the next pipeline runs write the new tables, an old writer fai
 
 ## 7. Risks
 
-- **One writer not yet seen.** `ENA-draft-genomes` (the submission block) is not cloned here
-  (R.0.2). If it, or any unknown writer, still writes `draft_genomes` after the merge, it fails
-  on the view. That is loud, not silent. **The compatibility view is not a write path.**
+- **A writer not yet ported.** `ENA-draft-genomes` (seen 2026-10-28, R.0.2) still writes
+  `draft_genomes` in steps 06 and 07 and has no branch. If it, or any unknown writer, still
+  writes `draft_genomes` after the merge, it fails on the view. That is loud, not silent. **The compatibility view is not a write path.**
 - **A dropped column turns out to be read.** If something outside these repositories selects
-  one of the 17 columns in §4.3, it fails after the merge with "column does not exist". The
+  one of the 15 columns in §4.3, it fails after the merge with "column does not exist". The
   values are still in `pre_v3_archive.draft_genomes` until R.8, so the fix is to point that
   reader at the archive or retire it.
 - **The ENA tables are owned downstream.** `annotation_id` on `ena_submissions` needs their

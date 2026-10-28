@@ -88,6 +88,7 @@ The `data_package_*` subsystem is the largest single piece of undocumented schem
 | 14 | — | **New.** Database credentials in a world-readable file. |
 | 15 | — | **New.** Live `lca_validation` species-name coverage is incomplete; exposed by fixing 11. |
 | 16 | — | **New. RESOLVED 2026-10-02** by migrations `028`+`029`. `mitogenome_submission_view` ENA join keyed one grain too coarse. |
+| 17 | — | **New 2026-10-28.** The pipelines compute more than they upload. Two draft gaps block R.6, and the draft ENA `COVERAGE` is the wrong quantity. |
 
 ## 1. Executive Summary
 
@@ -1022,6 +1023,134 @@ Row count unchanged at 2,301; `readonly` grant preserved; one row per sequence i
 
 **Follow-up this exposed, not fixed here.** ENA holds a validation row for `getorg1770.mitos2110` on both samples — an assembly/annotation pair `mitogenome_data` has no annotated row for. The coarse join was masking that inconsistency. Most likely the un-annotated assemblies were validated before the reseed superseded them and their ENA rows were never retired. Worth a sweep for other cases: `ena_validation_attempts` rows whose 5-field identity has no counterpart in `mitogenome_data`.
 
+### Finding 17: The pipelines compute more than they upload, and two gaps block R.6
+
+Severity: High  
+Theme: Data completeness, pipeline correctness, Phase R  
+Status: **new 2026-10-28 — nothing applied**
+
+On 2026-10-28 the draft, mitogenome and reference-genome pipelines were compared on three points: what each computes, what its upload scripts send, and what the `public`, `v3` and `v4` tables can hold. Figures are from live in a read-only session that day. The code was read at each repository's current remote default branch, fetched that morning.
+
+The upload scripts and the tables mostly agree. Every column the mito uploaders send exists on live (104 columns). Every column master's draft uploader sends exists in `public` and, with two exceptions (§17.1), in `v3`. The `v4` writers were matched against their tables in RG.5. The gaps are elsewhere: values the pipelines compute, publish in their own reports and never upload. Two of them, both in the draft pipeline, would break something or lose data at R.6.
+
+#### 17.1 Blocks R.6: draft host columns, and `ENA-draft-genomes`
+
+**`host_haploid_size` and `partition_confidence` have a live writer.** Owner decision 14 dropped both, and `052` did not build them into `v3.draft_genomescope`. The plan says "no upload script pushes them" and calls them a "one-off load for the 260909 batch", with 68 rows. That was true of the copy the plan read. It is no longer true:
+
+- Draft pipeline `2de4e1e` (2026-10-14) added both to `FAMILY_COLUMNS["assembly"]` in `bin/draft_genome_stats.py`, beside `host_assembly_size` and `host_assembly_fraction`. They come from the host depth partition in `bin/kmer_depth_lambda.py`:
+  - `host_haploid_size` is the host mass with haplotype-split contigs counted once (OG3074: 494 Mb against GenomeScope's 338).
+  - `partition_confidence` (`high`/`low`) says whether the BUSCO depth anchor can be trusted. A `low` partition's host size should not be quoted, and since this commit `RECHECK_GENOME_SIZE` no longer uses one as its denominator.
+- On live, both are filled on 261 rows: 68 from 260909 (49 high, 19 low) and 193 from 260925 (192 high, 1 low).
+- **Why the plan missed them.** The plan was measured on 2026-10-15/16 from this host's clone of the draft repository. Its local `master` was still at `d384e4c` (2026-10-02). `2de4e1e` was pushed from elsewhere and reached the clone only on 2026-10-28. `phase-r-v3` was cut from that stale commit, so its writer has no place for either column.
+
+If nothing changes:
+
+- **Today**, nothing breaks. `sync_v3` does not copy the two columns.
+- **When master is merged into `phase-r-v3`**, the two columns arrive in the `assembly` family, which `phase-r-v3` maps entirely to `draft_genomescope`. The v3 writer's next upsert fails on a missing column.
+- **At R.6**, the 261 values go to `pre_v3_archive.draft_genomes` and survive only until R.8.
+
+**`ENA-draft-genomes` is no longer unseen, and it needs a branch.** The plan's R.0.2 and the R.6 gate still say it "is not cloned here". It has been cloned at `~/ENA-draft-genomes` since RG.0 (2026-10-19). Its database access:
+
+| Step | Access | After R.6 |
+|---|---|---|
+| `06_push_submission_data_to_db.py` | `UPDATE draft_genomes SET biosample_accession, sra_accession, ena_analysis_accession`; `UPDATE sample` | Fails: `draft_genomes` is a view. Port to the `v3` submission table. Known since RG.0 (`ref_genomes_rg0_record.md` §5), no branch yet |
+| `07_resolve_gca_accessions.py` | `UPDATE draft_genomes SET assembly_accession` | Same as step 06 |
+| `00_create_draft_samplesheet.py` | Selects `dg.scdepth` | **Fails: "column does not exist".** `scdepth` is a DepthSizer column that `056` left out of the views. Not in any plan |
+
+The plan's §4.3 says no code reads the hidden DepthSizer columns. Step 00 does: it hands `scdepth` to step 03, which writes it into the ENA assembly manifest as `COVERAGE` (§17.2).
+
+#### 17.2 The ENA `COVERAGE` for draft genomes is the wrong quantity
+
+`ENA-draft-genomes` step 03 sends `scdepth`. When that is blank, it falls back to `total_bases / genomesize`. The fallback is not a coverage figure. It divides all the reads, contaminants and organelles included, by a GenomeScope size that the draft pipeline's own gate often marks unreliable. On 260909, where the pipeline measured depth directly, the two disagree by an order of magnitude:
+
+| Draft | `total_bases / genomesize` | `lambda_depth` | Read depth implied by `lambda_depth` (150 bp reads) |
+|---|---:|---:|---:|
+| OG2650 260909 | 308.3 | 13.3 | ≈ 31 |
+| OG3035 260909 | 242.5 | 5.3 | ≈ 12 |
+| OG2652 260909 | 229.9 | 6.3 | ≈ 14 |
+| OG2625 260909 | 89.7 | 6.5 | ≈ 15 |
+
+**The right value already exists and is not uploaded.** `MEASURE_KMER_COVERAGE` maps reads back to the assembly and takes the mean depth over Complete single-copy BUSCO genes. That is `busco_mean_depth`, the same quantity DepthSizer's `scdepth` measured. `genomescope_reliability.py` copies it into each sample's published `*_coverage_summary.json`. `parse_coverage_summary()` uploads only `lambda_depth`, which is that depth halved (MEGAHIT collapses haplotypes) and scaled into k-mer space (`× (L−k+1)/L`). It exists to cross-check GenomeScope's `kmercov`, and is about 2.3 times lower than the read depth at 150 bp. It must not be used as `COVERAGE`.
+
+Coverage on live, 1,720 drafts:
+
+| Source | Drafts | Batches |
+|---|---:|---|
+| `scdepth` (DepthSizer, retired; kept in `v3.draft_depthsizer`) | 701 | up to 250520 |
+| `lambda_depth` (k-mer coverage, not read depth) | 261 | 260909, 260925 |
+| Neither | 758 | 613 of them assembled, 587 of those with no `ena_analysis_accession` |
+
+The two sources do not overlap. The 613 assembled drafts with neither have no measured depth at all, so the fallback is the only number step 03 can send for them.
+
+#### 17.3 Other draft values computed but not uploaded
+
+All of these are in the same published `*_coverage_summary.json`. They exist only from 260909 onwards, for the 261 drafts that have `lambda_depth`.
+
+| Value | Why |
+|---|---|
+| `genomescope_fit` (`original` / `reseeded`) | Since `fd27793`, the uploaded `genomesize`, `kmercov` and fit come from the refit when it wins the reseed. Neither the database nor `genome_size_flags` records that, so a refitted row's size cannot be matched to the GenomeScope summary published beside it |
+| `busco_regions` | How many single-copy genes the depth and the partition rest on. It is the evidence for `partition_confidence` |
+| `partition_note` | Why a partition is `low`: `few_busco_regions`, `no_dominant_mode` or `anchor_off_mode`. There are 20 `low` rows on live |
+
+Worth considering:
+
+- **`host_assembly_size_mode_anchored`:** the better host size when `partition_confidence` is `low`. On OG2948 it gave 414 Mb against GenomeScope's 410, where the BUSCO anchor gave 341.
+- **`symbiont_assembly_size`:** how much of the assembly sits above host depth.
+- **`coverage_status`:** the EXCELLENT … `UNRELIABLE_GENOME_SIZE_ESTIMATE` grade. It is graded from `theoretical_coverage`, which is `bases / genome size` again, so the calculation should be fixed before the grade is stored.
+
+Not needed: `theoretical_coverage`, `coverage_before_filtering`, `data_retention_percent`, `kmercov_over_lambda_depth`, `assembly_mean_depth` and `assembly_cross_check` can be derived from stored columns or are summarised by `genome_size_flags`.
+
+#### 17.4 Mitogenome pipeline
+
+`phase-r-v3` was cut from a stale local `inverts-dev` (`9d70d01`, 2026-10-13). `origin/inverts-dev` has 10 newer commits, none of which touches an upload script or `sql/`.
+
+`seqlength_12s`, `seqlength_16s` and `seqlength_co1` are in the current uploader's column list and the `phase-r-v3` writer drops them. They are blank on all 2,519 rows, and `051` drops them by design, so this is not a gap. It is one more reason the old writer cannot run after R.6.
+
+Computed but not uploaded:
+
+| Value | Source | Why |
+|---|---|---|
+| `completeness_profile` (`vertebrate` / `core`) | `annotation_stats.py` | `push_emma_annotation_results.py` requires it before it treats an annotation as complete, then discards it. `passed` and `missing_genes` are judged against this profile, so for invertebrates the database cannot say what standard a pass met |
+| `status` (complete / manual_review / failed / superseded), `manual_review_reason`, `numt_flag`, `frameshift_flag` | `mitogenome_assembly_summary.py` | The assembly-level QC verdict. The database has `passed` and `annotation_integrity_status` for the annotation, but nothing that says an assembly needs review and why. Today it exists only in the MultiQC table |
+| `reference_species`, `reference_accession` | `mitogenome_assembly_summary.py` | Which reference MitoHiFi or OATK assembled against. It cannot be recovered later |
+| `action`, `reason` | `species_validation.py` | Minor. The explanation behind `validated_species_name`, useful for auditing overrides |
+
+#### 17.5 Reference-genome pipeline
+
+The `phase-rg-v4` writers match `v4`, as RG.5 showed. The 2 commits on `origin/master` that are not on the branch touch no upload script.
+
+Computed but not uploaded:
+
+- **Decontamination.** FCS-GX and Tiara remove contigs from both haplotypes in the `DECONTAMINATION` subworkflow, and nothing records how much. The draft pipeline stores the equivalent (`num_contigs_*`, `bp_*`).
+- **Telomeres** (optional). `TELO_FINDER` writes BED and bedgraph tracks for Pretext only. A summary, such as scaffolds with telomeres at both ends, would be a new calculation rather than a missing upload.
+- **GenomeScope** (optional). `ref_genomescope` has none of what the draft side now keeps: `kmercov`, the min/max range and a reliability verdict.
+
+**The `COVERAGE` sent to ENA** is `coverage_summary.hifi_coverage`, the OG's total HiFi yield divided by the GenomeScope size. That is the conventional way HiFi coverage is reported, and HiFi genome sizes are generally sound. But it adds up every HiFi run for the OG, not only the runs that went into the assembly. `v4.ref_assembly_run` now records which runs each assembly used, so the figure could be made per assembly.
+
+**`hic_reads_qc` writer: still not found.** No local repository writes it. `scripts/06_post_assembly/query_hichifi_results.py` only reads it. The unread Pawsey script named in the RG.0 record remains the likeliest writer.
+
+#### 17.6 Why the plans read stale code
+
+All three Phase R and RG writer branches were cut from local branches that had fallen behind their remotes: draft `phase-r-v3` is 8 commits behind `origin/master`, mito `phase-r-v3` is 10 behind `origin/inverts-dev`, and ref-genomes `phase-rg-v4` is 2 behind `origin/master`. Commits made on Pawsey reach GitHub but not this host's clones until someone fetches. Any writer audit read from these clones, R.0's included, may be out of date. That is how decision 14 came to rest on code that had already changed.
+
+Recommendation:
+
+1. **Before R.6:**
+   - Add `host_haploid_size`, `partition_confidence` and `busco_read_depth` (from `busco_mean_depth`) to `v3.draft_genomescope`, the `draft_genomes` view, `sync_draft` and `check_draft`.
+   - Backfill the 261 rows from `public` (and from the published summaries for the depth).
+   - ~~Reverse decision 14 for the two host columns in the plan, §4.3 and the host partition row.~~ Done 2026-10-28.
+2. **Merge master into draft `phase-r-v3`** once that migration is applied, and add `busco_mean_depth` to `parse_coverage_summary()`.
+3. **Make an `ENA-draft-genomes` `phase-r-v3` branch:**
+   - Port steps 06 and 07 to the `v3` submission table.
+   - In step 00, replace `dg.scdepth` with the new depth column. Step 03 should then fall back to `scdepth` from `v3.draft_depthsizer` for older drafts.
+   - Stop rather than send `total_bases / genomesize` when neither exists.
+   - ~~Close R.0.2.~~ Closed in the plan 2026-10-28.
+4. **Decide what to submit as `COVERAGE` for the 613 assembled drafts with no measured depth.** Either re-run the depth module, or hold their submissions.
+5. **Draft, second tier:** add `genomescope_fit`, `busco_regions` and `partition_note` in the same migration as item 1.
+6. **Mito:** store `completeness_profile` and the assembly QC verdict (`status`, `manual_review_reason`, `numt_flag`, `frameshift_flag`, reference). The verdict belongs on `mito_assembly` or `mito_annotation`. Deciding which comes first.
+7. **Ref:** store the decontamination counts, and consider making HiFi coverage per assembly through `v4.ref_assembly_run`.
+8. **Fetch every pipeline clone before a writer audit,** and bring each writer branch up to date with its remote default branch before it is rehearsed. Add this step to `docs/database_change_checklist.md`.
+
 ## 7. Table-by-Table Review Notes
 
 ### `sample`
@@ -1482,6 +1611,11 @@ Both gates are now cleared. **V.0 was dropped by decision and V.1 is done**, bot
 
 **R.0–R.5 done; R.6, the merge, is next.** On 2026-10-16, `050`–`055` were applied to live. They built the new tables in a schema `v3`, beside `public`, which a nightly sync keeps equal to `public`. On 2026-10-19, `056` reordered the `v3` mito and draft views. The pipeline branches are committed but not deployed. Plan: `docs/assembly_relations_plan.md`. Runbook: `docs/assembly_relations_runbook_r0_r5.md`.
 
+**R.6 gate, added 2026-10-28 (Finding 17).** Three things must happen before the merge:
+- **Build the draft host columns into `v3`.** `host_haploid_size` and `partition_confidence` were dropped on stale code and have a live writer.
+- **Branch `ENA-draft-genomes`.** It is cloned (R.0.2 can close), but steps 06 and 07 still update `draft_genomes`, and step 00 reads the hidden `scdepth`.
+- **Bring each `phase-r-v3` branch up to date with its remote** (draft 8 commits behind, mito 10) before it is rehearsed.
+
 - Split `mitogenome_data` into `mito_assembly`, `mito_assembly_depth`, `mito_annotation` and `mito_annotation_gene`.
 - Split `draft_genomes` into `draft_genome` plus one table per process, with `v_draft_genome_status` showing the gaps.
 - Connect the tables that still have no relation in or out.
@@ -1513,6 +1647,8 @@ All four are done. The follow-ons each item left behind are listed with their pa
 8. Add import-time species validation on `sample.nominal_species_id`.
 9. ~~Capture the `data_package_*` subsystem in a migration and the data dictionary.~~ **Moot 2026-10-05** — the subsystem was abandoned and dropped (`031`) rather than documented.
 10. Strip dead `status_overwrite` logic from `summary` and rebuild or materialise it — less acute after `030`, but 2.0 s is still structural.
+11. **Before R.6: put the draft host and depth columns in `v3`, and branch `ENA-draft-genomes`** (Finding 17, recommendations 1–3). `host_haploid_size` and `partition_confidence` have a live writer, with 261 rows, but no `v3` column. `ENA-draft-genomes` step 00 reads `scdepth`, which the views no longer show. Steps 06 and 07 still update `draft_genomes`.
+12. **Fix the draft ENA `COVERAGE`** (Finding 17.2). Upload `busco_mean_depth` and stop sending `total_bases / genomesize`. Decide what to send for the 613 assembled drafts with no measured depth.
 
 ### Medium priority
 
@@ -1523,6 +1659,9 @@ All four are done. The follow-ons each item left behind are listed with their pa
 5. Add missing PKs and the `rna_qc_kinnex` / `rna_library_kinx` FKs.
 6. Refactor `goat_species_v1` after adding API smoke tests.
 7. Extract migration headers into the data dictionary.
+8. Store the mito `completeness_profile` and assembly QC verdict (Finding 17.4), and the remaining draft summary values: `genomescope_fit`, `busco_regions` and `partition_note` (Finding 17.3).
+9. Store the ref-genome decontamination counts. Consider making HiFi coverage per assembly through `v4.ref_assembly_run` (Finding 17.5).
+10. Fetch every pipeline clone before a writer audit, and add that step to the change checklist (Finding 17.6).
 
 ### Lower priority
 
@@ -1847,5 +1986,6 @@ Capture the eight `data_package_*` tables in a migration and the data dictionary
 | 3.24 | 2026-10-22 | **Migration `064` applied to live** at about 05:30 UTC: `v4.ref_sra_upload_run` links 277 of the 304 SRA uploads to their sequencing rows, with 280 links. The evidence came from the S3 raw-run folders (`illumina-hic/{run}/`, `pacbio/{run}/`) and the ENA staging copies (`scripts/match_sra_uploads.py`, `sql/data/064_*`). By type: Hi-C 136/152, HiFi 101/102, ONT 25/26, Illumina 15/15. The other 27 are in `ref_sra_upload_unlinked` with their reason and listed by `v4.v_sra_upload_run_readiness`. Most are three run IDs the workbook has wrong, explained to the lab in `docs/lab_note_run_ids_261022.md`: `NOVA_240718_AD` should be `NOVA_240719_AD`, `PACB_250114_AD` should be `NOVA_250114_AD`, and `PACB_250717_AD` is missing. These are also the three runs missing from `sequencing_run`. `resolve_sra_upload_runs()` is the forward rule, used by the sync and by ENA-ref-genomes step 09 (`db5651a`); on rehearsal it matched every evidence link it could reach. Post-checks: ledger 65 files, all hashes match; no drift; checks 0. Pre-change dump: `~/oceanomics_genomes_pre_064_261022.dump`. |
 | 3.25 | 2026-10-22 | **Migration `065` applied to live** at about 07:30 UTC. A Hi-C file named `…_HICL1` is the library `…_HICL` (owner); no workbook tube ends in `HICL1`. `resolve_sra_upload_runs()` and `scripts/match_sra_uploads.py` read it that way. OG706's two uploads on `NOVA_240501_LA` are now linked, and OG637's upload gains its `HICL` library: 279 of 304 uploads linked, 283 links, 25 left unlinked. **`import_v2.py` now rebuilds formula ID columns from their parts** (`formula_ids.py`, `OceanOmics-Database` `7e67d37`). The workbook's cached formula values had left 12 Sequencing IDs on the wrong run. **The lab's workbook fixes** (`docs/lab_note_run_ids_261022.md`) and `Status = Failed` on the eight failed Plate 2 libraries of `PACB_250704_AD` were checked in a preview import against a restore of live; they reach live with the 2026-10-22 18:00 UTC import. Post-checks: ledger 66 files, all hashes match; no drift. Pre-change dump: `~/oceanomics_genomes_pre_065_261022.dump`. |
 | 3.26 | 2026-10-26 | **Migration `066` applied to live** at about 02:30 UTC, after a rehearsal on a restore of live from the same day (apply, revert schema-identical, replay a no-op). `lca_results_view.validation_status` now matches the nominal ID against the entries of the `s12_lca`/`s16_lca`/`co1_lca` species lists instead of requiring a field to equal it, with any `;Genus` suffix cut off: 1,406 matched (was 1,010), 523 `INVESTIGATE`, 15 `MISSING NOMINAL ID`. `lca_pivot_view` now lists the union of species over every LCA run per region, not `max()`; only OG2617, OG2618 and OG3091, which have re-runs with different lists, change. `lca_validation_report_view` loses `nom_id_in_results` (owner: every candidate species is in the LCA output) and keeps the `filtered_12s/16s/co1` accessions; its update trigger and `readonly` grant were recreated with it. Only `schema/current_views.sql` was refreshed. **Drift left out on purpose:** on live, `og_priority_log` exists and `og_workflow_recommendation` (044) is gone. Both are a colleague's OceanGenom_Web work in progress, so they stay out of the baseline for now, and `check_drift.py` will keep reporting them until that work is captured. |
+| 3.27 | 2026-10-28 | **Finding 17: the pipelines compute more than they upload.** The draft, mito and ref-genome pipelines were compared, read-only, with what their upload scripts send and what `public`, `v3` and `v4` hold. The upload scripts and tables agree, except that draft `host_haploid_size` and `partition_confidence` have a live writer (`2de4e1e`, 261 rows) but no `v3` column. Owner decision 14 dropped them on a stale clone. `ENA-draft-genomes`, cloned since RG.0, still updates `draft_genomes` in steps 06 and 07, and step 00 reads the hidden `scdepth`. Both block R.6, and the gate is added to Phase R. The draft ENA `COVERAGE` falls back to `total_bases / genomesize`, which is not a coverage. The measured read depth (`busco_mean_depth`) is published but not uploaded, and 613 assembled drafts have no measured depth. Also recorded: unuploaded draft summary values (`genomescope_fit`, `busco_regions`, `partition_note`), the mito `completeness_profile` and assembly QC verdict, and the ref-genome decontamination counts. All three writer branches were cut from stale local branches (draft 8 commits behind, mito 10, ref 2). Backlog: highest 11–12, medium 8–10. Nothing applied. |
 
 The previous revision is preserved at `/tmp/database_review.prev.md` at the time of writing; the authoritative history is in git.
