@@ -1149,7 +1149,7 @@ Recommendation:
 5. **Draft, second tier:** add `genomescope_fit`, `busco_regions` and `partition_note` in the same migration as item 1.
 6. **Mito:** store `completeness_profile` and the assembly QC verdict (`status`, `manual_review_reason`, `numt_flag`, `frameshift_flag`, reference). The verdict belongs on `mito_assembly` or `mito_annotation`. Deciding which comes first.
 7. **Ref:** store the decontamination counts, and consider making HiFi coverage per assembly through `v4.ref_assembly_run`.
-8. **Fetch every pipeline clone before a writer audit,** and bring each writer branch up to date with its remote default branch before it is rehearsed. Add this step to `docs/database_change_checklist.md`.
+8. **Fetch every pipeline clone before a writer audit,** and bring each writer branch up to date with its remote default branch before it is rehearsed. ~~Add this step to `docs/database_change_checklist.md`.~~ Added 2026-10-28, under "For Pipeline Writer and Reader Audits".
 
 ## 7. Table-by-Table Review Notes
 
@@ -1661,7 +1661,7 @@ All four are done. The follow-ons each item left behind are listed with their pa
 7. Extract migration headers into the data dictionary.
 8. Store the mito `completeness_profile` and assembly QC verdict (Finding 17.4), and the remaining draft summary values: `genomescope_fit`, `busco_regions` and `partition_note` (Finding 17.3).
 9. Store the ref-genome decontamination counts. Consider making HiFi coverage per assembly through `v4.ref_assembly_run` (Finding 17.5).
-10. Fetch every pipeline clone before a writer audit, and add that step to the change checklist (Finding 17.6).
+10. ~~Fetch every pipeline clone before a writer audit, and add that step to the change checklist (Finding 17.6).~~ **Done 2026-10-28:** `docs/database_change_checklist.md`, "For Pipeline Writer and Reader Audits".
 
 ### Lower priority
 

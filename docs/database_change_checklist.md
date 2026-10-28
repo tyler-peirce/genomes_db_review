@@ -48,6 +48,29 @@ Use this checklist before changing the Ocean Genomes database schema, data-clean
   - **Older views keep their names** (`summary`, `sample_view`, `lca_results_view`, ...).
     Readers depend on them; renaming one is a contract change, not a tidy-up.
 
+## For Pipeline Writer and Reader Audits
+
+Added 2026-10-28 (`database_review.md` Finding 17.6). Pipeline commits are often made on Pawsey
+and pushed to GitHub, and this host's clones do not see them until someone fetches. Owner
+decision 14 dropped two columns because the upload scripts "never push" them. That was read from
+a draft clone 12 days behind `origin/master`, and the writer had been added in between.
+
+- **Fetch every clone before reading it:** `git fetch` in each pipeline repository. That means
+  the draft, mito and ref-genomes pipelines, post-curation, every `ENA-*` repository, and
+  `OceanOmics-Database`.
+- **Read the remote default branch, not the local checkout:** `origin/master` or
+  `origin/inverts-dev`, as the repository uses. Read it with
+  `git show origin/<branch>:<path>` or `git grep <pattern> origin/<branch>`.
+- **Record the commit SHA that was read** in the audit record, beside each writer or reader. A
+  claim that code does or does not do something holds only for that commit.
+- **Cut writer branches from the fetched remote default branch.** Before each rehearsal, bring
+  the branch up to date with that remote and rerun its tests. Check with
+  `git rev-list --left-right --count <branch>...origin/<default>`: the right-hand number must
+  be 0.
+- **Before dropping a column as "unread" or "unwritten", search every repository at its remote
+  default branch.** Do the same for anything readable on Pawsey. Say in the record which places
+  could not be read.
+
 
 ## Migration Governance
 
