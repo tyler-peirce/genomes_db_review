@@ -43,3 +43,37 @@ What it does:
 **Baseline:** only the `public.mitogenome_data` hunks were taken, into `current_schema.sql` and `current_constraints.sql`.
 
 Every new column stays empty until the writers deploy (B.2) and the backfill runs (B.3).
+
+## B.2 mito writers (2026-10-28)
+
+Both branches are pushed and not deployed.
+
+**`r6-mito-qc`** (`364873c`, from `origin/inverts-dev`, writes `public`):
+- `push_emma_annotation_results.py` writes `completeness_profile`, which it already required and then dropped.
+- New `push_assembly_qc.py` and `PUSH_ASSEMBLY_QC`, once per run after `MITOGENOME_ASSEMBLY_SUMMARY`, under the usual upload gate. It updates the verdict on existing `mitogenome_data` rows, never inserts, and skips by name any prefix that is not `og.tech.seq_date.code`.
+- Tests: 7 new unit tests; all 49 upload-script tests pass. The full suite has the same 5 failures as `origin/inverts-dev`, because Biopython is not installed on this host.
+- **The Nextflow wiring has not been run.** Nextflow is not installed here. Test it on Setonix before merging into `inverts-dev`.
+
+**`phase-r-v3`** (`d51b1c2`):
+- Merges `r6-mito-qc`, keeping the Phase R annotation writer, with `completeness_profile` added to its own lists.
+- `push_assembly_qc.py` upserts `mito_assembly_qc` for an existing `mito_assembly`.
+
+**Rehearsal** on a restore of live, using 8 real rows from NOVA_260925_LA's summary table (`r6-mito-qc` plus `sync_mito()` against `phase-r-v3`):
+- the same outcome per row: 6 set, 2 `no_row`;
+- identical `mito_assembly_qc` rows.
+
+One of the `no_row` assemblies, `OG2651.ilmn.260925.getorg1770`, is in the summary but not in the database; only its `_concat` and reseed assemblies are.
+
+## B.3 backfill: what can be backfilled
+
+**`completeness_profile`:**
+- The archived `annotation_stats.csv` files on Acacia carry it only for the newest batch. Of 8 sampled assemblies, 221003–260605 lack the column; 260925 has it.
+- Of the 2,144 annotated assemblies on live, **289** have `annotation_stats_version` 2.0.0 (after `b0cf5a3`, 2026-09-07, which keyed the profile on the genetic code). **1,855 have no version**: which standard their `passed` was judged against is not recorded anywhere.
+- The genetic code is not stored in the database. It can be derived, because code 2 applies to exactly the vertebrates: profile = `vertebrate` when the species is in a vertebrate class, else `core`. But **463** annotated assemblies have no species class, because their nominal species is not in `species`.
+
+**Assembly QC verdict:** the run-level summary table is not archived to Acacia. Only runs still on Pawsey scratch can be backfilled; NOVA_260925_LA's covers about 200 assemblies.
+
+**Proposal, waiting for the owner:**
+- derive `completeness_profile` for the 289 version-2.0.0 annotations only, and leave the 1,855 NULL as "standard not recorded";
+- backfill the verdict from NOVA_260925_LA's table;
+- otherwise forward-only.
