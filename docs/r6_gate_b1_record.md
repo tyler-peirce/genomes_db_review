@@ -77,3 +77,18 @@ One of the `no_row` assemblies, `OG2651.ilmn.260925.getorg1770`, is in the summa
 - derive `completeness_profile` for the 289 version-2.0.0 annotations only, and leave the 1,855 NULL as "standard not recorded";
 - backfill the verdict from NOVA_260925_LA's table;
 - otherwise forward-only.
+
+## B.3 `completeness_profile` backfill, done 2026-10-30
+
+**Owner decision:** fill only the 289 annotations with `annotation_stats_version` 2.0.0; leave the 1,855 unversioned ones NULL ("standard not recorded"). The verdict is forward-only.
+
+**Source.** Every one of the 289 (260909: 96, 260925: 193) has an archived `annotation_stats.csv` on Acacia, matched on its `annotation`, that carries the profile the pipeline actually applied:
+- 199 `vertebrate`, 90 `core`.
+- 100 of the 289 have no species class. For the 189 that do, the archived value equals the class rule (vertebrate class → `vertebrate`) in every case.
+
+The archived values were written, not derived ones.
+
+**Write:**
+- `UPDATE public.mitogenome_data`, filling only an empty profile on version-2.0.0 rows, keyed on `(og_id, tech, seq_date, code, annotation)`.
+- Required to match exactly 289 rows, or roll back. It matched 289.
+- `sync_mito()` carried them (`annotation upserted 289`); `check_mito()` is all 0.
