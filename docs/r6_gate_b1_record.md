@@ -92,3 +92,20 @@ The archived values were written, not derived ones.
 - `UPDATE public.mitogenome_data`, filling only an empty profile on version-2.0.0 rows, keyed on `(og_id, tech, seq_date, code, annotation)`.
 - Required to match exactly 289 rows, or roll back. It matched 289.
 - `sync_mito()` carried them (`annotation upserted 289`); `check_mito()` is all 0.
+
+## B.2 deployed (2026-10-30)
+
+- **Mito `origin/inverts-dev`:** fast-forwarded `acf878c` → `364873c` (`r6-mito-qc`). The unit suite has the same 5 failures as before (Biopython missing on this host); the new tests pass. `phase-r-v3` already contained it.
+- **Setonix production clone** (`…/Oceanomics-OceanGenomes-Mitogenomes-inverts`): pulled to `364873c`. No mito job was running.
+- From the next run, the pipeline stores `completeness_profile` and the assembly QC verdict.
+
+**NOVA_260925_LA verdicts.** This run's `mitogenome_assembly_summary_mqc.tsv` is still on scratch (`/scratch/pawsey1348/tpeirce/NOVA_260925_LA_mitogenomes/multiqc/`), so its verdicts are real, not reconstructed.
+- `push_assembly_qc.py --dry-run` against live: 196 of 197 assemblies matched a row.
+- `OG2651.ilmn.260925.getorg1770` has no `mitogenome_data` row (its reseed and concat attempts do), so it is reported and skipped.
+- Not yet written: the live write waits for the owner's go-ahead.
+
+## Draft genome-size reliability (noted 2026-10-30)
+
+- `genome_size_reliable` is set for the 272 drafts from 260909/260925: 195 true, 74 false (the rest have no verdict). Every draft whose GenomeScope `kmercov` is more than 1.25× or less than 0.8× `lambda_depth` is already `false`.
+- The 1,329 older drafts that have a genome size have no verdict at all. The depth-only re-run does not upload `kmercov`, so a fit on the wrong peak (OG1076: ratio 2.97) is not visible from the database.
+- After the batches, list the drafts with ratio outside 0.8–1.25 from the published `*_kmer_depth.json` (`kmercov_over_lambda_depth`). They are the first candidates for the full GENOME_QC re-run.
