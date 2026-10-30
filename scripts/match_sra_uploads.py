@@ -11,10 +11,11 @@ Inputs in DIR:
   db_sra_uploads.tsv    SELECT u.srr_accession, s.og_id, coalesce(u.data_type, ''), coalesce(u.filenames, '')
                         FROM v4.ref_sra_upload u JOIN v4.ref_submission s USING (submission_id)
   db_seq_all.tsv        SELECT og_id, sequencing_id, library_tube_id, run_id, technology, library_type,
-                        seq_date FROM public.v_sequencing_browse
+                        seq_date FROM public.v_sequencing_browse WHERE status IS DISTINCT FROM 'Failed'  -- since 069
   db_hifi_bc.tsv        SELECT og_id, barcode, run_id, coalesce(sequencing_id, '') AS sequencing_id,
                                og_id || tissue || '_' || ext_type || '_' || lib_code AS tube
-                        FROM v4.hifi_read_qc WHERE barcode IS NOT NULL
+                        FROM v4.hifi_read_qc q LEFT JOIN sequencing s USING (sequencing_id)
+                        WHERE q.barcode IS NOT NULL AND s.status IS DISTINCT FROM 'Failed'
 Output: DIR/sra_upload_runs.tsv (srr_accession, og_id, data_type, runs, sequencing_ids, status, note).
 
 Rules, per data type (one upload is one submission, from one OG):

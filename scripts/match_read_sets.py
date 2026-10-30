@@ -11,8 +11,10 @@ Inputs in DIR:
                           s.seq_date, s.cell_id
                    FROM public.v_sequencing_browse b JOIN sequencing s USING (sequencing_id)
                    WHERE s.technology IN ('PacBio', 'PacBio HIFI')
-    db_hifi_bc.tsv SELECT og_id, barcode, run_id, sequencing_id FROM v4.hifi_read_qc
-                   WHERE sequencing_id IS NOT NULL AND barcode IS NOT NULL
+                     AND s.status IS DISTINCT FROM 'Failed'   -- since 069
+    db_hifi_bc.tsv SELECT q.og_id, q.barcode, q.run_id, q.sequencing_id FROM v4.hifi_read_qc q
+                   JOIN sequencing s USING (sequencing_id)
+                   WHERE q.barcode IS NOT NULL AND s.status IS DISTINCT FROM 'Failed'
 Output: DIR/read_set_matches.tsv, one row per OG read set. The 2026-10-20 run is
 sql/data/062_read_set_dates.tsv; its Acacia evidence is in sql/data/062_evidence/.
 
