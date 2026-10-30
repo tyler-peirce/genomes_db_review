@@ -102,7 +102,7 @@ The archived values were written, not derived ones.
 **NOVA_260925_LA verdicts.** This run's `mitogenome_assembly_summary_mqc.tsv` is still on scratch (`/scratch/pawsey1348/tpeirce/NOVA_260925_LA_mitogenomes/multiqc/`), so its verdicts are real, not reconstructed.
 - `push_assembly_qc.py --dry-run` against live: 196 of 197 assemblies matched a row.
 - `OG2651.ilmn.260925.getorg1770` has no `mitogenome_data` row (its reseed and concat attempts do), so it is reported and skipped.
-- Not yet written: the live write waits for the owner's go-ahead.
+- **Written 2026-10-30** on the owner's go-ahead: 196 rows (187 complete, 5 failed, 4 manual_review; 2 with a NUMT signal). `v3.mito_assembly_qc` gets them at the next `sync_v3`.
 
 ## Draft genome-size reliability (noted 2026-10-30)
 
