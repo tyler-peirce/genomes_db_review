@@ -31,9 +31,9 @@ On live afterwards:
 
 `genomescope_fit` stays empty for these: the 260909 coverage summaries predate it.
 
-## A.4 depth-only mode: written, not yet run
+## A.4 depth-only mode: tested on three drafts, merged
 
-Draft pipeline branch `r6-depth-only` (`57df4d9`), **not merged**: Nextflow is not installed on this host, so it has not been run.
+Draft pipeline branch `r6-depth-only` (`57df4d9`). Nextflow is not installed on this host, so the owner ran the test on Setonix.
 - **Entry:** `nextflow run main.nf -entry DEPTH_ONLY --depth_samplesheet <csv>` (`workflows/depth_only.nf`). It runs `MEASURE_KMER_COVERAGE` and `SUMMARISE_KMER_COVERAGE` unchanged, plus `SEQKIT_STATS` where no stats are archived. It uploads the depth columns only, through the new `PUSH_KMER_DEPTH_RESULTS`. Nothing else is recomputed.
 - **Launcher:** `scripts/depth_only/run_depth_only.sh <list.tsv>`.
   - It stages each draft's `.fna`, BAM, BUSCO `full_table` and GenomeScope model from Acacia, plus the fastp JSON from S3 (named `<OG>.ilmn.<RUN>_<seq_date>_<initials>.fastp.json`, checked on two OGs).
@@ -41,7 +41,29 @@ Draft pipeline branch `r6-depth-only` (`57df4d9`), **not merged**: Nextflow is n
   - Where a draft has BUSCO tables for two lineages it takes the first in sorted order; either set anchors the depth.
 - **Lists:** `scripts/depth_only/lists/<seq_date>.tsv` holds the 590 measurable drafts from A.0. `test_three.tsv` is OG1703 and OG1704 (251210) and OG1076 (250606).
 
-**Next:** the owner runs `test_three.tsv` on Setonix and checks each `*_kmer_depth.json` `status`. That shows whether the archived BAMs match the archived assemblies. If it passes, merge to master and run the batches.
+### Test run (2026-10-30)
+
+The owner ran `test_three.tsv` on Setonix: 12 tasks, 0 failed, nothing skipped at staging. All three archived BAMs match their assemblies (`status: ok`).
+
+| Draft | `busco_read_depth` | `busco_regions` | `lambda_depth` | GenomeScope kmercov ÷ `lambda_depth` | `host_haploid_size` | Partition |
+|---|---:|---:|---:|---:|---:|---|
+| OG1703 251210 | 61.05 | 1,541 | 26.43 | 0.98 | 639,009,828 | high |
+| OG1704 251210 | 69.75 | 3,079 | 30.19 | 0.97 | 653,820,736 | high |
+| OG1076 250606 | 11.36 | 703 | 4.92 | **2.97** | 2,677,050,727 | high |
+
+**Live afterwards** (read-only):
+- `public.draft_genomes` holds the uploaded values exactly.
+- `genomesize` is unchanged for all three.
+- `v3` gets them at the next `sync_v3` (18:30 UTC). Until then `check_draft()` reports these 3 rows each way, as expected.
+
+**OG1076 needs follow-up.** Its GenomeScope k-mer coverage is about 3× the measured depth. Stored `genomesize` is 364 Mb, but the assembly is 2.77 Gb and the host haploid size is 2.68 Gb. GenomeScope most likely fit the wrong peak, so the stored genome size is probably about 7× too small. Only 703 BUSCOs are Complete, so this draft is fragmented. The depth-only mode does not touch genome size, by design. The later full GENOME_QC re-run (`RECHECK_GENOME_SIZE` and reseed) is what corrects it. Before that run, list every draft where kmercov ÷ `lambda_depth` falls outside about 0.8–1.25.
+
+### Merged
+
+- **Draft `origin/master`:** fast-forwarded `5a055a5` → `57df4d9`.
+- **`phase-r-v3`:** merged `origin/master` (`a226633`); 179 tests pass.
+
+**Next:** the owner runs one `lists/<seq_date>.tsv` at a time from `master`, after a `git pull` on the Setonix clone.
 
 ## A.5 `ENA-draft-genomes`
 
