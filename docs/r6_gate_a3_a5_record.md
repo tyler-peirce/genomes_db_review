@@ -93,7 +93,7 @@ From the 542 `kmer_depth.json`: `kmercov_over_lambda_depth` should be about 1.
 | about 2 (1.75–2.5) | 60 |
 | ≥ 2.5 | 77 |
 
-Most of the stored `genomesize` values for the 183 outside 0.8–1.25 are probably wrong. A ratio near 2 means GenomeScope took the heterozygous peak as the homozygous one, so its genome size is about double the truth; near 3–4 or above, it fitted noise in low-coverage data (`lambda_depth` about 4–6). Two clusters stand out:
+Most of the stored `genomesize` values for the 183 outside 0.8–1.25 are probably wrong. A ratio above 1 means GenomeScope fitted coverage too high, so its genome size is too small by about that factor or more (OG1076: ratio 3, stored 364 Mb against a 2.68 Gb host assembly). Near 2 it most likely took the heterozygous peak for the homozygous one; at 3 and above it fitted noise in low-coverage data (`lambda_depth` about 4–6). Below 0.8 the size is too large. Two clusters stand out:
 - **The ~2.6 Gb assemblies in 250606 and 260724** (OG1076–OG1131, OG2586–OG2616): ratio 2.3–3.7 at `lambda_depth` 4–6.
 - **260514** (OG2328–OG2380): ratio about 2 almost throughout.
 
