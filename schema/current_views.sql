@@ -1,3 +1,38 @@
+-- View: public.blast_filtered_lca
+CREATE OR REPLACE VIEW public.blast_filtered_lca AS
+ SELECT a.og_id,
+    a.tech,
+    a.seq_date,
+    a.code,
+    an.annotation,
+    t.match_sequence_id,
+    t.taxon_id,
+    t.scientific_name,
+    t.common_name,
+    t.kingdoms,
+    t.percent_identity,
+    t.alignment_length,
+    t.query_length,
+    t.subject_length,
+    t.mismatch,
+    t.gap_open,
+    t.gaps,
+    t.query_start,
+    t.query_end,
+    t.subject_start,
+    t.subject_end,
+    t.subject_title,
+    t.evalue,
+    t.bit_score,
+    t.query_coverage,
+    t.subject_coverage,
+    t.region,
+    t.blast_run_date,
+    t.annotation_id
+   FROM mito_blast_hit t
+     JOIN mito_annotation an ON an.annotation_id = t.annotation_id
+     JOIN mito_assembly a ON a.assembly_id = an.assembly_id;;
+
 -- View: public.coverage_summary
 CREATE OR REPLACE VIEW public.coverage_summary AS
  WITH hifi_agg AS (
@@ -385,6 +420,45 @@ CREATE OR REPLACE VIEW public.hifi_reads_qc AS
     hifi_read_qc.polymerase_read_length
    FROM hifi_read_qc;;
 
+-- View: public.lca
+CREATE OR REPLACE VIEW public.lca AS
+ SELECT a.og_id,
+    a.tech,
+    a.seq_date,
+    a.code,
+    an.annotation,
+    t.region,
+    t.lca_run_date,
+    t.species_in_lca,
+    t.number_unq_blast_hits,
+    t.domain,
+    t.phylum,
+    t.class,
+    t."order",
+    t.family,
+    t.genus,
+    t.specific_epiphet,
+    t.species,
+    t.scientific_name_authorship,
+    t.taxon_rank,
+    t.top_taxon_id,
+    t.taxon_id_db,
+    t.top_accession_id,
+    t.accession_id_ref_db,
+    t.top_percent_query_cover,
+    t.top_percent_query_cover_hsp,
+    t.alignment_length,
+    t.subject_length,
+    t.sequence_length,
+    t.top_confidence_score,
+    t.top_percent_match,
+    t.taxon_rank_db,
+    t.content_hash,
+    t.annotation_id
+   FROM mito_lca t
+     JOIN mito_annotation an ON an.annotation_id = t.annotation_id
+     JOIN mito_assembly a ON a.assembly_id = an.assembly_id;;
+
 -- View: public.lca_pivot_view
 CREATE OR REPLACE VIEW public.lca_pivot_view AS
  SELECT regexp_replace(lca.og_id, 'OG'::text, ''::text, 'g'::text)::integer AS og_num,
@@ -401,6 +475,44 @@ CREATE OR REPLACE VIEW public.lca_pivot_view AS
            FROM unnest(string_to_array(lca.species_in_lca, ','::text)) x(x)
           WHERE btrim(x.x) <> ''::text) t ON true
   GROUP BY lca.og_id, lca.tech, lca.seq_date, lca.code, lca.annotation;;
+
+-- View: public.lca_raw_results
+CREATE OR REPLACE VIEW public.lca_raw_results AS
+ SELECT a.og_id,
+    a.tech,
+    a.seq_date,
+    a.code,
+    an.annotation,
+    t.sequence_region,
+    t.lca_run_date,
+    t.domain,
+    t.phylum,
+    t.class,
+    t."order",
+    t.family,
+    t.genus,
+    t.specific_epiphet,
+    t.scientific_name,
+    t.scientific_name_authorship,
+    t.taxon_rank,
+    t.taxon_id,
+    t.taxon_id_db,
+    t.verbatim_identification,
+    t.accession_id,
+    t.accession_id_ref_db,
+    t.percent_match,
+    t.percent_query_cover,
+    t.percent_query_cover_hsp,
+    t.alignment_length,
+    t.subject_length,
+    t.sequence_length,
+    t.confidence_score,
+    t.taxon_rank_db,
+    t.content_hash,
+    t.annotation_id
+   FROM mito_lca_raw t
+     JOIN mito_annotation an ON an.annotation_id = t.annotation_id
+     JOIN mito_assembly a ON a.assembly_id = an.assembly_id;;
 
 -- View: public.lca_results_view
 CREATE OR REPLACE VIEW public.lca_results_view AS
@@ -421,6 +533,26 @@ CREATE OR REPLACE VIEW public.lca_results_view AS
         END AS validation_status
    FROM lca_pivot_view lp
      JOIN sample s ON lp.og_id_lp = s.og_id;;
+
+-- View: public.lca_validation
+CREATE OR REPLACE VIEW public.lca_validation AS
+ SELECT a.og_id,
+    a.tech,
+    t.validated_species_name,
+    t.validator,
+    t.nominal_species_id_lca_comment,
+    t.validator_2,
+    t.data_release,
+    t.validated_rank,
+    t.lca_genus,
+    a.seq_date,
+    a.code,
+    an.annotation,
+    t.row_created_on,
+    t.annotation_id
+   FROM mito_lca_validation t
+     JOIN mito_annotation an ON an.annotation_id = t.annotation_id
+     JOIN mito_assembly a ON a.assembly_id = an.assembly_id;;
 
 -- View: public.lca_validation_report_view
 CREATE OR REPLACE VIEW public.lca_validation_report_view AS

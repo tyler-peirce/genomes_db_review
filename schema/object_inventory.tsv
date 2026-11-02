@@ -3,7 +3,6 @@
 # Commit changes here together with the migration that explains them.
 #
 # kind	name
-table	blast_filtered_lca
 table	design_description
 table	dna_extraction
 table	draft_busco
@@ -29,9 +28,6 @@ table	hic_read_qc
 table	hifi_read_qc
 table	illumina_library
 table	import_quarantine
-table	lca
-table	lca_raw_results
-table	lca_validation
 table	library
 table	master_species
 table	master_species_genome
@@ -41,7 +37,11 @@ table	mito_assembly
 table	mito_assembly_depth
 table	mito_assembly_qc
 table	mito_assembly_run
+table	mito_blast_hit
 table	mito_gene
+table	mito_lca
+table	mito_lca_raw
+table	mito_lca_validation
 table	ncbi_genome_assemblies
 table	og_workflow_assignment_log
 table	og_workflow_notification
@@ -84,6 +84,7 @@ table	species_ncbi_assembly
 table	tissue
 table	value_conversions
 table	workbook_attempt_keys
+view	blast_filtered_lca
 view	coverage_summary
 view	draft_genomes
 view	embargo_assignment_view
@@ -94,8 +95,11 @@ view	goat_project_metadata_v1
 view	goat_species_v1
 view	hic_reads_qc
 view	hifi_reads_qc
+view	lca
 view	lca_pivot_view
+view	lca_raw_results
 view	lca_results_view
+view	lca_validation
 view	lca_validation_report_view
 view	mitogenome_data
 view	mitogenome_submission_view

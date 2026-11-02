@@ -331,40 +331,73 @@ COMMENT ON FUNCTION public.lca_set_content_hash() IS 'Maintains content_hash on 
 CREATE FUNCTION public.lca_validation_report_view_upd() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
+  BEGIN
+    -- Optional safety: prevent attempts to change the identifying fields via the view
+    IF NEW.og_id IS DISTINCT FROM OLD.og_id
+       OR NEW.tech IS DISTINCT FROM OLD.tech
+       OR NEW.seq_date IS DISTINCT FROM OLD.seq_date
+       OR NEW.code IS DISTINCT FROM OLD.code
+       OR NEW.annotation IS DISTINCT FROM OLD.annotation
+    THEN
+      RAISE EXCEPTION
+        'Cannot change key fields (og_id, tech, seq_date, code, annotation) through lca_validation_report_view';
+    END IF;
+
+    -- Persist only the editable columns back to the base table (mito_lca_validation since 076).
+    UPDATE mito_lca_validation
+    SET validated_species_name         = NEW.validated_species_name,
+        validator                      = NEW.validator,
+        validator_2                    = NEW.validator_2,
+        nominal_species_id_lca_comment = NEW.comment
+    WHERE annotation_id = mito_annotation_id(OLD.og_id, OLD.tech, OLD.seq_date, OLD.code, OLD.annotation, false);
+
+    -- If no row was updated, something is off (missing row or key mismatch).
+    IF NOT FOUND THEN
+      RAISE EXCEPTION
+        'Update failed: no matching row in lca_validation for (og_id=%, tech=%, seq_date=%, code=%, annotation=%)',
+        OLD.og_id, OLD.tech, OLD.seq_date, OLD.code, OLD.annotation;
+    END IF;
+
+    RETURN NEW;
+  END;
+  $$;
+
+
+--
+-- Name: mito_annotation_id(text, text, text, text, text, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mito_annotation_id(p_og_id text, p_tech text, p_seq_date text, p_code text, p_annotation text, p_strict boolean DEFAULT true) RETURNS bigint
+    LANGUAGE plpgsql STABLE
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+DECLARE
+  found bigint;
+  n int;
 BEGIN
-  -- Optional safety: prevent attempts to change the identifying fields via the view
-  IF NEW.og_id IS DISTINCT FROM OLD.og_id
-     OR NEW.tech IS DISTINCT FROM OLD.tech
-     OR NEW.seq_date IS DISTINCT FROM OLD.seq_date
-     OR NEW.code IS DISTINCT FROM OLD.code
-     OR NEW.annotation IS DISTINCT FROM OLD.annotation
-  THEN
-    RAISE EXCEPTION
-      'Cannot change key fields (og_id, tech, seq_date, code, annotation) through lca_validation_report_view';
+  SELECT min(an.annotation_id), count(*) INTO found, n
+    FROM mito_annotation an JOIN mito_assembly a USING (assembly_id)
+   WHERE a.og_id = p_og_id AND a.tech = p_tech AND a.seq_date = p_seq_date
+     AND a.code = p_code AND an.annotation = p_annotation;
+  IF n = 1 THEN
+    RETURN found;
   END IF;
-
-  -- Persist only the editable columns back to the base table.
-  UPDATE lca_validation
-  SET validated_species_name         = NEW.validated_species_name,
-      validator                      = NEW.validator,
-      validator_2                    = NEW.validator_2,
-      nominal_species_id_lca_comment = NEW.comment
-  WHERE og_id       = OLD.og_id
-    AND tech        = OLD.tech
-    AND seq_date    = OLD.seq_date
-    AND code        = OLD.code
-    AND annotation  = OLD.annotation;
-
-  -- If no row was updated, something is off (missing row or key mismatch).
-  IF NOT FOUND THEN
-    RAISE EXCEPTION
-      'Update failed: no matching row in lca_validation for (og_id=%, tech=%, seq_date=%, code=%, annotation=%)',
-      OLD.og_id, OLD.tech, OLD.seq_date, OLD.code, OLD.annotation;
+  IF p_strict THEN
+    RAISE EXCEPTION USING ERRCODE = 'foreign_key_violation',
+      MESSAGE = format('%s mito annotation(s) match %s.%s.%s.%s annotation %s; upload the assembly '
+                       'and its annotation before its LCA/ENA results',
+                       n, p_og_id, p_tech, p_seq_date, p_code, p_annotation);
   END IF;
-
-  RETURN NEW;
-END;
+  RETURN NULL;
+END
 $$;
+
+
+--
+-- Name: FUNCTION mito_annotation_id(p_og_id text, p_tech text, p_seq_date text, p_code text, p_annotation text, p_strict boolean); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.mito_annotation_id(p_og_id text, p_tech text, p_seq_date text, p_code text, p_annotation text, p_strict boolean) IS 'annotation_id for (og_id, tech, seq_date, code, annotation). Strict (default) raises when none or several match; non-strict returns NULL. Used by the mito pipeline writers of mito_lca, mito_lca_raw, mito_lca_validation and mito_blast_hit. 076, Phase R.7b.';
 
 
 --
@@ -1310,12 +1343,103 @@ COMMENT ON COLUMN public.illumina_library.index_plate IS 'Spreadsheet header "In
 
 
 --
--- Name: lca_validation; Type: TABLE; Schema: public; Owner: -
+-- Name: mito_annotation; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.lca_validation (
+CREATE TABLE public.mito_annotation (
+    annotation_id bigint NOT NULL,
+    assembly_id bigint NOT NULL,
+    annotation text NOT NULL,
+    is_selected boolean DEFAULT false NOT NULL,
+    selected_by text,
+    selected_at timestamp with time zone,
+    length_emma integer,
+    cds_no integer,
+    trna_no integer,
+    rrna_no integer,
+    manual_curation_notes text,
+    extra_genes text,
+    missing_genes text,
+    order_correct text,
+    passed text,
+    trna_advisory text,
+    order_variant text,
+    order_deviation text,
+    annotation_gaps text,
+    order_variant_taxon_check text,
+    order_status text,
+    order_deviation_detail text,
+    expected_lineage_genes text,
+    missing_expected_lineage_genes text,
+    lineage_gene_advisories text,
+    mitos_unmapped_features text,
+    mitos_known_auxiliary_features text,
+    duplicate_loci text,
+    annotation_integrity_status text,
+    annotation_integrity_issues text,
+    annotation_stats_version text,
+    annotation_updated_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    completeness_profile text,
+    CONSTRAINT mito_annotation_completeness_profile_check CHECK ((completeness_profile = ANY (ARRAY['vertebrate'::text, 'core'::text]))),
+    CONSTRAINT mito_annotation_selected_by_check CHECK (((NOT is_selected) OR (selected_by IS NOT NULL)))
+);
+
+
+--
+-- Name: TABLE mito_annotation; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.mito_annotation IS 'One annotation of an assembly. All are kept. Written by push_emma_annotation_results.py.';
+
+
+--
+-- Name: COLUMN mito_annotation.is_selected; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.is_selected IS 'Optional: a person may mark one annotation per assembly as the one they chose. Set by hand only; no writer, view or pipeline reads it (owner decision 3, 2026-10-16).';
+
+
+--
+-- Name: COLUMN mito_annotation.completeness_profile; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.completeness_profile IS 'vertebrate or core: the gene-set standard passed and missing_genes were judged against (annotation_stats.completeness_profile(), from the genetic code and class). core is the reduced set for invertebrate classes.';
+
+
+--
+-- Name: mito_assembly; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.mito_assembly (
+    assembly_id bigint NOT NULL,
     og_id text NOT NULL,
     tech text NOT NULL,
+    seq_date text NOT NULL,
+    code text NOT NULL,
+    stats text,
+    length integer,
+    avg_coverage real,
+    avg_base_coverage real,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT mito_assembly_tech_check CHECK ((tech = ANY (ARRAY['ilmn'::text, 'hifi'::text, 'hic'::text])))
+);
+
+
+--
+-- Name: TABLE mito_assembly; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.mito_assembly IS 'One mitogenome assembly. Written by push_mtdna_assm_results.py (Oceanomics-OceanGenomes-Mitogenomes).';
+
+
+--
+-- Name: mito_lca_validation; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.mito_lca_validation (
     validated_species_name text,
     validator text,
     nominal_species_id_lca_comment text,
@@ -1323,26 +1447,54 @@ CREATE TABLE public.lca_validation (
     data_release text,
     validated_rank text,
     lca_genus text,
-    seq_date text NOT NULL,
-    code text NOT NULL,
-    annotation text NOT NULL,
     row_created_on timestamp with time zone DEFAULT now() NOT NULL,
     annotation_id bigint NOT NULL
 );
 
 
 --
--- Name: TABLE lca_validation; Type: COMMENT; Schema: public; Owner: -
+-- Name: TABLE mito_lca_validation; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.lca_validation IS 'Human validation of LCA calls. Read by v2.summary and by the public reporting views.';
+COMMENT ON TABLE public.mito_lca_validation IS 'Human validation of LCA calls. Read by v2.summary and by the public reporting views.';
 
 
 --
--- Name: COLUMN lca_validation.annotation_id; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN mito_lca_validation.annotation_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.lca_validation.annotation_id IS 'The mito_annotation this row describes. Filled from (og_id, tech, seq_date, code, annotation) by the lca_validation_annotation_id trigger when a writer omits it; checked when one sends it. 074, Phase R.7.';
+COMMENT ON COLUMN public.mito_lca_validation.annotation_id IS 'The mito_annotation this row describes. Writers resolve it with mito_annotation_id(). 076, Phase R.7b.';
+
+
+--
+-- Name: lca_validation; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.lca_validation AS
+ SELECT a.og_id,
+    a.tech,
+    t.validated_species_name,
+    t.validator,
+    t.nominal_species_id_lca_comment,
+    t.validator_2,
+    t.data_release,
+    t.validated_rank,
+    t.lca_genus,
+    a.seq_date,
+    a.code,
+    an.annotation,
+    t.row_created_on,
+    t.annotation_id
+   FROM ((public.mito_lca_validation t
+     JOIN public.mito_annotation an ON ((an.annotation_id = t.annotation_id)))
+     JOIN public.mito_assembly a ON ((a.assembly_id = an.assembly_id)));
+
+
+--
+-- Name: VIEW lca_validation; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.lca_validation IS 'Compatibility view (076, Phase R.7b): mito_lca_validation with the natural columns (og_id, tech, seq_date, code, annotation) joined back from mito_annotation / mito_assembly, in the old column order. Read-only: write mito_lca_validation, resolving the key with mito_annotation_id().';
 
 
 --
@@ -1982,15 +2134,10 @@ COMMENT ON COLUMN public.summary.illumina_actual IS 'Illumina libraries that act
 
 
 --
--- Name: blast_filtered_lca; Type: TABLE; Schema: public; Owner: -
+-- Name: mito_blast_hit; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.blast_filtered_lca (
-    og_id text NOT NULL,
-    tech text NOT NULL,
-    seq_date text NOT NULL,
-    code text NOT NULL,
-    annotation text NOT NULL,
+CREATE TABLE public.mito_blast_hit (
     match_sequence_id text NOT NULL,
     taxon_id text,
     scientific_name text,
@@ -2019,17 +2166,63 @@ CREATE TABLE public.blast_filtered_lca (
 
 
 --
--- Name: TABLE blast_filtered_lca; Type: COMMENT; Schema: public; Owner: -
+-- Name: TABLE mito_blast_hit; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.blast_filtered_lca IS 'BLAST hits retained after LCA filtering, one row per matched sequence and region.';
+COMMENT ON TABLE public.mito_blast_hit IS 'BLAST hits retained after LCA filtering, one row per matched sequence and region.';
 
 
 --
--- Name: COLUMN blast_filtered_lca.annotation_id; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN mito_blast_hit.annotation_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.blast_filtered_lca.annotation_id IS 'The mito_annotation this row describes. Filled from (og_id, tech, seq_date, code, annotation) by the blast_filtered_lca_annotation_id trigger when a writer omits it; checked when one sends it. 074, Phase R.7.';
+COMMENT ON COLUMN public.mito_blast_hit.annotation_id IS 'The mito_annotation this row describes. Writers resolve it with mito_annotation_id(). 076, Phase R.7b.';
+
+
+--
+-- Name: blast_filtered_lca; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.blast_filtered_lca AS
+ SELECT a.og_id,
+    a.tech,
+    a.seq_date,
+    a.code,
+    an.annotation,
+    t.match_sequence_id,
+    t.taxon_id,
+    t.scientific_name,
+    t.common_name,
+    t.kingdoms,
+    t.percent_identity,
+    t.alignment_length,
+    t.query_length,
+    t.subject_length,
+    t.mismatch,
+    t.gap_open,
+    t.gaps,
+    t.query_start,
+    t.query_end,
+    t.subject_start,
+    t.subject_end,
+    t.subject_title,
+    t.evalue,
+    t.bit_score,
+    t.query_coverage,
+    t.subject_coverage,
+    t.region,
+    t.blast_run_date,
+    t.annotation_id
+   FROM ((public.mito_blast_hit t
+     JOIN public.mito_annotation an ON ((an.annotation_id = t.annotation_id)))
+     JOIN public.mito_assembly a ON ((a.assembly_id = an.assembly_id)));
+
+
+--
+-- Name: VIEW blast_filtered_lca; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.blast_filtered_lca IS 'Compatibility view (076, Phase R.7b): mito_blast_hit with the natural columns (og_id, tech, seq_date, code, annotation) joined back from mito_annotation / mito_assembly, in the old column order. Read-only: write mito_blast_hit, resolving the key with mito_annotation_id().';
 
 
 --
@@ -3179,15 +3372,10 @@ CREATE VIEW public.ena_validation_latest AS
 
 
 --
--- Name: lca; Type: TABLE; Schema: public; Owner: -
+-- Name: mito_lca; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.lca (
-    og_id text NOT NULL,
-    tech text NOT NULL,
-    seq_date text NOT NULL,
-    code text NOT NULL,
-    annotation text NOT NULL,
+CREATE TABLE public.mito_lca (
     region text NOT NULL,
     lca_run_date text NOT NULL,
     species_in_lca text,
@@ -3220,31 +3408,81 @@ CREATE TABLE public.lca (
 
 
 --
--- Name: TABLE lca; Type: COMMENT; Schema: public; Owner: -
+-- Name: TABLE mito_lca; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.lca IS 'Lowest common ancestor calls per marker region. Live carries this key as a UNIQUE constraint only; here it is the primary key.';
-
-
---
--- Name: COLUMN lca.lca_run_date; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.lca.lca_run_date IS 'When the LCA pipeline ran. NOT NULL, but deliberately NOT part of the key -- row identity is the content hash (migration 017), so a re-run with a changed answer stores a new row rather than colliding with the old one.';
+COMMENT ON TABLE public.mito_lca IS 'Lowest common ancestor calls per marker region. Live carries this key as a UNIQUE constraint only; here it is the primary key.';
 
 
 --
--- Name: COLUMN lca.content_hash; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN mito_lca.lca_run_date; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.lca.content_hash IS 'md5 of the row content, maintained by the trigger below. Row identity for this table. Not comparable with public.lca.content_hash: the hash covers every column, and the two tables no longer have the same column set (og_num is gone, F2). Reconcile these tables on their business keys, never on this value.';
+COMMENT ON COLUMN public.mito_lca.lca_run_date IS 'When the LCA pipeline ran. NOT NULL, but deliberately NOT part of the key -- row identity is the content hash (migration 017), so a re-run with a changed answer stores a new row rather than colliding with the old one.';
 
 
 --
--- Name: COLUMN lca.annotation_id; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN mito_lca.content_hash; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.lca.annotation_id IS 'The mito_annotation this row describes. Filled from (og_id, tech, seq_date, code, annotation) by the lca_annotation_id trigger when a writer omits it; checked when one sends it. 074, Phase R.7.';
+COMMENT ON COLUMN public.mito_lca.content_hash IS 'md5 of the row content, maintained by the trigger below. Row identity for this table. Not comparable with public.lca.content_hash: the hash covers every column, and the two tables no longer have the same column set (og_num is gone, F2). Reconcile these tables on their business keys, never on this value.';
+
+
+--
+-- Name: COLUMN mito_lca.annotation_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.annotation_id IS 'The mito_annotation this row describes. Writers resolve it with mito_annotation_id(). 076, Phase R.7b.';
+
+
+--
+-- Name: lca; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.lca AS
+ SELECT a.og_id,
+    a.tech,
+    a.seq_date,
+    a.code,
+    an.annotation,
+    t.region,
+    t.lca_run_date,
+    t.species_in_lca,
+    t.number_unq_blast_hits,
+    t.domain,
+    t.phylum,
+    t.class,
+    t."order",
+    t.family,
+    t.genus,
+    t.specific_epiphet,
+    t.species,
+    t.scientific_name_authorship,
+    t.taxon_rank,
+    t.top_taxon_id,
+    t.taxon_id_db,
+    t.top_accession_id,
+    t.accession_id_ref_db,
+    t.top_percent_query_cover,
+    t.top_percent_query_cover_hsp,
+    t.alignment_length,
+    t.subject_length,
+    t.sequence_length,
+    t.top_confidence_score,
+    t.top_percent_match,
+    t.taxon_rank_db,
+    t.content_hash,
+    t.annotation_id
+   FROM ((public.mito_lca t
+     JOIN public.mito_annotation an ON ((an.annotation_id = t.annotation_id)))
+     JOIN public.mito_assembly a ON ((a.assembly_id = an.assembly_id)));
+
+
+--
+-- Name: VIEW lca; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.lca IS 'Compatibility view (076, Phase R.7b): mito_lca with the natural columns (og_id, tech, seq_date, code, annotation) joined back from mito_annotation / mito_assembly, in the old column order. Read-only: write mito_lca, resolving the key with mito_annotation_id().';
 
 
 --
@@ -3527,15 +3765,10 @@ ALTER TABLE public.import_quarantine ALTER COLUMN quarantine_id ADD GENERATED AL
 
 
 --
--- Name: lca_raw_results; Type: TABLE; Schema: public; Owner: -
+-- Name: mito_lca_raw; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.lca_raw_results (
-    og_id text NOT NULL,
-    tech text NOT NULL,
-    seq_date text NOT NULL,
-    code text NOT NULL,
-    annotation text NOT NULL,
+CREATE TABLE public.mito_lca_raw (
     sequence_region text NOT NULL,
     lca_run_date text NOT NULL,
     domain text,
@@ -3567,24 +3800,73 @@ CREATE TABLE public.lca_raw_results (
 
 
 --
--- Name: TABLE lca_raw_results; Type: COMMENT; Schema: public; Owner: -
+-- Name: TABLE mito_lca_raw; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.lca_raw_results IS 'Unfiltered LCA output. lca_run_date is text here, matching v2.lca; the live tables disagree on its type while using it in equivalent uniqueness constraints. confidence_score is double precision, not real -- see the column note, and do not narrow it back.';
-
-
---
--- Name: COLUMN lca_raw_results.content_hash; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.lca_raw_results.content_hash IS 'See v2.lca.content_hash. Part of the key here because one BLAST accession can yield several HSPs in a single run, which share accession and run date but differ in percent_match -- 33 such rows exist in live today.';
+COMMENT ON TABLE public.mito_lca_raw IS 'Unfiltered LCA output. lca_run_date is text here, matching v2.lca; the live tables disagree on its type while using it in equivalent uniqueness constraints. confidence_score is double precision, not real -- see the column note, and do not narrow it back.';
 
 
 --
--- Name: COLUMN lca_raw_results.annotation_id; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN mito_lca_raw.content_hash; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.lca_raw_results.annotation_id IS 'The mito_annotation this row describes. Filled from (og_id, tech, seq_date, code, annotation) by the lca_raw_results_annotation_id trigger when a writer omits it; checked when one sends it. 074, Phase R.7.';
+COMMENT ON COLUMN public.mito_lca_raw.content_hash IS 'See v2.lca.content_hash. Part of the key here because one BLAST accession can yield several HSPs in a single run, which share accession and run date but differ in percent_match -- 33 such rows exist in live today.';
+
+
+--
+-- Name: COLUMN mito_lca_raw.annotation_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.annotation_id IS 'The mito_annotation this row describes. Writers resolve it with mito_annotation_id(). 076, Phase R.7b.';
+
+
+--
+-- Name: lca_raw_results; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.lca_raw_results AS
+ SELECT a.og_id,
+    a.tech,
+    a.seq_date,
+    a.code,
+    an.annotation,
+    t.sequence_region,
+    t.lca_run_date,
+    t.domain,
+    t.phylum,
+    t.class,
+    t."order",
+    t.family,
+    t.genus,
+    t.specific_epiphet,
+    t.scientific_name,
+    t.scientific_name_authorship,
+    t.taxon_rank,
+    t.taxon_id,
+    t.taxon_id_db,
+    t.verbatim_identification,
+    t.accession_id,
+    t.accession_id_ref_db,
+    t.percent_match,
+    t.percent_query_cover,
+    t.percent_query_cover_hsp,
+    t.alignment_length,
+    t.subject_length,
+    t.sequence_length,
+    t.confidence_score,
+    t.taxon_rank_db,
+    t.content_hash,
+    t.annotation_id
+   FROM ((public.mito_lca_raw t
+     JOIN public.mito_annotation an ON ((an.annotation_id = t.annotation_id)))
+     JOIN public.mito_assembly a ON ((a.assembly_id = an.assembly_id)));
+
+
+--
+-- Name: VIEW lca_raw_results; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.lca_raw_results IS 'Compatibility view (076, Phase R.7b): mito_lca_raw with the natural columns (og_id, tech, seq_date, code, annotation) joined back from mito_annotation / mito_assembly, in the old column order. Read-only: write mito_lca_raw, resolving the key with mito_annotation_id().';
 
 
 --
@@ -3710,72 +3992,6 @@ CREATE TABLE public.master_species_genome (
 
 
 --
--- Name: mito_annotation; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.mito_annotation (
-    annotation_id bigint NOT NULL,
-    assembly_id bigint NOT NULL,
-    annotation text NOT NULL,
-    is_selected boolean DEFAULT false NOT NULL,
-    selected_by text,
-    selected_at timestamp with time zone,
-    length_emma integer,
-    cds_no integer,
-    trna_no integer,
-    rrna_no integer,
-    manual_curation_notes text,
-    extra_genes text,
-    missing_genes text,
-    order_correct text,
-    passed text,
-    trna_advisory text,
-    order_variant text,
-    order_deviation text,
-    annotation_gaps text,
-    order_variant_taxon_check text,
-    order_status text,
-    order_deviation_detail text,
-    expected_lineage_genes text,
-    missing_expected_lineage_genes text,
-    lineage_gene_advisories text,
-    mitos_unmapped_features text,
-    mitos_known_auxiliary_features text,
-    duplicate_loci text,
-    annotation_integrity_status text,
-    annotation_integrity_issues text,
-    annotation_stats_version text,
-    annotation_updated_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    completeness_profile text,
-    CONSTRAINT mito_annotation_completeness_profile_check CHECK ((completeness_profile = ANY (ARRAY['vertebrate'::text, 'core'::text]))),
-    CONSTRAINT mito_annotation_selected_by_check CHECK (((NOT is_selected) OR (selected_by IS NOT NULL)))
-);
-
-
---
--- Name: TABLE mito_annotation; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.mito_annotation IS 'One annotation of an assembly. All are kept. Written by push_emma_annotation_results.py.';
-
-
---
--- Name: COLUMN mito_annotation.is_selected; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.mito_annotation.is_selected IS 'Optional: a person may mark one annotation per assembly as the one they chose. Set by hand only; no writer, view or pipeline reads it (owner decision 3, 2026-10-16).';
-
-
---
--- Name: COLUMN mito_annotation.completeness_profile; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.mito_annotation.completeness_profile IS 'vertebrate or core: the gene-set standard passed and missing_genes were judged against (annotation_stats.completeness_profile(), from the genetic code and class). core is the reduced set for invertebrate classes.';
-
-
---
 -- Name: mito_annotation_annotation_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -3807,33 +4023,6 @@ CREATE TABLE public.mito_annotation_gene (
 --
 
 COMMENT ON TABLE public.mito_annotation_gene IS 'Per-gene lengths of one annotation. No row: the annotation has no value for that gene.';
-
-
---
--- Name: mito_assembly; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.mito_assembly (
-    assembly_id bigint NOT NULL,
-    og_id text NOT NULL,
-    tech text NOT NULL,
-    seq_date text NOT NULL,
-    code text NOT NULL,
-    stats text,
-    length integer,
-    avg_coverage real,
-    avg_base_coverage real,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT mito_assembly_tech_check CHECK ((tech = ANY (ARRAY['ilmn'::text, 'hifi'::text, 'hic'::text])))
-);
-
-
---
--- Name: TABLE mito_assembly; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.mito_assembly IS 'One mitogenome assembly. Written by push_mtdna_assm_results.py (Oceanomics-OceanGenomes-Mitogenomes).';
 
 
 --
@@ -6181,14 +6370,6 @@ ALTER TABLE ONLY public.species
 
 
 --
--- Name: blast_filtered_lca blast_filtered_lca_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.blast_filtered_lca
-    ADD CONSTRAINT blast_filtered_lca_pkey PRIMARY KEY (og_id, tech, seq_date, code, annotation, match_sequence_id, region);
-
-
---
 -- Name: design_description design_description_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6452,30 +6633,6 @@ ALTER TABLE ONLY public.import_quarantine
 
 
 --
--- Name: lca lca_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.lca
-    ADD CONSTRAINT lca_pkey PRIMARY KEY (og_id, tech, seq_date, code, annotation, region, content_hash);
-
-
---
--- Name: lca_raw_results lca_raw_results_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.lca_raw_results
-    ADD CONSTRAINT lca_raw_results_pkey PRIMARY KEY (og_id, tech, seq_date, code, annotation, sequence_region, accession_id, content_hash);
-
-
---
--- Name: lca_validation lca_validation_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.lca_validation
-    ADD CONSTRAINT lca_validation_pkey PRIMARY KEY (og_id, tech, seq_date, code, annotation);
-
-
---
 -- Name: library library_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6588,6 +6745,14 @@ ALTER TABLE ONLY public.mito_assembly_run
 
 
 --
+-- Name: mito_blast_hit mito_blast_hit_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mito_blast_hit
+    ADD CONSTRAINT mito_blast_hit_pkey PRIMARY KEY (annotation_id, match_sequence_id, region);
+
+
+--
 -- Name: mito_gene mito_gene_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6601,6 +6766,30 @@ ALTER TABLE ONLY public.mito_gene
 
 ALTER TABLE ONLY public.mito_gene
     ADD CONSTRAINT mito_gene_sort_order_key UNIQUE (sort_order);
+
+
+--
+-- Name: mito_lca mito_lca_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mito_lca
+    ADD CONSTRAINT mito_lca_pkey PRIMARY KEY (annotation_id, region, content_hash);
+
+
+--
+-- Name: mito_lca_raw mito_lca_raw_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mito_lca_raw
+    ADD CONSTRAINT mito_lca_raw_pkey PRIMARY KEY (annotation_id, sequence_region, accession_id, content_hash);
+
+
+--
+-- Name: mito_lca_validation mito_lca_validation_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mito_lca_validation
+    ADD CONSTRAINT mito_lca_validation_pkey PRIMARY KEY (annotation_id);
 
 
 --
@@ -7018,20 +7207,6 @@ ALTER TABLE ONLY public.workbook_attempt_keys
 
 
 --
--- Name: blast_filtered_lca_annotation_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX blast_filtered_lca_annotation_id_idx ON public.blast_filtered_lca USING btree (annotation_id);
-
-
---
--- Name: blast_filtered_lca_og_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX blast_filtered_lca_og_id_idx ON public.blast_filtered_lca USING btree (og_id);
-
-
---
 -- Name: dna_extraction_tissue_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7158,62 +7333,6 @@ CREATE UNIQUE INDEX import_quarantine_open_key ON public.import_quarantine USING
 
 
 --
--- Name: lca_annotation_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX lca_annotation_id_idx ON public.lca USING btree (annotation_id);
-
-
---
--- Name: lca_mitogenome_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX lca_mitogenome_idx ON public.lca USING btree (og_id, tech, seq_date, code);
-
-
---
--- Name: lca_og_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX lca_og_id_idx ON public.lca USING btree (og_id);
-
-
---
--- Name: lca_raw_results_annotation_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX lca_raw_results_annotation_id_idx ON public.lca_raw_results USING btree (annotation_id);
-
-
---
--- Name: lca_raw_results_mito_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX lca_raw_results_mito_idx ON public.lca_raw_results USING btree (og_id, tech, seq_date, code);
-
-
---
--- Name: lca_raw_results_og_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX lca_raw_results_og_id_idx ON public.lca_raw_results USING btree (og_id);
-
-
---
--- Name: lca_validation_annotation_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX lca_validation_annotation_id_idx ON public.lca_validation USING btree (annotation_id);
-
-
---
--- Name: lca_validation_og_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX lca_validation_og_id_idx ON public.lca_validation USING btree (og_id);
-
-
---
 -- Name: library_dna_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7245,7 +7364,49 @@ CREATE INDEX library_type_idx ON public.library USING btree (library_type);
 -- Name: mito_annotation_one_selected; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX mitogenome_data_og_id_idx ON public.mitogenome_data USING btree (og_id);
+CREATE UNIQUE INDEX mito_annotation_one_selected ON public.mito_annotation USING btree (assembly_id) WHERE is_selected;
+
+
+--
+-- Name: mito_assembly_run_sequencing_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX mito_assembly_run_sequencing_id_idx ON public.mito_assembly_run USING btree (sequencing_id);
+
+
+--
+-- Name: mito_blast_hit_annotation_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX mito_blast_hit_annotation_id_idx ON public.mito_blast_hit USING btree (annotation_id);
+
+
+--
+-- Name: mito_lca_annotation_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX mito_lca_annotation_id_idx ON public.mito_lca USING btree (annotation_id);
+
+
+--
+-- Name: mito_lca_raw_annotation_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX mito_lca_raw_annotation_id_idx ON public.mito_lca_raw USING btree (annotation_id);
+
+
+--
+-- Name: mito_lca_validation_annotation_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX mito_lca_validation_annotation_id_idx ON public.mito_lca_validation USING btree (annotation_id);
+
+
+--
+-- Name: og_priority_log_assigned_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX og_priority_log_assigned_at_idx ON public.og_priority_log USING btree (assigned_at);
 
 
 --
@@ -7516,13 +7677,6 @@ CREATE OR REPLACE VIEW public.v_ref_assembly_status AS
 
 
 --
--- Name: blast_filtered_lca blast_filtered_lca_annotation_id; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER blast_filtered_lca_annotation_id BEFORE INSERT OR UPDATE OF og_id, tech, seq_date, code, annotation, annotation_id ON public.blast_filtered_lca FOR EACH ROW EXECUTE FUNCTION public.mito_child_annotation_id();
-
-
---
 -- Name: draft_genome_run draft_genome_run_illumina_only; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -7544,38 +7698,17 @@ CREATE TRIGGER ena_validation_attempts_annotation_id BEFORE INSERT OR UPDATE OF 
 
 
 --
--- Name: lca lca_annotation_id; Type: TRIGGER; Schema: public; Owner: -
+-- Name: mito_lca mito_lca_content_hash; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER lca_annotation_id BEFORE INSERT OR UPDATE OF og_id, tech, seq_date, code, annotation, annotation_id ON public.lca FOR EACH ROW EXECUTE FUNCTION public.mito_child_annotation_id();
-
-
---
--- Name: lca lca_content_hash; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER lca_content_hash BEFORE INSERT OR UPDATE ON public.lca FOR EACH ROW EXECUTE FUNCTION public.lca_set_content_hash();
+CREATE TRIGGER mito_lca_content_hash BEFORE INSERT OR UPDATE ON public.mito_lca FOR EACH ROW EXECUTE FUNCTION public.lca_set_content_hash();
 
 
 --
--- Name: lca_raw_results lca_raw_results_annotation_id; Type: TRIGGER; Schema: public; Owner: -
+-- Name: mito_lca_raw mito_lca_raw_content_hash; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER lca_raw_results_annotation_id BEFORE INSERT OR UPDATE OF og_id, tech, seq_date, code, annotation, annotation_id ON public.lca_raw_results FOR EACH ROW EXECUTE FUNCTION public.mito_child_annotation_id();
-
-
---
--- Name: lca_raw_results lca_raw_results_content_hash; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER lca_raw_results_content_hash BEFORE INSERT OR UPDATE ON public.lca_raw_results FOR EACH ROW EXECUTE FUNCTION public.lca_set_content_hash();
-
-
---
--- Name: lca_validation lca_validation_annotation_id; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER lca_validation_annotation_id BEFORE INSERT OR UPDATE OF og_id, tech, seq_date, code, annotation, annotation_id ON public.lca_validation FOR EACH ROW EXECUTE FUNCTION public.mito_child_annotation_id();
+CREATE TRIGGER mito_lca_raw_content_hash BEFORE INSERT OR UPDATE ON public.mito_lca_raw FOR EACH ROW EXECUTE FUNCTION public.lca_set_content_hash();
 
 
 --
@@ -7660,22 +7793,6 @@ CREATE TRIGGER trg_embargo_assignment_view_upd INSTEAD OF UPDATE ON public.embar
 --
 
 CREATE TRIGGER trg_lca_validation_report_view_upd INSTEAD OF UPDATE ON public.lca_validation_report_view FOR EACH ROW EXECUTE FUNCTION public.lca_validation_report_view_upd();
-
-
---
--- Name: blast_filtered_lca blast_filtered_lca_annotation_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.blast_filtered_lca
-    ADD CONSTRAINT blast_filtered_lca_annotation_fkey FOREIGN KEY (annotation_id) REFERENCES public.mito_annotation(annotation_id);
-
-
---
--- Name: blast_filtered_lca blast_filtered_lca_og_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.blast_filtered_lca
-    ADD CONSTRAINT blast_filtered_lca_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.sample(og_id);
 
 
 --
@@ -7903,54 +8020,6 @@ ALTER TABLE ONLY public.illumina_library
 
 
 --
--- Name: lca lca_annotation_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.lca
-    ADD CONSTRAINT lca_annotation_fkey FOREIGN KEY (annotation_id) REFERENCES public.mito_annotation(annotation_id);
-
-
---
--- Name: lca lca_og_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.lca
-    ADD CONSTRAINT lca_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.sample(og_id);
-
-
---
--- Name: lca_raw_results lca_raw_results_annotation_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.lca_raw_results
-    ADD CONSTRAINT lca_raw_results_annotation_fkey FOREIGN KEY (annotation_id) REFERENCES public.mito_annotation(annotation_id);
-
-
---
--- Name: lca_raw_results lca_raw_results_og_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.lca_raw_results
-    ADD CONSTRAINT lca_raw_results_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.sample(og_id);
-
-
---
--- Name: lca_validation lca_validation_annotation_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.lca_validation
-    ADD CONSTRAINT lca_validation_annotation_fkey FOREIGN KEY (annotation_id) REFERENCES public.mito_annotation(annotation_id);
-
-
---
--- Name: lca_validation lca_validation_og_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.lca_validation
-    ADD CONSTRAINT lca_validation_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.sample(og_id);
-
-
---
 -- Name: library library_dna_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8036,6 +8105,38 @@ ALTER TABLE ONLY public.mito_assembly_run
 
 ALTER TABLE ONLY public.mito_assembly_run
     ADD CONSTRAINT mito_assembly_run_sequencing_id_fkey FOREIGN KEY (sequencing_id) REFERENCES public.sequencing(sequencing_id) ON DELETE CASCADE;
+
+
+--
+-- Name: mito_blast_hit mito_blast_hit_annotation_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mito_blast_hit
+    ADD CONSTRAINT mito_blast_hit_annotation_fkey FOREIGN KEY (annotation_id) REFERENCES public.mito_annotation(annotation_id);
+
+
+--
+-- Name: mito_lca mito_lca_annotation_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mito_lca
+    ADD CONSTRAINT mito_lca_annotation_fkey FOREIGN KEY (annotation_id) REFERENCES public.mito_annotation(annotation_id);
+
+
+--
+-- Name: mito_lca_raw mito_lca_raw_annotation_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mito_lca_raw
+    ADD CONSTRAINT mito_lca_raw_annotation_fkey FOREIGN KEY (annotation_id) REFERENCES public.mito_annotation(annotation_id);
+
+
+--
+-- Name: mito_lca_validation mito_lca_validation_annotation_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.mito_lca_validation
+    ADD CONSTRAINT mito_lca_validation_annotation_fkey FOREIGN KEY (annotation_id) REFERENCES public.mito_annotation(annotation_id);
 
 
 --
