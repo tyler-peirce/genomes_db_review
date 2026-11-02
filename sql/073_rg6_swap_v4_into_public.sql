@@ -6,6 +6,9 @@
 -- they replace.
 --
 -- What it does, in one transaction:
+--   0. writes lhuet's genome-size pushes of 2026-11-02 onto the read sets they belong to (six
+--      OGs' latest dated read set; OG760's first, dated 240520 on its only PacBio run, and its
+--      RG.0 exclusion removed). Owner: real, and they persist. The revert does not undo this;
 --   1. final sync public -> v4 (sync_ref_assembly, sync_ref_read_qc, sync_ref_submission), then
 --      requires every check_ref_*() check that is not a note to be 0;
 --   2. requires the objects it moves and drops to be exactly the ones listed below;
@@ -81,6 +84,40 @@ BEGIN
   END IF;
   IF to_regnamespace('v3') IS NOT NULL THEN
     RAISE EXCEPTION '073: v3 still exists; R.6 (072) runs first (gate G5)';
+  END IF;
+
+  -- 0. lhuet's genome-size pushes of 2026-11-02 (05:00-07:50 UTC, through the old raw_qc; owner:
+  --    real, and they persist). They are new results for the read sets already there, not new
+  --    reads: write them onto the OG's latest dated read set, as the phase-rg-v4 writer would.
+  --    OG760 had no read set (RG.0 excluded its empty row): it gets one on its only PacBio run.
+  DELETE FROM v4.ref_excluded_rows x
+   WHERE x.source_table = 'raw_qc' AND x.og_id = 'OG760' AND x.reason = 'no value in any column (owner, RG.0)'
+     AND EXISTS (SELECT 1 FROM public.raw_qc p WHERE p.og_id = 'OG760' AND p.genomesize IS NOT NULL);
+  WITH latest AS (
+    SELECT DISTINCT ON (rs.og_id) rs.og_id, rs.read_set_id FROM v4.ref_read_set rs
+     WHERE rs.seq_date IS NOT NULL AND rs.og_id IN ('OG114', 'OG1573', 'OG2151', 'OG2202', 'OG62', 'OG665')
+     ORDER BY rs.og_id, rs.seq_date DESC)
+  UPDATE v4.ref_genomescope g
+     SET homozygosity = p.homozygosity, heterozygosity = p.heterozygosity, genomesize = p.genomesize,
+         repeatsize = p.repeatsize, uniquesize = p.uniquesize, modelfit = p.modelfit, errorrate = p.errorrate,
+         loaded_at = now()
+    FROM latest l JOIN public.raw_qc p ON p.og_id = l.og_id
+   WHERE g.read_set_id = l.read_set_id
+     AND (g.homozygosity, g.heterozygosity, g.genomesize, g.repeatsize, g.uniquesize, g.modelfit, g.errorrate)
+         IS DISTINCT FROM (p.homozygosity, p.heterozygosity, p.genomesize, p.repeatsize, p.uniquesize, p.modelfit, p.errorrate);
+  IF NOT EXISTS (SELECT 1 FROM v4.ref_read_set WHERE og_id = 'OG760')
+     AND EXISTS (SELECT 1 FROM public.raw_qc p WHERE p.og_id = 'OG760' AND p.genomesize IS NOT NULL) THEN
+    IF (SELECT array_agg(s.sequencing_id) FROM public.v_sequencing_browse s
+         WHERE s.og_id = 'OG760' AND s.technology IN ('PacBio HIFI', 'PacBio') AND s.library_type = 'pacbio'
+           AND s.status IS DISTINCT FROM 'Failed') IS DISTINCT FROM ARRAY['OG760H_D2_SBL_PACB_240520_LA'] THEN
+      RAISE EXCEPTION '073: OG760''s PacBio rows changed since 2026-11-02; date its read set by hand';
+    END IF;
+    INSERT INTO v4.ref_read_set (og_id, seq_date) VALUES ('OG760', '240520');
+    INSERT INTO v4.ref_read_set_run (read_set_id, sequencing_id)
+      SELECT read_set_id, 'OG760H_D2_SBL_PACB_240520_LA' FROM v4.ref_read_set WHERE og_id = 'OG760';
+    INSERT INTO v4.ref_genomescope (read_set_id, homozygosity, heterozygosity, genomesize, repeatsize, uniquesize, modelfit, errorrate)
+      SELECT rs.read_set_id, p.homozygosity, p.heterozygosity, p.genomesize, p.repeatsize, p.uniquesize, p.modelfit, p.errorrate
+      FROM v4.ref_read_set rs JOIN public.raw_qc p USING (og_id) WHERE rs.og_id = 'OG760';
   END IF;
 
   -- 1. Final sync, then the checks.
