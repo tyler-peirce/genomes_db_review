@@ -2,7 +2,7 @@
 
 Status: **R.0–R.5 done 2026-10-16** (`050`–`055` applied to live; pipeline branches ready, not
 deployed). `056` (2026-10-19) reorders the `v3` mito and draft views: `og_num` first, columns
-grouped by output. R.6, the merge, is next and has not started. Written 2026-10-15, after V.6; revised
+grouped by output. **R.6, the merge, done 2026-11-02** (`072`; [`r6_merge_record.md`](r6_merge_record.md)). R.7 is next; its migrations are now numbered from `073`. Written 2026-10-15, after V.6; revised
 2026-10-16 with the owner's answers, the draft pipeline's code, and the `v3` build approach.
 **Revised 2026-10-28** (`database_review.md` Finding 17):
 - **Decision 14 is reversed for `host_haploid_size` and `partition_confidence`.** They have a live writer, so §4.3 now drops 15 columns, not 17.
@@ -1127,7 +1127,10 @@ whatever shape comes next (§3.6).
    `prepare_ena_metadata.py`, `v_genome_size_comparison` and the samplesheet builders. They
    should need no edit, except those found in R.0.3.
 
-### R.6 — Merge `v3` into `public` (`057`)
+### R.6 — Merge `v3` into `public` (`072`, done 2026-11-02)
+
+**Done:** [`r6_merge_record.md`](r6_merge_record.md). The gate items below were met (`r6_gate_*_record.md`); the merge ran as one opt-in migration, and the writers were deployed the same day.
+
 
 **Carried from R.0–R.5 into the R.6 runbook:**
 - ~~Gate: `ENA-draft-genomes` is still unseen (R.0.2).~~ Seen 2026-10-28.

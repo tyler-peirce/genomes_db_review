@@ -1,6 +1,6 @@
 # R.6 plan: merge `v3` into `public` (`072`), 2026-11-02
 
-Status: **plan, not run.** Design: [`assembly_relations_plan.md`](assembly_relations_plan.md) §6.1 and R.6. Gate work: [`r6_gate_plan.md`](r6_gate_plan.md) and the `r6_gate_*_record.md` files.
+Status: **done 2026-11-02** (record: [`r6_merge_record.md`](r6_merge_record.md)). Design: [`assembly_relations_plan.md`](assembly_relations_plan.md) §6.1 and R.6. Gate work: [`r6_gate_plan.md`](r6_gate_plan.md) and the `r6_gate_*_record.md` files.
 
 ## Why today
 
