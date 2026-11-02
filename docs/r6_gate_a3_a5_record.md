@@ -206,7 +206,43 @@ Both are deliberate checks in the gate. These drafts now store a much better siz
 
 **Coverage after the run:** every assembled draft from 250606 to 260925 with a measured depth has a verdict. Only OG1724 (no GenomeScope files) and OG1841 (too few BUSCO regions) have none. `check_draft()` shows the 588 rows until the 18:30 UTC `sync_v3`.
 
-**Not yet done:**
-- merge `r6-genome-size-only` to `master` and `phase-r-v3`;
-- re-run 260909 under the new rule (it ran under the old one: 0 refits kept);
-- archive results to Acacia; the owner clears `depth_only/stage/`.
+**Merged** (2026-11-02):
+- draft `master` → `ec182ef`, then `7f2f2e7`. The launcher now takes the depth from Acacia for drafts a full run measured, and `GSIZE_BASE` sets the output directory.
+- `phase-r-v3` merged; 186 tests pass.
+- The Setonix production clone is pulled.
+
+### 260925 depth backfill completed (2026-11-02)
+
+The run was archived to Acacia before scratch was cleared. Owner go-ahead:
+- `push_kmer_depth_to_sqldb.py` wrote the remaining 170 drafts.
+- The dry run beforehand showed every existing value identical, so only `busco_read_depth` (15.5–33.4x), `busco_regions` and `partition_note` were added.
+- All 193 drafts of 260925 now have a depth.
+
+### 260909 re-run under the new rule (2026-11-02)
+
+- **Scope:** 68 drafts with a depth; snapshot `docs/records/genome_size_before_a6_260909.csv`. Depth files were taken from Acacia.
+- **Refits:** 10 now win, and `genomesize` changed for 7.
+- **Verdicts:** none changed (62 unreliable, 18 reliable of 80). No depth or host column changed.
+
+| Draft | Before | After | Host haploid | Assembly |
+|---|---:|---:|---:|---:|
+| OG2617 | 363 Mb | 850 Mb | 625 Mb | 829 Mb |
+| OG2900 | 337 | 879 | 678 | 788 |
+| OG2910 | 459 | 1,156 | 715 | 1,166 |
+| OG2922 | 316 | 823 | 554 | 898 |
+| OG3000 | 409 | 1,019 | 550 | 1,020 |
+| OG3009 | 381 | 1,713 | 890 | 1,299 |
+| OG3065 | 519 | 1,219 | 757 | 1,007 |
+
+OG2910, OG3000 and OG3065 move further from the host haploid size (1.6–1.9×). They sit at or near the assembly size, though, and the host size is a lower bound. OG2617, which the module docstring cites as the case for reseeding, is the same shape. Not treated as errors; noted for the owner.
+
+### Archived to Acacia (2026-11-02)
+
+- **Depth-only results:** `*_kmer_depth.json` and the run's tool-params, copied with `--ignore-existing`. The `null.seqkit_stats.tsv` files were left out.
+- **Genome-size results (all 656 drafts):** final `*_coverage_summary.json`, `*_sequencing_coverage.txt`, reseed decisions, and refits that won.
+  - **Overwrites:** 552 drafts already had a pre-gate coverage summary from May 2026, without a verdict. These were replaced.
+  - **Backups:** each replaced file was moved by `--backup-dir` to `pawsey0964:oceanomics-draftgenomes/genomes.v2_pre_a6/<same path>`.
+  - **Check:** the archive now agrees with the database (checked on OG2328 and OG2617).
+- **Cleanup:** `depth_only/stage/` (14 TB) is no longer needed; the owner deletes it.
+
+**Left open:** whether `degenerate_model_fit` (heterozygosity lower bound at 0) should still make a genome size unreliable when the size range is tight. The owner is undecided; unchanged.
