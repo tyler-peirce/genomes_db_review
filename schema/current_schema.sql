@@ -311,7 +311,7 @@ CREATE FUNCTION public.lca_set_content_hash() RETURNS trigger
     AS $$
 BEGIN
     NEW.content_hash := md5(
-        (to_jsonb(NEW) - 'lca_run_date' - 'og_num' - 'content_hash')::text
+        (to_jsonb(NEW) - 'lca_run_date' - 'og_num' - 'content_hash' - 'annotation_id')::text
     );
     RETURN NEW;
 END $$;
@@ -365,6 +365,60 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+
+--
+-- Name: mito_child_annotation_id(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mito_child_annotation_id() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $_$
+DECLARE
+  found bigint;
+  n int;
+  k_og text; k_tech text; k_date text; k_code text; k_ann text;
+BEGIN
+  IF TG_TABLE_NAME = 'ena_submissions' THEN
+    -- Its natural columns are GENERATED from full_seqid, and a BEFORE trigger sees generated
+    -- columns as NULL; derive them with the same expressions instead.
+    k_og   := split_part(NEW.full_seqid, '.', 1);
+    k_tech := split_part(NEW.full_seqid, '.', 2);
+    k_date := split_part(NEW.full_seqid, '.', 3);
+    k_code := split_part(NEW.full_seqid, '.', 4);
+    k_ann  := substring(NEW.full_seqid FROM '^(?:[^.]+[.]){4}(.+)$');
+  ELSE
+    k_og := NEW.og_id; k_tech := NEW.tech; k_date := NEW.seq_date; k_code := NEW.code;
+    k_ann := NEW.annotation;
+  END IF;
+  SELECT min(an.annotation_id), count(*) INTO found, n
+    FROM mito_annotation an JOIN mito_assembly a USING (assembly_id)
+   WHERE a.og_id = k_og AND a.tech = k_tech AND a.seq_date = k_date
+     AND a.code = k_code AND an.annotation = k_ann;
+  IF n <> 1 THEN
+    RAISE EXCEPTION USING ERRCODE = 'foreign_key_violation',
+      MESSAGE = format('%s: %s mito annotation(s) match %s.%s.%s.%s annotation %s; upload the '
+                       'assembly and its annotation before its LCA/ENA results',
+                       TG_TABLE_NAME, n, k_og, k_tech, k_date, k_code, k_ann);
+  END IF;
+  IF NEW.annotation_id IS NULL THEN
+    NEW.annotation_id := found;
+  ELSIF NEW.annotation_id <> found THEN
+    RAISE EXCEPTION USING ERRCODE = 'foreign_key_violation',
+      MESSAGE = format('%s: annotation_id %s does not match %s.%s.%s.%s annotation %s (annotation_id %s)',
+                       TG_TABLE_NAME, NEW.annotation_id, k_og, k_tech, k_date, k_code, k_ann, found);
+  END IF;
+  RETURN NEW;
+END
+$_$;
+
+
+--
+-- Name: FUNCTION mito_child_annotation_id(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.mito_child_annotation_id() IS 'Fills or checks annotation_id on the LCA and ENA child tables from (og_id, tech, seq_date, code, annotation), and refuses a row that names no single annotation. 074, Phase R.7.';
 
 
 --
@@ -566,6 +620,48 @@ $$;
 
 
 --
+-- Name: refresh_sequencing_run(text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.refresh_sequencing_run(p_runs text[]) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $_$
+BEGIN
+  INSERT INTO sequencing_run AS t (run_id, mach, run_seq_date, initial, instrument, run_date)
+  SELECT s.run_id,
+         substring(s.run_id FROM '^([A-Za-z-]+)_[0-9]{6}_.+$'),
+         substring(s.run_id FROM '^[A-Za-z-]+_([0-9]{6})_.+$'),
+         substring(s.run_id FROM '^[A-Za-z-]+_[0-9]{6}_(.+)$'),
+         CASE WHEN count(DISTINCT s.instrument) = 1 AND count(s.instrument) = count(*) THEN min(s.instrument) END,
+         CASE WHEN count(DISTINCT s.run_date)   = 1 AND count(s.run_date)   = count(*) THEN min(s.run_date)   END
+    FROM sequencing s
+   WHERE s.run_id = ANY (p_runs) AND s.run_id <> ''
+   GROUP BY s.run_id
+  ON CONFLICT (run_id) DO UPDATE
+    SET mach = EXCLUDED.mach, run_seq_date = EXCLUDED.run_seq_date, initial = EXCLUDED.initial,
+        instrument = EXCLUDED.instrument, run_date = EXCLUDED.run_date, updated_at = now()
+    WHERE (t.mach, t.run_seq_date, t.initial, t.instrument, t.run_date)
+          IS DISTINCT FROM (EXCLUDED.mach, EXCLUDED.run_seq_date, EXCLUDED.initial,
+                            EXCLUDED.instrument, EXCLUDED.run_date);
+
+  DELETE FROM sequencing_run r
+   WHERE r.run_id = ANY (p_runs)
+     AND NOT EXISTS (SELECT 1 FROM sequencing s WHERE s.run_id = r.run_id)
+     AND NOT EXISTS (SELECT 1 FROM raw_data d WHERE d.run_id = r.run_id)
+     AND NOT EXISTS (SELECT 1 FROM rna_qc_kinnex k WHERE k.run_id = r.run_id);
+END
+$_$;
+
+
+--
+-- Name: FUNCTION refresh_sequencing_run(p_runs text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.refresh_sequencing_run(p_runs text[]) IS 'Re-derive the given runs in sequencing_run from sequencing (the logic of the Phase R window''s v3.sync_sequencing_run, per run), and drop a run nothing uses any more. Called by the triggers on sequencing. 075, Phase R.7.';
+
+
+--
 -- Name: resolve_sra_upload_runs(text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -657,6 +753,66 @@ $_$;
 --
 
 COMMENT ON FUNCTION public.resolve_sra_upload_runs(p_og_id text, p_data_type text, p_filenames text) IS 'The sequencing rows an SRA upload''s file names point to (064''s forward rule; HICL1 = HICL, 065; failed runs skipped, 069). Used by ENA-ref-genomes step 09. search_path public since RG.6 (073).';
+
+
+--
+-- Name: sequencing_run_ensure(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequencing_run_ensure() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $_$
+BEGIN
+  IF NEW.run_id IS NOT NULL AND NEW.run_id <> '' THEN
+    INSERT INTO sequencing_run (run_id, mach, run_seq_date, initial)
+    VALUES (NEW.run_id,
+            substring(NEW.run_id FROM '^([A-Za-z-]+)_[0-9]{6}_.+$'),
+            substring(NEW.run_id FROM '^[A-Za-z-]+_([0-9]{6})_.+$'),
+            substring(NEW.run_id FROM '^[A-Za-z-]+_[0-9]{6}_(.+)$'))
+    ON CONFLICT (run_id) DO NOTHING;
+  END IF;
+  RETURN NEW;
+END
+$_$;
+
+
+--
+-- Name: FUNCTION sequencing_run_ensure(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequencing_run_ensure() IS 'Creates the sequencing_run row for a sequencing row''s run_id before the row lands, so the FK from sequencing.run_id holds immediately. 075, Phase R.7.';
+
+
+--
+-- Name: sequencing_run_refresh(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequencing_run_refresh() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+BEGIN
+  -- PL/pgSQL plans each statement when it first runs, so a branch naming a transition table this
+  -- trigger does not have is never planned.
+  IF TG_OP = 'INSERT' THEN
+    PERFORM refresh_sequencing_run(ARRAY(SELECT DISTINCT run_id FROM new_rows WHERE run_id IS NOT NULL));
+  ELSIF TG_OP = 'UPDATE' THEN
+    PERFORM refresh_sequencing_run(ARRAY(SELECT run_id FROM new_rows WHERE run_id IS NOT NULL
+                                         UNION SELECT run_id FROM old_rows WHERE run_id IS NOT NULL));
+  ELSE
+    PERFORM refresh_sequencing_run(ARRAY(SELECT DISTINCT run_id FROM old_rows WHERE run_id IS NOT NULL));
+  END IF;
+  RETURN NULL;
+END
+$$;
+
+
+--
+-- Name: FUNCTION sequencing_run_refresh(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequencing_run_refresh() IS 'Statement-level: re-derives the runs a statement on sequencing touched. 075, Phase R.7.';
 
 
 --
@@ -924,6 +1080,7 @@ CREATE TABLE public.ena_validation_attempts (
     submission_ready boolean DEFAULT false NOT NULL,
     recorded_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     attempt_count integer DEFAULT 1 NOT NULL,
+    annotation_id bigint NOT NULL,
     CONSTRAINT ena_validation_submission_ready_check CHECK (((NOT submission_ready) OR (webin_status = 'PASS'::text)))
 );
 
@@ -933,6 +1090,13 @@ CREATE TABLE public.ena_validation_attempts (
 --
 
 COMMENT ON COLUMN public.ena_validation_attempts.og_num IS 'Numeric part of og_id, maintained by the database. Generated, not writable: do not include it in any INSERT or UPDATE column list.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.annotation_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.annotation_id IS 'The mito_annotation this row describes. Filled from (og_id, tech, seq_date, code, annotation) by the ena_validation_attempts_annotation_id trigger when a writer omits it; checked when one sends it. 074, Phase R.7.';
 
 
 --
@@ -1162,7 +1326,8 @@ CREATE TABLE public.lca_validation (
     seq_date text NOT NULL,
     code text NOT NULL,
     annotation text NOT NULL,
-    row_created_on timestamp with time zone DEFAULT now() NOT NULL
+    row_created_on timestamp with time zone DEFAULT now() NOT NULL,
+    annotation_id bigint NOT NULL
 );
 
 
@@ -1171,6 +1336,13 @@ CREATE TABLE public.lca_validation (
 --
 
 COMMENT ON TABLE public.lca_validation IS 'Human validation of LCA calls. Read by v2.summary and by the public reporting views.';
+
+
+--
+-- Name: COLUMN lca_validation.annotation_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lca_validation.annotation_id IS 'The mito_annotation this row describes. Filled from (og_id, tech, seq_date, code, annotation) by the lca_validation_annotation_id trigger when a writer omits it; checked when one sends it. 074, Phase R.7.';
 
 
 --
@@ -1841,7 +2013,8 @@ CREATE TABLE public.blast_filtered_lca (
     query_coverage double precision,
     subject_coverage double precision,
     region text NOT NULL,
-    blast_run_date text
+    blast_run_date text,
+    annotation_id bigint NOT NULL
 );
 
 
@@ -1850,6 +2023,13 @@ CREATE TABLE public.blast_filtered_lca (
 --
 
 COMMENT ON TABLE public.blast_filtered_lca IS 'BLAST hits retained after LCA filtering, one row per matched sequence and region.';
+
+
+--
+-- Name: COLUMN blast_filtered_lca.annotation_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.blast_filtered_lca.annotation_id IS 'The mito_annotation this row describes. Filled from (og_id, tech, seq_date, code, annotation) by the blast_filtered_lca_annotation_id trigger when a writer omits it; checked when one sends it. 074, Phase R.7.';
 
 
 --
@@ -2820,6 +3000,7 @@ CREATE TABLE public.ena_submissions (
     run_accessions text[],
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    annotation_id bigint NOT NULL,
     CONSTRAINT ena_submissions_accession_presence_check CHECK (((submission_status <> 'ACCESSION_ASSIGNED'::text) OR (ena_analysis_accession IS NOT NULL))),
     CONSTRAINT ena_submissions_analysis_accession_check CHECK (((ena_analysis_accession IS NULL) OR (ena_analysis_accession ~ '^ERZ[0-9]+$'::text))),
     CONSTRAINT ena_submissions_assembly_accession_check CHECK (((ena_assembly_accession IS NULL) OR (ena_assembly_accession ~ '^GCA_[0-9]{9}[.][0-9]+$'::text))),
@@ -2871,6 +3052,13 @@ COMMENT ON COLUMN public.ena_submissions.biosample_source IS 'Where that accessi
 --
 
 COMMENT ON COLUMN public.ena_submissions.run_accessions IS 'Raw-read runs the assembly came from, as ERR/SRR/DRR accessions.';
+
+
+--
+-- Name: COLUMN ena_submissions.annotation_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.annotation_id IS 'The mito_annotation this row describes. Filled from (og_id, tech, seq_date, code, annotation) by the ena_submissions_annotation_id trigger when a writer omits it; checked when one sends it. 074, Phase R.7.';
 
 
 --
@@ -3026,7 +3214,8 @@ CREATE TABLE public.lca (
     top_confidence_score double precision,
     top_percent_match double precision,
     taxon_rank_db text,
-    content_hash text NOT NULL
+    content_hash text NOT NULL,
+    annotation_id bigint NOT NULL
 );
 
 
@@ -3049,6 +3238,13 @@ COMMENT ON COLUMN public.lca.lca_run_date IS 'When the LCA pipeline ran. NOT NUL
 --
 
 COMMENT ON COLUMN public.lca.content_hash IS 'md5 of the row content, maintained by the trigger below. Row identity for this table. Not comparable with public.lca.content_hash: the hash covers every column, and the two tables no longer have the same column set (og_num is gone, F2). Reconcile these tables on their business keys, never on this value.';
+
+
+--
+-- Name: COLUMN lca.annotation_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lca.annotation_id IS 'The mito_annotation this row describes. Filled from (og_id, tech, seq_date, code, annotation) by the lca_annotation_id trigger when a writer omits it; checked when one sends it. 074, Phase R.7.';
 
 
 --
@@ -3365,7 +3561,8 @@ CREATE TABLE public.lca_raw_results (
     sequence_length integer,
     confidence_score double precision,
     taxon_rank_db text,
-    content_hash text NOT NULL
+    content_hash text NOT NULL,
+    annotation_id bigint NOT NULL
 );
 
 
@@ -3381,6 +3578,13 @@ COMMENT ON TABLE public.lca_raw_results IS 'Unfiltered LCA output. lca_run_date 
 --
 
 COMMENT ON COLUMN public.lca_raw_results.content_hash IS 'See v2.lca.content_hash. Part of the key here because one BLAST accession can yield several HSPs in a single run, which share accession and run date but differ in percent_match -- 33 such rows exist in live today.';
+
+
+--
+-- Name: COLUMN lca_raw_results.annotation_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lca_raw_results.annotation_id IS 'The mito_annotation this row describes. Filled from (og_id, tech, seq_date, code, annotation) by the lca_raw_results_annotation_id trigger when a writer omits it; checked when one sends it. 074, Phase R.7.';
 
 
 --
@@ -4929,7 +5133,7 @@ CREATE TABLE public.sequencing_run (
 -- Name: TABLE sequencing_run; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.sequencing_run IS 'One sequencing run, seeded from the distinct sequencing.run_id. FKs to it arrive at R.7.';
+COMMENT ON TABLE public.sequencing_run IS 'One sequencing run, derived from sequencing.run_id. Kept current by the sequencing_run_ensure and sequencing_run_refresh_* triggers on sequencing (075); sequencing, raw_data and rna_qc_kinnex have FKs to it.';
 
 
 --
@@ -6814,6 +7018,13 @@ ALTER TABLE ONLY public.workbook_attempt_keys
 
 
 --
+-- Name: blast_filtered_lca_annotation_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX blast_filtered_lca_annotation_id_idx ON public.blast_filtered_lca USING btree (annotation_id);
+
+
+--
 -- Name: blast_filtered_lca_og_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6842,6 +7053,13 @@ CREATE UNIQUE INDEX ena_related_one_primary_idx ON public.ena_related_assemblies
 
 
 --
+-- Name: ena_submissions_annotation_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ena_submissions_annotation_id_idx ON public.ena_submissions USING btree (annotation_id);
+
+
+--
 -- Name: ena_submissions_identity_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6853,6 +7071,13 @@ CREATE INDEX ena_submissions_identity_idx ON public.ena_submissions USING btree 
 --
 
 CREATE INDEX ena_submissions_status_idx ON public.ena_submissions USING btree (submission_status);
+
+
+--
+-- Name: ena_validation_attempts_annotation_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ena_validation_attempts_annotation_id_idx ON public.ena_validation_attempts USING btree (annotation_id);
 
 
 --
@@ -6933,6 +7158,13 @@ CREATE UNIQUE INDEX import_quarantine_open_key ON public.import_quarantine USING
 
 
 --
+-- Name: lca_annotation_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX lca_annotation_id_idx ON public.lca USING btree (annotation_id);
+
+
+--
 -- Name: lca_mitogenome_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6947,6 +7179,13 @@ CREATE INDEX lca_og_id_idx ON public.lca USING btree (og_id);
 
 
 --
+-- Name: lca_raw_results_annotation_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX lca_raw_results_annotation_id_idx ON public.lca_raw_results USING btree (annotation_id);
+
+
+--
 -- Name: lca_raw_results_mito_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -6958,6 +7197,13 @@ CREATE INDEX lca_raw_results_mito_idx ON public.lca_raw_results USING btree (og_
 --
 
 CREATE INDEX lca_raw_results_og_id_idx ON public.lca_raw_results USING btree (og_id);
+
+
+--
+-- Name: lca_validation_annotation_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX lca_validation_annotation_id_idx ON public.lca_validation USING btree (annotation_id);
 
 
 --
@@ -7143,6 +7389,13 @@ CREATE INDEX sequencing_library_tube_id_idx ON public.sequencing USING btree (li
 
 
 --
+-- Name: sequencing_run_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sequencing_run_id_idx ON public.sequencing USING btree (run_id);
+
+
+--
 -- Name: species_ncbi_assembly_one_chosen_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7263,10 +7516,38 @@ CREATE OR REPLACE VIEW public.v_ref_assembly_status AS
 
 
 --
+-- Name: blast_filtered_lca blast_filtered_lca_annotation_id; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER blast_filtered_lca_annotation_id BEFORE INSERT OR UPDATE OF og_id, tech, seq_date, code, annotation, annotation_id ON public.blast_filtered_lca FOR EACH ROW EXECUTE FUNCTION public.mito_child_annotation_id();
+
+
+--
 -- Name: draft_genome_run draft_genome_run_illumina_only; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER draft_genome_run_illumina_only BEFORE INSERT OR UPDATE ON public.draft_genome_run FOR EACH ROW EXECUTE FUNCTION public.draft_genome_run_illumina_only();
+
+
+--
+-- Name: ena_submissions ena_submissions_annotation_id; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER ena_submissions_annotation_id BEFORE INSERT OR UPDATE OF full_seqid, annotation_id ON public.ena_submissions FOR EACH ROW EXECUTE FUNCTION public.mito_child_annotation_id();
+
+
+--
+-- Name: ena_validation_attempts ena_validation_attempts_annotation_id; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER ena_validation_attempts_annotation_id BEFORE INSERT OR UPDATE OF og_id, tech, seq_date, code, annotation, annotation_id ON public.ena_validation_attempts FOR EACH ROW EXECUTE FUNCTION public.mito_child_annotation_id();
+
+
+--
+-- Name: lca lca_annotation_id; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER lca_annotation_id BEFORE INSERT OR UPDATE OF og_id, tech, seq_date, code, annotation, annotation_id ON public.lca FOR EACH ROW EXECUTE FUNCTION public.mito_child_annotation_id();
 
 
 --
@@ -7277,10 +7558,24 @@ CREATE TRIGGER lca_content_hash BEFORE INSERT OR UPDATE ON public.lca FOR EACH R
 
 
 --
+-- Name: lca_raw_results lca_raw_results_annotation_id; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER lca_raw_results_annotation_id BEFORE INSERT OR UPDATE OF og_id, tech, seq_date, code, annotation, annotation_id ON public.lca_raw_results FOR EACH ROW EXECUTE FUNCTION public.mito_child_annotation_id();
+
+
+--
 -- Name: lca_raw_results lca_raw_results_content_hash; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER lca_raw_results_content_hash BEFORE INSERT OR UPDATE ON public.lca_raw_results FOR EACH ROW EXECUTE FUNCTION public.lca_set_content_hash();
+
+
+--
+-- Name: lca_validation lca_validation_annotation_id; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER lca_validation_annotation_id BEFORE INSERT OR UPDATE OF og_id, tech, seq_date, code, annotation, annotation_id ON public.lca_validation FOR EACH ROW EXECUTE FUNCTION public.mito_child_annotation_id();
 
 
 --
@@ -7326,6 +7621,34 @@ CREATE TRIGGER ref_submission_haplotype_assembly BEFORE INSERT OR UPDATE ON publ
 
 
 --
+-- Name: sequencing sequencing_run_ensure; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER sequencing_run_ensure BEFORE INSERT OR UPDATE OF run_id ON public.sequencing FOR EACH ROW EXECUTE FUNCTION public.sequencing_run_ensure();
+
+
+--
+-- Name: sequencing sequencing_run_refresh_del; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER sequencing_run_refresh_del AFTER DELETE ON public.sequencing REFERENCING OLD TABLE AS old_rows FOR EACH STATEMENT EXECUTE FUNCTION public.sequencing_run_refresh();
+
+
+--
+-- Name: sequencing sequencing_run_refresh_ins; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER sequencing_run_refresh_ins AFTER INSERT ON public.sequencing REFERENCING NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION public.sequencing_run_refresh();
+
+
+--
+-- Name: sequencing sequencing_run_refresh_upd; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER sequencing_run_refresh_upd AFTER UPDATE ON public.sequencing REFERENCING OLD TABLE AS old_rows NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION public.sequencing_run_refresh();
+
+
+--
 -- Name: embargo_assignment_view trg_embargo_assignment_view_upd; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -7337,6 +7660,14 @@ CREATE TRIGGER trg_embargo_assignment_view_upd INSTEAD OF UPDATE ON public.embar
 --
 
 CREATE TRIGGER trg_lca_validation_report_view_upd INSTEAD OF UPDATE ON public.lca_validation_report_view FOR EACH ROW EXECUTE FUNCTION public.lca_validation_report_view_upd();
+
+
+--
+-- Name: blast_filtered_lca blast_filtered_lca_annotation_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.blast_filtered_lca
+    ADD CONSTRAINT blast_filtered_lca_annotation_fkey FOREIGN KEY (annotation_id) REFERENCES public.mito_annotation(annotation_id);
 
 
 --
@@ -7468,6 +7799,22 @@ ALTER TABLE ONLY public.ena_specimen_accessions
 
 
 --
+-- Name: ena_submissions ena_submissions_annotation_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ena_submissions
+    ADD CONSTRAINT ena_submissions_annotation_fkey FOREIGN KEY (annotation_id) REFERENCES public.mito_annotation(annotation_id);
+
+
+--
+-- Name: ena_validation_attempts ena_validation_attempts_annotation_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ena_validation_attempts
+    ADD CONSTRAINT ena_validation_attempts_annotation_fkey FOREIGN KEY (annotation_id) REFERENCES public.mito_annotation(annotation_id);
+
+
+--
 -- Name: master_species_genome fk_master_species_genome_species; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7556,6 +7903,14 @@ ALTER TABLE ONLY public.illumina_library
 
 
 --
+-- Name: lca lca_annotation_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lca
+    ADD CONSTRAINT lca_annotation_fkey FOREIGN KEY (annotation_id) REFERENCES public.mito_annotation(annotation_id);
+
+
+--
 -- Name: lca lca_og_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7564,11 +7919,27 @@ ALTER TABLE ONLY public.lca
 
 
 --
+-- Name: lca_raw_results lca_raw_results_annotation_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lca_raw_results
+    ADD CONSTRAINT lca_raw_results_annotation_fkey FOREIGN KEY (annotation_id) REFERENCES public.mito_annotation(annotation_id);
+
+
+--
 -- Name: lca_raw_results lca_raw_results_og_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.lca_raw_results
     ADD CONSTRAINT lca_raw_results_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.sample(og_id);
+
+
+--
+-- Name: lca_validation lca_validation_annotation_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lca_validation
+    ADD CONSTRAINT lca_validation_annotation_fkey FOREIGN KEY (annotation_id) REFERENCES public.mito_annotation(annotation_id);
 
 
 --
@@ -7737,6 +8108,14 @@ ALTER TABLE ONLY public.pacbio_library
 
 ALTER TABLE ONLY public.raw_data
     ADD CONSTRAINT raw_data_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.sample(og_id);
+
+
+--
+-- Name: raw_data raw_data_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.raw_data
+    ADD CONSTRAINT raw_data_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.sequencing_run(run_id);
 
 
 --
@@ -8004,6 +8383,14 @@ ALTER TABLE ONLY public.rna_qc_kinnex
 
 
 --
+-- Name: rna_qc_kinnex rna_qc_kinnex_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rna_qc_kinnex
+    ADD CONSTRAINT rna_qc_kinnex_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.sequencing_run(run_id);
+
+
+--
 -- Name: sequencing sequencing_design_no_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8017,6 +8404,14 @@ ALTER TABLE ONLY public.sequencing
 
 ALTER TABLE ONLY public.sequencing
     ADD CONSTRAINT sequencing_library_fkey FOREIGN KEY (library_tube_id) REFERENCES public.library(library_tube_id);
+
+
+--
+-- Name: sequencing sequencing_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sequencing
+    ADD CONSTRAINT sequencing_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.sequencing_run(run_id);
 
 
 --

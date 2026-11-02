@@ -1,3 +1,4 @@
+ALTER TABLE public.blast_filtered_lca ADD CONSTRAINT blast_filtered_lca_annotation_fkey FOREIGN KEY (annotation_id) REFERENCES mito_annotation(annotation_id);
 ALTER TABLE public.blast_filtered_lca ADD CONSTRAINT blast_filtered_lca_og_id_fkey FOREIGN KEY (og_id) REFERENCES sample(og_id);
 ALTER TABLE public.blast_filtered_lca ADD CONSTRAINT blast_filtered_lca_pkey PRIMARY KEY (og_id, tech, seq_date, code, annotation, match_sequence_id, region);
 ALTER TABLE public.design_description ADD CONSTRAINT design_description_pk PRIMARY KEY (design_no);
@@ -54,6 +55,7 @@ ALTER TABLE public.ena_specimen_accessions ADD CONSTRAINT ena_specimen_og_numeri
 ALTER TABLE public.ena_specimen_accessions ADD CONSTRAINT ena_specimen_og_numeric_matches_check CHECK (og_numeric = SUBSTRING(og_id FROM 3)::integer);
 ALTER TABLE public.ena_submissions ADD CONSTRAINT ena_submissions_accession_presence_check CHECK (submission_status <> 'ACCESSION_ASSIGNED'::text OR ena_analysis_accession IS NOT NULL);
 ALTER TABLE public.ena_submissions ADD CONSTRAINT ena_submissions_analysis_accession_check CHECK (ena_analysis_accession IS NULL OR ena_analysis_accession ~ '^ERZ[0-9]+$'::text);
+ALTER TABLE public.ena_submissions ADD CONSTRAINT ena_submissions_annotation_fkey FOREIGN KEY (annotation_id) REFERENCES mito_annotation(annotation_id);
 ALTER TABLE public.ena_submissions ADD CONSTRAINT ena_submissions_assembly_accession_check CHECK (ena_assembly_accession IS NULL OR ena_assembly_accession ~ '^GCA_[0-9]{9}[.][0-9]+$'::text);
 ALTER TABLE public.ena_submissions ADD CONSTRAINT ena_submissions_biosample_check CHECK (biosample_accession IS NULL OR biosample_accession ~ '^SAM(EA|N|D)[0-9]+$'::text);
 ALTER TABLE public.ena_submissions ADD CONSTRAINT ena_submissions_failure_reason_check CHECK (submission_status <> 'FAILED'::text OR error_message IS NOT NULL);
@@ -68,6 +70,7 @@ ALTER TABLE public.ena_submissions ADD CONSTRAINT ena_submissions_status_check C
 ALTER TABLE public.ena_submissions ADD CONSTRAINT ena_submissions_study_accession_check CHECK (ena_study_accession IS NULL OR ena_study_accession ~ '^PRJEB[0-9]+$'::text);
 ALTER TABLE public.ena_submissions ADD CONSTRAINT ena_submissions_submitted_at_check CHECK ((submission_status <> ALL (ARRAY['SUBMITTED'::text, 'ACCESSION_ASSIGNED'::text])) OR submitted_at IS NOT NULL);
 ALTER TABLE public.ena_submissions ADD CONSTRAINT ena_submissions_webin_mode_check CHECK (webin_mode = ANY (ARRAY['production'::text, 'test'::text]));
+ALTER TABLE public.ena_validation_attempts ADD CONSTRAINT ena_validation_attempts_annotation_fkey FOREIGN KEY (annotation_id) REFERENCES mito_annotation(annotation_id);
 ALTER TABLE public.ena_validation_attempts ADD CONSTRAINT ena_validation_attempts_pkey PRIMARY KEY (id);
 ALTER TABLE public.ena_validation_attempts ADD CONSTRAINT ena_validation_submission_ready_check CHECK (NOT submission_ready OR webin_status = 'PASS'::text);
 ALTER TABLE public.hic_library ADD CONSTRAINT hic_library_attempt_key UNIQUE (lysate_id, hic_num) DEFERRABLE;
@@ -103,10 +106,13 @@ ALTER TABLE public.illumina_library ADD CONSTRAINT illumina_library_registry_fke
 ALTER TABLE public.import_quarantine ADD CONSTRAINT import_quarantine_pkey PRIMARY KEY (quarantine_id);
 ALTER TABLE public.import_quarantine ADD CONSTRAINT import_quarantine_resolution_check CHECK (resolution_note IS NULL OR resolved_at IS NOT NULL);
 ALTER TABLE public.import_quarantine ADD CONSTRAINT import_quarantine_violation_type_check CHECK (violation_type = ANY (ARRAY['not_null'::text, 'foreign_key'::text, 'type_cast'::text, 'unique'::text, 'duplicate_source_row'::text, 'lookup'::text, 'conflicting_value'::text, 'check'::text, 'displaced'::text]));
+ALTER TABLE public.lca ADD CONSTRAINT lca_annotation_fkey FOREIGN KEY (annotation_id) REFERENCES mito_annotation(annotation_id);
 ALTER TABLE public.lca ADD CONSTRAINT lca_og_id_fkey FOREIGN KEY (og_id) REFERENCES sample(og_id);
 ALTER TABLE public.lca ADD CONSTRAINT lca_pkey PRIMARY KEY (og_id, tech, seq_date, code, annotation, region, content_hash);
+ALTER TABLE public.lca_raw_results ADD CONSTRAINT lca_raw_results_annotation_fkey FOREIGN KEY (annotation_id) REFERENCES mito_annotation(annotation_id);
 ALTER TABLE public.lca_raw_results ADD CONSTRAINT lca_raw_results_og_id_fkey FOREIGN KEY (og_id) REFERENCES sample(og_id);
 ALTER TABLE public.lca_raw_results ADD CONSTRAINT lca_raw_results_pkey PRIMARY KEY (og_id, tech, seq_date, code, annotation, sequence_region, accession_id, content_hash);
+ALTER TABLE public.lca_validation ADD CONSTRAINT lca_validation_annotation_fkey FOREIGN KEY (annotation_id) REFERENCES mito_annotation(annotation_id);
 ALTER TABLE public.lca_validation ADD CONSTRAINT lca_validation_og_id_fkey FOREIGN KEY (og_id) REFERENCES sample(og_id);
 ALTER TABLE public.lca_validation ADD CONSTRAINT lca_validation_pkey PRIMARY KEY (og_id, tech, seq_date, code, annotation);
 ALTER TABLE public.library ADD CONSTRAINT library_dna_id_fkey FOREIGN KEY (dna_id) REFERENCES dna_extraction(dna_id);
@@ -169,6 +175,7 @@ ALTER TABLE public.pacbio_library ADD CONSTRAINT pacbio_library_registry_fkey FO
 ALTER TABLE public.prep_automation ADD CONSTRAINT prep_automation_pkey PRIMARY KEY (prep_automation);
 ALTER TABLE public.raw_data ADD CONSTRAINT raw_data_og_id_fkey FOREIGN KEY (og_id) REFERENCES sample(og_id);
 ALTER TABLE public.raw_data ADD CONSTRAINT raw_data_pkey PRIMARY KEY (run_id, lane_id, filename);
+ALTER TABLE public.raw_data ADD CONSTRAINT raw_data_run_id_fkey FOREIGN KEY (run_id) REFERENCES sequencing_run(run_id);
 ALTER TABLE public.ref_assembly ADD CONSTRAINT ref_assembly_natural_key UNIQUE (og_id, seq_date, version);
 ALTER TABLE public.ref_assembly ADD CONSTRAINT ref_assembly_og_id_fkey FOREIGN KEY (og_id) REFERENCES sample(og_id);
 ALTER TABLE public.ref_assembly ADD CONSTRAINT ref_assembly_pkey PRIMARY KEY (assembly_id);
@@ -259,12 +266,14 @@ ALTER TABLE public.rna_library_kinx ADD CONSTRAINT rna_library_kinx_rna_id_fkey 
 ALTER TABLE public.rna_qc_kinnex ADD CONSTRAINT rna_qc_kinnex_pkey PRIMARY KEY (run_id, rna_tube_id);
 ALTER TABLE public.rna_qc_kinnex ADD CONSTRAINT rna_qc_kinnex_rna_tube_id_2_fkey FOREIGN KEY (rna_tube_id_2) REFERENCES rna_library_kinx(rna_library_tube_id);
 ALTER TABLE public.rna_qc_kinnex ADD CONSTRAINT rna_qc_kinnex_rna_tube_id_fkey FOREIGN KEY (rna_tube_id) REFERENCES rna_library_kinx(rna_library_tube_id);
+ALTER TABLE public.rna_qc_kinnex ADD CONSTRAINT rna_qc_kinnex_run_id_fkey FOREIGN KEY (run_id) REFERENCES sequencing_run(run_id);
 ALTER TABLE public.sample ADD CONSTRAINT sample_depth_range_check CHECK (depth_min_m IS NULL OR depth_max_m IS NULL OR depth_min_m <= depth_max_m);
 ALTER TABLE public.sample ADD CONSTRAINT sample_pkey PRIMARY KEY (og_id);
 ALTER TABLE public.schema_migrations ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (filename);
 ALTER TABLE public.sequencing ADD CONSTRAINT sequencing_design_no_fkey FOREIGN KEY (design_no) REFERENCES design_description(design_no);
 ALTER TABLE public.sequencing ADD CONSTRAINT sequencing_library_fkey FOREIGN KEY (library_tube_id) REFERENCES library(library_tube_id);
 ALTER TABLE public.sequencing ADD CONSTRAINT sequencing_pkey PRIMARY KEY (sequencing_id);
+ALTER TABLE public.sequencing ADD CONSTRAINT sequencing_run_id_fkey FOREIGN KEY (run_id) REFERENCES sequencing_run(run_id);
 ALTER TABLE public.sequencing_run ADD CONSTRAINT sequencing_run_pkey PRIMARY KEY (run_id);
 ALTER TABLE public.species ADD CONSTRAINT "Species_pkey" PRIMARY KEY (species);
 ALTER TABLE public.species_ncbi_assembly ADD CONSTRAINT species_ncbi_assembly_pkey PRIMARY KEY (assembly_accession);
