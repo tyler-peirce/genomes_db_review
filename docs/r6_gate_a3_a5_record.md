@@ -63,7 +63,43 @@ The owner ran `test_three.tsv` on Setonix: 12 tasks, 0 failed, nothing skipped a
 - **Draft `origin/master`:** fast-forwarded `5a055a5` → `57df4d9`.
 - **`phase-r-v3`:** merged `origin/master` (`a226633`); 179 tests pass.
 
-**Next:** the owner runs one `lists/<seq_date>.tsv` at a time from `master`, after a `git pull` on the Setonix clone.
+### Batch run (2026-10-30 to 2026-10-31)
+
+The owner ran all ten lists in turn on setonix-07, from `master` `57df4d9`.
+
+| Outcome | Drafts |
+|---|---:|
+| Measured, `status: ok`, uploaded | 542 |
+| `too_few_busco_regions` (no depth) | 1 |
+| Skipped at staging: OG1724 251210 (no GenomeScope model), OG857 260331 (no BUSCO table, no model) | 2 |
+| **260331 batch did not run** (see below) | 45 |
+
+**Live afterwards** (read-only, 2026-11-02):
+- `busco_read_depth` is filled on 633 drafts (91 from A.3 plus 542).
+- `v3` matches, and `check_draft()` is 0 on every check.
+- Every batch from 250606 to 260724 is filled except the drafts listed above.
+
+**260331 failed before any task ran.** At 2026-10-31 13:00:06 AWST something removed the three small staged files (BUSCO `full_table`, GenomeScope model, fastp JSON) from all 46 `stage/*.260331/` directories. The `.fna` and BAM were left. Nextflow started ten minutes later and stopped on the first missing path (OG1353). Nothing in the user's Slurm history covers that minute, and the launcher never deletes; the cause is unknown. Re-run started 2026-11-02 in tmux `depth_260331` on setonix-01; the launcher re-copies only what is missing.
+
+### GenomeScope fits that disagree with measured depth
+
+From the 542 `kmer_depth.json`: `kmercov_over_lambda_depth` should be about 1.
+
+| Ratio | Drafts |
+|---|---:|
+| 0.8–1.25 (agrees) | 359 |
+| < 0.8 | 28 |
+| 1.25–1.75 | 18 |
+| about 2 (1.75–2.5) | 60 |
+| ≥ 2.5 | 77 |
+
+Most of the stored `genomesize` values for the 183 outside 0.8–1.25 are probably wrong. A ratio near 2 means GenomeScope took the heterozygous peak as the homozygous one, so its genome size is about double the truth; near 3–4 or above, it fitted noise in low-coverage data (`lambda_depth` about 4–6). Two clusters stand out:
+- **The ~2.6 Gb assemblies in 250606 and 260724** (OG1076–OG1131, OG2586–OG2616): ratio 2.3–3.7 at `lambda_depth` 4–6.
+- **260514** (OG2328–OG2380): ratio about 2 almost throughout.
+
+None of these drafts has a `genome_size_reliable` verdict, because that check runs only in the full GENOME_QC. The list is at `/scratch/pawsey1348/tpeirce/depth_only/genomesize_suspects.tsv` (183 rows, worst first). It is the first batch for the full GENOME_QC re-run (`RECHECK_GENOME_SIZE`, reseed), and their ENA submissions should not quote the GenomeScope size until then.
+
+**Next:** the 260331 re-run; then archive each `coverage/*_kmer_depth.json` and the suspect list to Acacia, and clear `stage/` (14 TB).
 
 ## A.5 `ENA-draft-genomes`
 
