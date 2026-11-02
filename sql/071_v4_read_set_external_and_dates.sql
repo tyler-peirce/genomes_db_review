@@ -26,6 +26,11 @@
 --        OG763  251117  no runs until the lab adds its DNA row; then the next push links it, and
 --                       until then readiness lists it.
 --   The sync owns only undated read sets, so it leaves these alone and stays a no-op.
+--   3. The six compatibility views' comments name the tables to write instead, so a writer that
+--      fails on one after RG.6 ("cannot update view") finds its way. ref_genomes_assembly_uploads
+--      also records 070's change: assembly_accession_hapN shows the ERZ (analysis_accession) or
+--      the WGS master (assembly_accession). Owner, 2026-11-02: OcOm_B219's GCA resolver, which
+--      updates that view's gca_accession_hapN, is left to its maintainer to fix when it fails.
 --
 -- Writers. refdb.ensure_read_set() already creates a run-less read set from the samplesheet date
 -- when the OG has no PacBio row; nothing changes there.
@@ -148,7 +153,34 @@ BEGIN
 END
 $rs$;
 
--- 3. Verify ------------------------------------------------------------------------------------
+-- 3. Where the compatibility views' writes go --------------------------------------------------
+
+COMMENT ON VIEW v4.ref_genomes IS
+  'Compatibility view: public.ref_genomes''s 58 columns in its order, one row per part. k_mer_set and '
+  'hap2_chr_level_max_len are always NULL. Not a write path: write ref_assembly, ref_assembly_part, '
+  'ref_assembly_run and the per-tool tables (ref_busco, ref_gfastats, ref_merqury_qv, ...).';
+COMMENT ON VIEW v4.raw_qc IS
+  'Compatibility view: public.raw_qc''s columns, one row per OG, from one read set: the undated one if '
+  'any (it mirrors a public state no dated read set matches), else the latest dated. Not a write path: '
+  'write ref_read_set with ref_genomescope / ref_hifi_adapter_filter (refdb.upsert_read_set).';
+COMMENT ON VIEW v4.hifi_reads_qc IS
+  'Compatibility view: public.hifi_reads_qc''s columns in its order. Not a write path: write hifi_read_qc.';
+COMMENT ON VIEW v4.hic_reads_qc IS
+  'Compatibility view: public.hic_reads_qc''s columns in its order, NULL key parts shown as ''''. Not a '
+  'write path: write hic_read_qc.';
+COMMENT ON VIEW v4.ref_genomes_assembly_uploads IS
+  'Compatibility view: public.ref_genomes_assembly_uploads''s columns in its order. assembly_accession_hapN '
+  'shows coalesce(analysis_accession, assembly_accession): the ERZ, or the WGS master of older NCBI '
+  'submissions (070). Not a write path: write ref_submission, and per haplotype '
+  'ref_submission_haplotype (bioproject, analysis_accession, assembly_accession, gca_accession), as '
+  'ENA-ref-genomes steps 09 and 10 do. OcOm_B219''s resolve_gca_accessions.py still updates '
+  'gca_accession_hapN here and fails after RG.6 until ported (owner, 2026-11-02).';
+COMMENT ON VIEW v4.ref_genomes_sra_uploads IS
+  'Compatibility view: public.ref_genomes_sra_uploads''s columns in its order, status and date recombined. '
+  'Not a write path: write ref_sra_upload and its run links (ref_sra_upload_run, '
+  'resolve_sra_upload_runs()), as ENA-ref-genomes step 09 does.';
+
+-- 4. Verify ------------------------------------------------------------------------------------
 
 DO $verify$
 DECLARE

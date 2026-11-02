@@ -30,7 +30,7 @@ RG.6 runs when every row below is done. The middle column is what is still open.
 | # | Gate item | Open on 2026-11-02 | Who |
 |---|---|---|---|
 | G1 | The nightly sync clean for a period the owner chooses | 17 nights so far; **owner to set the period** | owner |
-| G2 | Every writer of the six replaced objects ported | **One not ported:** `push_hic_yield.py` ported 2026-11-02, the GCA resolver waits for its repo (below) | Claude, then their owners |
+| G2 | Every writer of the six replaced objects ported | Done, bar one left out: `push_hic_yield.py` ported 2026-11-02; `OcOm_B219`'s GCA resolver **left to its maintainer** (owner, 2026-11-02) | — |
 | G3 | Every reader checked against `search_path=v4,public` | **OceanGenom_Web unchecked** (code not on this host) | web app owner |
 | G4 | Undated read sets dated or removed | **`071` written and rehearsed, not applied.** Owner, 2026-11-02: OG906 250212 external (`SSB/SSC` cells, supplier unknown), OG845 241023, OG781 260421, OG763 251117 (its DNA row on `PACB_251117_LAAMD` is missing from the workbook) | owner applies |
 | G5 | R.6 and RG.6 ordered | **Decision needed** (below) | owner |
@@ -41,7 +41,7 @@ RG.6 runs when every row below is done. The middle column is what is still open.
 
 | Writer | Writes today | After RG.6 it writes | Notes |
 |---|---|---|---|
-| `OcOm_B219` `scripts/resolve_gca_accessions.py` (each quarterly report) | `UPDATE ref_genomes_assembly_uploads SET gca_accession_hapN` | `ref_submission_haplotype.gca_accession`, as `ENA-ref-genomes` step 10 already does | Found 2026-10-20 (RG.0 §5); RG.5 noted it, nothing ported. Not cloned on this host |
+| `OcOm_B219` `scripts/resolve_gca_accessions.py` (each quarterly report) | `UPDATE ref_genomes_assembly_uploads SET gca_accession_hapN` | `ref_submission_haplotype.gca_accession`, as `ENA-ref-genomes` step 10 already does | Found 2026-10-20 (RG.0 §5). **Not ported, owner 2026-11-02:** its maintainer fixes it when it fails. The view's comment (`071`) names the table to write |
 | `ref_genomes_hic_automation` `push_hic_yield.py`, from `poll-hic-multiqc.py` | `INSERT … ON CONFLICT DO NOTHING` into `hic_reads_qc`, per lane | `hic_read_qc`, with `sequencing_id` resolved as the sync does | **Ported** 2026-11-02, branch `phase-rg-v4` (`4180383`, local; the repo is LaurenHuet's). Also fixes a per-row `rollback()` that dropped earlier rows. Tested on a restore: 30 rows equal, sync no-op |
 
 Unported, each fails on the swap day with `cannot insert into view` / `cannot update view`: loud, not
@@ -148,6 +148,6 @@ As RG.5, on a restore of live taken the morning of:
 2. **G4:** decided 2026-11-02 (`071`); apply it. Still open: who supplied OG906's SSB/SSC cells, and
    the lab adds OG763's DNA row.
 3. **G5:** R.6 first (recommended) or RG.6 first.
-4. **G2:** `OcOm_B219`'s resolver: Claude ports it once the repo is cloned here (owner fetching it).
-   `push_hic_yield.py`: ported; its owner merges it on the swap day.
+4. **G2:** decided. `OcOm_B219`'s resolver is left to its maintainer; `push_hic_yield.py` is ported
+   and its owner merges it on the swap day.
 5. **G3:** who checks OceanGenom_Web's queries against `search_path=v4,public`.
