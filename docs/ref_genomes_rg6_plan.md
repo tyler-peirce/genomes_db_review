@@ -1,6 +1,6 @@
 # Phase RG.6 plan — move `v4` into `public`
 
-Status: **plan, 2026-11-02.** Nothing here has run. Source: `docs/ref_genomes_runbook_rg0_rg5.md`
+Status: **done, 2026-11-02.** `073` applied to live about 08:06 UTC; see [`rg6_record.md`](rg6_record.md) for what differed from this plan (no `run_id` FKs; step 0 for the day's genome-size pushes; `ref_gen_automation`). Source: `docs/ref_genomes_runbook_rg0_rg5.md`
 ("Gate for RG.6"). RG.0–RG.5 and migrations `057`–`065` and `069`–`071` built and filled `v4`; this is
 the swap that makes it the reference-genome schema of record.
 

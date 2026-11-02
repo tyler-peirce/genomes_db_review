@@ -3,12 +3,12 @@ CREATE OR REPLACE VIEW public.coverage_summary AS
  WITH hifi_agg AS (
          SELECT hifi_reads_qc.og_id,
             sum(hifi_reads_qc.hifi_yield) AS total_hifi_yield_bp
-           FROM hifi_reads_qc
+           FROM hifi_reads_qc hifi_reads_qc
           GROUP BY hifi_reads_qc.og_id
         ), hic_agg AS (
          SELECT hic_reads_qc.og_id,
             sum(hic_reads_qc.yield_gb * 1000000000::numeric)::bigint AS total_hic_yield_bp
-           FROM hic_reads_qc
+           FROM hic_reads_qc hic_reads_qc
           GROUP BY hic_reads_qc.og_id
         ), all_ogs AS (
          SELECT hifi_agg.og_id
@@ -324,7 +324,7 @@ CREATE OR REPLACE VIEW public.goat_species_v1 AS
               WHERE samp.nominal_species_id = s.species AND samp.ncbi_bioproject_id_lvl_3_hifi IS NOT NULL)) THEN 'submitted'::text
             WHEN (EXISTS ( SELECT 1
                FROM sample samp
-                 JOIN ref_genomes rg ON rg.og_id = samp.og_id
+                 JOIN ref_assembly rg ON rg.og_id = samp.og_id
               WHERE samp.nominal_species_id = s.species)) THEN 'in_assembly'::text
             WHEN (EXISTS ( SELECT 1
                FROM summary sm
@@ -348,6 +348,42 @@ CREATE OR REPLACE VIEW public.goat_species_v1 AS
     NULL::text AS assigned_sequencing_center
    FROM master_species s
   ORDER BY s.family, s.species;;
+
+-- View: public.hic_reads_qc
+CREATE OR REPLACE VIEW public.hic_reads_qc AS
+ SELECT hic_read_qc.og_id,
+    COALESCE(hic_read_qc.tissue, ''::text) AS tissue,
+    COALESCE(hic_read_qc.ext_type, ''::text) AS ext_type,
+    COALESCE(hic_read_qc.lib_code, ''::text) AS lib_code,
+    COALESCE(hic_read_qc.lane, ''::text) AS lane,
+    hic_read_qc.run_id,
+    hic_read_qc.datecreated,
+    hic_read_qc.isarchived,
+    hic_read_qc.isfiledeleted,
+    hic_read_qc.totalreadspf,
+    hic_read_qc.totalclusterspf,
+    hic_read_qc.read1length,
+    hic_read_qc.read2length,
+    hic_read_qc.ispairedend,
+    hic_read_qc.yield_gb,
+    hic_read_qc.totalsize_gb
+   FROM hic_read_qc;;
+
+-- View: public.hifi_reads_qc
+CREATE OR REPLACE VIEW public.hifi_reads_qc AS
+ SELECT hifi_read_qc.og_id,
+    hifi_read_qc.tissue,
+    hifi_read_qc.ext_type,
+    hifi_read_qc.lib_code,
+    hifi_read_qc.run_id,
+    hifi_read_qc.barcode,
+    hifi_read_qc.barcode_quality,
+    hifi_read_qc.hifi_reads,
+    hifi_read_qc.hifi_read_length,
+    hifi_read_qc.hifi_read_quality,
+    hifi_read_qc.hifi_yield,
+    hifi_read_qc.polymerase_read_length
+   FROM hifi_read_qc;;
 
 -- View: public.lca_pivot_view
 CREATE OR REPLACE VIEW public.lca_pivot_view AS
@@ -642,6 +678,129 @@ CREATE OR REPLACE VIEW public.mitogenome_submission_view AS
      LEFT JOIN mito_annotation n ON n.assembly_id = a.assembly_id
      LEFT JOIN ena_validation_attempts e ON e.og_id = a.og_id AND e.tech = a.tech AND e.seq_date = a.seq_date AND e.code = a.code AND e.annotation = n.annotation
      LEFT JOIN lca_validation l ON l.og_id = a.og_id AND l.tech = a.tech AND l.seq_date = a.seq_date AND l.code = a.code AND l.annotation = n.annotation;;
+
+-- View: public.raw_qc
+CREATE OR REPLACE VIEW public.raw_qc AS
+ WITH pick AS (
+         SELECT DISTINCT ON (rs.og_id) rs.og_id,
+            rs.read_set_id
+           FROM ref_read_set rs
+          WHERE (EXISTS ( SELECT 1
+                   FROM ref_genomescope g_1
+                  WHERE g_1.read_set_id = rs.read_set_id)) OR (EXISTS ( SELECT 1
+                   FROM ref_hifi_adapter_filter f_1
+                  WHERE f_1.read_set_id = rs.read_set_id))
+          ORDER BY rs.og_id, rs.seq_date DESC
+        )
+ SELECT p.og_id,
+    g.homozygosity,
+    g.heterozygosity,
+    g.genomesize,
+    g.repeatsize,
+    g.uniquesize,
+    g.modelfit,
+    g.errorrate,
+    f.contam_reads
+   FROM pick p
+     LEFT JOIN ref_genomescope g ON g.read_set_id = p.read_set_id
+     LEFT JOIN ref_hifi_adapter_filter f ON f.read_set_id = p.read_set_id;;
+
+-- View: public.ref_genomes
+CREATE OR REPLACE VIEW public.ref_genomes AS
+ SELECT a.og_id,
+    a.seq_date,
+    p.stage,
+    p.haplotype,
+    gf.num_contigs,
+    gf.contig_n50,
+    gf.contig_n50_size_mb,
+    gf.num_scaffolds,
+    gf.scaffold_n50,
+    gf.scaffold_n50_size_mb,
+    gf.largest_scaffold,
+    gf.largest_scaffold_size_mb,
+    gf.total_scaffold_length,
+    gf.total_scaffold_length_size_mb,
+    gf.gc_content_percent,
+    bu.dataset,
+    bu.complete,
+    bu.single_copy,
+    bu.multi_copy,
+    bu.fragmented,
+    bu.missing,
+    bu.n_markers,
+    bu.internal_stop_codon_percent,
+    bu.scaffold_n50_bus,
+    bu.contigs_n50_bus,
+    bu.percent_gaps,
+    bu.number_of_scaffolds,
+    mq.unique_k_mers_assembly,
+    mq.k_mers_total,
+    mq.qv,
+    mq.error,
+    NULL::text AS k_mer_set,
+    mc.solid_k_mers,
+    mc.total_k_mers,
+    mc.completeness,
+    om.total,
+    om.total_unmapped,
+    om.total_single_sided_mapped,
+    om.total_mapped,
+    om.total_dups,
+    om.total_nodups,
+    om.cis,
+    om.trans,
+    NULL::bigint AS hap2_chr_level_max_len,
+    sk.format,
+    sk.type,
+    sk.num_seqs,
+    sk.sum_len,
+    sk.min_len,
+    sk.avg_len,
+    sk.max_len,
+    ch.num_chromosomes,
+    ch.pct_assigned,
+    ch.pct_no_super,
+    ch.num_seq_no_super,
+    ch.max_len_no_super,
+    a.version,
+    gf.num_gaps
+   FROM ref_assembly_part p
+     JOIN ref_assembly a ON a.assembly_id = p.assembly_id
+     LEFT JOIN ref_gfastats gf ON gf.part_id = p.part_id
+     LEFT JOIN ref_busco bu ON bu.part_id = p.part_id
+     LEFT JOIN ref_merqury_qv mq ON mq.part_id = p.part_id
+     LEFT JOIN ref_merqury_completeness mc ON mc.part_id = p.part_id
+     LEFT JOIN ref_omnic om ON om.part_id = p.part_id
+     LEFT JOIN ref_seqkit_stats sk ON sk.part_id = p.part_id
+     LEFT JOIN ref_chromosome_stats ch ON ch.part_id = p.part_id;;
+
+-- View: public.ref_genomes_assembly_uploads
+CREATE OR REPLACE VIEW public.ref_genomes_assembly_uploads AS
+ SELECT s.og_id,
+    s.biosample,
+    s.bioproject_umbrella,
+    h1.bioproject AS bioproject_hap1,
+    h2.bioproject AS bioproject_hap2,
+    s.bioproject_rawdata,
+    COALESCE(h1.analysis_accession, h1.assembly_accession) AS assembly_accession_hap1,
+    COALESCE(h2.analysis_accession, h2.assembly_accession) AS assembly_accession_hap2,
+    s.embargo_status,
+    h1.gca_accession AS gca_accession_hap1,
+    h2.gca_accession AS gca_accession_hap2
+   FROM ref_submission s
+     LEFT JOIN ref_submission_haplotype h1 ON h1.submission_id = s.submission_id AND h1.haplotype = 'hap1'::text
+     LEFT JOIN ref_submission_haplotype h2 ON h2.submission_id = s.submission_id AND h2.haplotype = 'hap2'::text;;
+
+-- View: public.ref_genomes_sra_uploads
+CREATE OR REPLACE VIEW public.ref_genomes_sra_uploads AS
+ SELECT u.srr_accession,
+    s.og_id,
+    u.filenames,
+    u.data_type,
+    COALESCE(u.ncbi_status, to_char(u.release_date::timestamp with time zone, 'YYYY-MM-DD'::text)) AS ncbi_status
+   FROM ref_sra_upload u
+     JOIN ref_submission s ON s.submission_id = u.submission_id;;
 
 -- View: public.sample_view
 CREATE OR REPLACE VIEW public.sample_view AS
@@ -1120,6 +1279,205 @@ CREATE OR REPLACE VIEW public.v_quarantine_open AS
   GROUP BY import_quarantine.source_table, import_quarantine.violation_type
   ORDER BY (count(*)) DESC, import_quarantine.source_table, import_quarantine.violation_type;;
 
+-- View: public.v_read_qc_sequencing_readiness
+CREATE OR REPLACE VIEW public.v_read_qc_sequencing_readiness AS
+ SELECT 'hifi'::text AS kind,
+    q.og_id,
+    q.tissue,
+    q.ext_type,
+    q.lib_code,
+    NULL::text AS lane,
+    q.run_id,
+        CASE
+            WHEN NOT (EXISTS ( SELECT 1
+               FROM sequencing s
+              WHERE s.run_id = q.run_id)) THEN 'run not in sequencing'::text
+            WHEN NOT (EXISTS ( SELECT 1
+               FROM library l
+              WHERE l.library_tube_id = (((((q.og_id || q.tissue) || '_'::text) || q.ext_type) || '_'::text) || q.lib_code))) THEN 'library tube not in library'::text
+            ELSE 'no single sequencing row for this tube on this run'::text
+        END AS reason
+   FROM hifi_read_qc q
+  WHERE q.sequencing_id IS NULL
+UNION ALL
+ SELECT 'hic'::text AS kind,
+    q.og_id,
+    q.tissue,
+    q.ext_type,
+    q.lib_code,
+    q.lane,
+    q.run_id,
+        CASE
+            WHEN NOT (EXISTS ( SELECT 1
+               FROM sequencing s
+              WHERE s.run_id = q.run_id)) THEN 'run not in sequencing'::text
+            WHEN (( SELECT count(*) AS count
+               FROM v_sequencing_browse s
+              WHERE s.og_id = q.og_id AND s.run_id = q.run_id AND s.technology = 'Hi-C'::text AND s.tissue_id ~~ ((q.og_id || COALESCE(q.tissue, ''::text)) || '%'::text))) > 1 THEN 'several Hi-C libraries of this OG and tissue on this run'::text
+            ELSE 'no Hi-C library of this OG and tissue on this run'::text
+        END AS reason
+   FROM hic_read_qc q
+  WHERE q.sequencing_id IS NULL;;
+
+-- View: public.v_read_set_run_readiness
+CREATE OR REPLACE VIEW public.v_read_set_run_readiness AS
+ SELECT rs.og_id,
+    rs.seq_date,
+    rs.read_set_id,
+    ( SELECT string_agg(s.sequencing_id, ', '::text ORDER BY s.seq_date, s.sequencing_id) AS string_agg
+           FROM v_sequencing_browse s
+          WHERE s.og_id = rs.og_id AND (s.technology = ANY (ARRAY['PacBio HIFI'::text, 'PacBio'::text])) AND s.library_type = 'pacbio'::text AND s.status IS DISTINCT FROM 'Failed'::text) AS pacbio_rows_for_og
+   FROM ref_read_set rs
+  WHERE NOT (EXISTS ( SELECT 1
+           FROM ref_read_set_run r
+          WHERE r.read_set_id = rs.read_set_id)) AND NOT (EXISTS ( SELECT 1
+           FROM ref_read_set_external x
+          WHERE x.read_set_id = rs.read_set_id));;
+
+-- View: public.v_ref_assembly_run_readiness
+CREATE OR REPLACE VIEW public.v_ref_assembly_run_readiness AS
+ SELECT a.og_num,
+    a.og_id,
+    a.seq_date,
+    a.version,
+    ( SELECT string_agg(s.sequencing_id, ', '::text ORDER BY s.seq_date, s.sequencing_id) AS string_agg
+           FROM v_sequencing_browse s
+          WHERE s.og_id = a.og_id AND (s.technology = ANY (ARRAY['PacBio HIFI'::text, 'PacBio'::text, 'ONT'::text])) AND (s.library_type = ANY (ARRAY['pacbio'::text, 'ont'::text])) AND s.status IS DISTINCT FROM 'Failed'::text) AS long_read_rows_for_og
+   FROM ref_assembly a
+  WHERE NOT (EXISTS ( SELECT 1
+           FROM ref_assembly_run r
+          WHERE r.assembly_id = a.assembly_id));;
+
+-- View: public.v_ref_assembly_status
+CREATE OR REPLACE VIEW public.v_ref_assembly_status AS
+ SELECT a.og_num,
+    a.og_id,
+    a.seq_date,
+    a.version,
+    a.strategy,
+    a.attempt,
+    ( SELECT count(*) AS count
+           FROM ref_assembly_run r
+          WHERE r.assembly_id = a.assembly_id) AS run_links,
+    count(p.part_id) AS parts,
+    string_agg(DISTINCT p.stage::text, ','::text ORDER BY (p.stage::text)) AS stages,
+    COALESCE(bool_or(p.stage = 3), false) AS curated,
+    string_agg(DISTINCT
+        CASE
+            WHEN gf.part_id IS NOT NULL THEN p.stage
+            ELSE NULL::integer
+        END::text, ','::text ORDER BY (
+        CASE
+            WHEN gf.part_id IS NOT NULL THEN p.stage
+            ELSE NULL::integer
+        END::text)) AS gfastats_stages,
+    string_agg(DISTINCT
+        CASE
+            WHEN bu.part_id IS NOT NULL THEN p.stage
+            ELSE NULL::integer
+        END::text, ','::text ORDER BY (
+        CASE
+            WHEN bu.part_id IS NOT NULL THEN p.stage
+            ELSE NULL::integer
+        END::text)) AS busco_stages,
+    string_agg(DISTINCT
+        CASE
+            WHEN mq.part_id IS NOT NULL THEN p.stage
+            ELSE NULL::integer
+        END::text, ','::text ORDER BY (
+        CASE
+            WHEN mq.part_id IS NOT NULL THEN p.stage
+            ELSE NULL::integer
+        END::text)) AS merqury_qv_stages,
+    string_agg(DISTINCT
+        CASE
+            WHEN mc.part_id IS NOT NULL THEN p.stage
+            ELSE NULL::integer
+        END::text, ','::text ORDER BY (
+        CASE
+            WHEN mc.part_id IS NOT NULL THEN p.stage
+            ELSE NULL::integer
+        END::text)) AS merqury_completeness_stages,
+    string_agg(DISTINCT
+        CASE
+            WHEN om.part_id IS NOT NULL THEN p.stage
+            ELSE NULL::integer
+        END::text, ','::text ORDER BY (
+        CASE
+            WHEN om.part_id IS NOT NULL THEN p.stage
+            ELSE NULL::integer
+        END::text)) AS omnic_stages,
+    string_agg(DISTINCT
+        CASE
+            WHEN sk.part_id IS NOT NULL THEN p.stage
+            ELSE NULL::integer
+        END::text, ','::text ORDER BY (
+        CASE
+            WHEN sk.part_id IS NOT NULL THEN p.stage
+            ELSE NULL::integer
+        END::text)) AS seqkit_stats_stages,
+    string_agg(DISTINCT
+        CASE
+            WHEN ch.part_id IS NOT NULL THEN p.stage
+            ELSE NULL::integer
+        END::text, ','::text ORDER BY (
+        CASE
+            WHEN ch.part_id IS NOT NULL THEN p.stage
+            ELSE NULL::integer
+        END::text)) AS chromosome_stats_stages
+   FROM ref_assembly a
+     JOIN ref_assembly_part p ON p.assembly_id = a.assembly_id
+     LEFT JOIN ref_gfastats gf ON gf.part_id = p.part_id
+     LEFT JOIN ref_busco bu ON bu.part_id = p.part_id
+     LEFT JOIN ref_merqury_qv mq ON mq.part_id = p.part_id
+     LEFT JOIN ref_merqury_completeness mc ON mc.part_id = p.part_id
+     LEFT JOIN ref_omnic om ON om.part_id = p.part_id
+     LEFT JOIN ref_seqkit_stats sk ON sk.part_id = p.part_id
+     LEFT JOIN ref_chromosome_stats ch ON ch.part_id = p.part_id
+  GROUP BY a.assembly_id;;
+
+-- View: public.v_ref_assembly_summary
+CREATE OR REPLACE VIEW public.v_ref_assembly_summary AS
+ WITH final_part AS (
+         SELECT DISTINCT ON (p.assembly_id, p.haplotype) p.part_id,
+            p.assembly_id,
+            p.stage,
+            p.haplotype,
+            p.created_at
+           FROM ref_assembly_part p
+          WHERE p.haplotype <> 'dual'::text
+          ORDER BY p.assembly_id, p.haplotype, p.stage DESC
+        )
+ SELECT a.og_num,
+    a.og_id,
+    a.seq_date,
+    a.version,
+    f.haplotype,
+    f.stage AS final_stage,
+    st.name AS final_stage_name,
+    gf.num_scaffolds,
+    gf.scaffold_n50_size_mb,
+    gf.total_scaffold_length_size_mb,
+    gf.gc_content_percent,
+    ch.num_chromosomes,
+    ch.pct_assigned,
+    bu.dataset AS busco_dataset,
+    bu.complete AS busco_complete,
+    bu.single_copy AS busco_single_copy,
+    bu.multi_copy AS busco_multi_copy,
+    bu.fragmented AS busco_fragmented,
+    bu.missing AS busco_missing,
+    mq.qv,
+    mc.completeness AS kmer_completeness
+   FROM final_part f
+     JOIN ref_assembly a ON a.assembly_id = f.assembly_id
+     JOIN ref_stage st ON st.stage = f.stage
+     LEFT JOIN ref_gfastats gf ON gf.part_id = f.part_id
+     LEFT JOIN ref_chromosome_stats ch ON ch.part_id = f.part_id
+     LEFT JOIN ref_busco bu ON bu.part_id = f.part_id
+     LEFT JOIN ref_merqury_qv mq ON mq.part_id = f.part_id
+     LEFT JOIN ref_merqury_completeness mc ON mc.part_id = f.part_id;;
+
 -- View: public.v_rna_extraction_browse
 CREATE OR REPLACE VIEW public.v_rna_extraction_browse AS
  SELECT s.og_num,
@@ -1245,18 +1603,18 @@ UNION ALL
    FROM raw_data c
      LEFT JOIN sequencing_run r ON r.run_id = c.run_id
 UNION ALL
- SELECT 'hifi_reads_qc'::text AS child,
+ SELECT 'hifi_read_qc'::text AS child,
     count(*) AS child_rows,
     count(*) FILTER (WHERE c.run_id IS NOT NULL AND r.run_id IS NULL) AS failing_rows,
     string_agg(DISTINCT c.run_id, ', '::text) FILTER (WHERE c.run_id IS NOT NULL AND r.run_id IS NULL) AS failing_run_ids
-   FROM hifi_reads_qc c
+   FROM hifi_read_qc c
      LEFT JOIN sequencing_run r ON r.run_id = c.run_id
 UNION ALL
- SELECT 'hic_reads_qc'::text AS child,
+ SELECT 'hic_read_qc'::text AS child,
     count(*) AS child_rows,
     count(*) FILTER (WHERE c.run_id IS NOT NULL AND r.run_id IS NULL) AS failing_rows,
     string_agg(DISTINCT c.run_id, ', '::text) FILTER (WHERE c.run_id IS NOT NULL AND r.run_id IS NULL) AS failing_run_ids
-   FROM hic_reads_qc c
+   FROM hic_read_qc c
      LEFT JOIN sequencing_run r ON r.run_id = c.run_id;;
 
 -- View: public.v_sequencing_run_issues
@@ -1273,6 +1631,21 @@ CREATE OR REPLACE VIEW public.v_sequencing_run_issues AS
           WHERE s.run_id = r.run_id) AS run_dates
    FROM sequencing_run r
   WHERE r.mach IS NULL OR r.instrument IS NULL OR r.run_date IS NULL;;
+
+-- View: public.v_sra_upload_run_readiness
+CREATE OR REPLACE VIEW public.v_sra_upload_run_readiness AS
+ SELECT s.og_id,
+    u.srr_accession,
+    u.data_type,
+    COALESCE(x.reason, 'not resolved by the forward rule'::text) AS reason,
+    x.reviewed_on,
+    "left"(u.filenames, 200) AS filenames
+   FROM ref_sra_upload u
+     JOIN ref_submission s USING (submission_id)
+     LEFT JOIN ref_sra_upload_unlinked x USING (srr_accession)
+  WHERE NOT (EXISTS ( SELECT 1
+           FROM ref_sra_upload_run r
+          WHERE r.srr_accession = u.srr_accession));;
 
 -- View: public.v_tissue_browse
 CREATE OR REPLACE VIEW public.v_tissue_browse AS
