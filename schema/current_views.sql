@@ -35,6 +35,123 @@ CREATE OR REPLACE VIEW public.coverage_summary AS
      LEFT JOIN raw_qc r ON r.og_id = a.og_id
   ORDER BY a.og_id;;
 
+-- View: public.draft_genomes
+CREATE OR REPLACE VIEW public.draft_genomes AS
+ SELECT d.og_num,
+    d.og_id,
+    s.nominal_species_id,
+    d.seq_date,
+    d.mach,
+    d.initial,
+    f.raw_total_reads,
+    f.raw_total_bases,
+    f.raw_q20_bases,
+    f.raw_q30_bases,
+    f.raw_q20_rate,
+    f.raw_q30_rate,
+    f.raw_read1_mean_length,
+    f.raw_read2_mean_length,
+    f.raw_gc_content,
+    f.passed_filter_reads,
+    f.low_quality_reads,
+    f.too_many_n_reads,
+    f.too_short_reads,
+    f.too_long_reads,
+    f.total_reads,
+    f.total_bases,
+    f.q20_bases,
+    f.q30_bases,
+    f.q20_rate,
+    f.q30_rate,
+    f.read1_mean_length,
+    f.read2_mean_length,
+    f.gc_content,
+    gs.homozygosity,
+    gs.homozygosity_min,
+    gs.heterozygosity,
+    gs.heterozygosity_min,
+    gs.repeatsize,
+    gs.repeatsize_min,
+    gs.uniquesize,
+    gs.uniquesize_min,
+    gs.modelfit,
+    gs.modelfit_allkmers,
+    gs.errorrate,
+    gs.kmercov,
+    gs.lambda_depth,
+    gs.busco_read_depth,
+    gs.busco_regions,
+    gs.genomesize,
+    gs.genomesize_min,
+    gs.genomescope_fit,
+    gs.genome_size_reliable,
+    gs.genome_size_flags,
+    gs.host_assembly_size,
+    gs.host_assembly_fraction,
+    gs.host_haploid_size,
+    gs.partition_confidence,
+    gs.partition_note,
+    ti.num_contigs_mitochondrion,
+    ti.num_contigs_plastid,
+    ti.num_contigs_prokarya,
+    ti.bp_mitochondrion,
+    ti.bp_plastid,
+    ti.bp_prokarya,
+    ct.num_contigs_exclude,
+    ct.num_contigs_trim,
+    ct.num_contigs_review,
+    ct.bp_exclude,
+    ct.bp_trim,
+    ct.bp_review,
+    ct.num_contigs_lt_500bp AS num_contigs,
+    b.complete,
+    b.single_copy,
+    b.multi_copy,
+    b.fragmented,
+    b.missing,
+    b.n_markers,
+    b.domain,
+    b.number_of_scaffolds,
+    b.number_of_contigs,
+    b.total_length,
+    b.percent_gaps,
+    b.scaffold_n50,
+    b.contigs_n50,
+    b.internal_stop_codon_count,
+    b.internal_stop_codon_percent,
+    mq.unique_k_mers_assembly,
+    mq.k_mers_total,
+    mq.qv,
+    mq.error,
+    mq.k_mer_set,
+    mq.solid_k_mers,
+    mq.total_k_mers,
+    mq.completeness,
+    gf.gfa_num_contigs,
+    gf.gfa_contig_n50,
+    gf.gfa_num_scaffolds,
+    gf.gfa_scaffold_n50,
+    gf.gfa_largest_scaffold,
+    gf.gfa_total_scaffold_length,
+    gf.gfa_gc_content_percent,
+    su.sra_accession,
+    su.biosample_accession,
+    su.study,
+    su.bioproject_accession,
+    su.ena_analysis_accession,
+    su.assembly_accession,
+    su.comment
+   FROM draft_genome d
+     JOIN sample s ON s.og_id = d.og_id
+     LEFT JOIN draft_fastp f ON f.draft_id = d.draft_id
+     LEFT JOIN draft_genomescope gs ON gs.draft_id = d.draft_id
+     LEFT JOIN draft_tiara ti ON ti.draft_id = d.draft_id
+     LEFT JOIN draft_contamination ct ON ct.draft_id = d.draft_id
+     LEFT JOIN draft_busco b ON b.draft_id = d.draft_id
+     LEFT JOIN draft_merqury mq ON mq.draft_id = d.draft_id
+     LEFT JOIN draft_gfastats gf ON gf.draft_id = d.draft_id
+     LEFT JOIN draft_submission su ON su.draft_id = d.draft_id;;
+
 -- View: public.embargo_assignment_view
 CREATE OR REPLACE VIEW public.embargo_assignment_view AS
  SELECT s.og_id,
@@ -318,25 +435,201 @@ CREATE OR REPLACE VIEW public.lca_validation_report_view AS
           GROUP BY lca.og_id, lca.tech, lca.seq_date, lca.code, lca.annotation) lca_tax ON lca_tax.og_id = lv.og_id AND lca_tax.tech = lv.tech AND lca_tax.seq_date = lv.seq_date AND lca_tax.code = lv.code AND lca_tax.annotation = lv.annotation
      LEFT JOIN sample_view sv ON lv.og_id = sv.og_id_sv;;
 
+-- View: public.mitogenome_data
+CREATE OR REPLACE VIEW public.mitogenome_data AS
+ SELECT s.og_num,
+    a.og_id,
+    s.nominal_species_id,
+    a.tech,
+    a.seq_date,
+    a.code,
+    n.annotation,
+    a.stats,
+    a.length,
+    d.mean_depth,
+    a.avg_coverage,
+    a.avg_base_coverage,
+    d.median_depth,
+    d.depth_sd,
+    d.depth_cv,
+    d.breadth_1x,
+    d.breadth_10x,
+    d.mito_mapped_reads,
+    d.total_reads,
+    d.mito_read_fraction,
+    d.depth_target_length_bp,
+    d.depth_target_fasta,
+    d.depth_method,
+    d.depth_measured_at,
+    q.qc_status,
+    q.manual_review_reason,
+    q.numt_flag,
+    q.frameshift_flag,
+    q.reference_species,
+    q.reference_accession,
+    q.qc_updated_at,
+    n.length_emma,
+    n.cds_no,
+    n.trna_no,
+    n.rrna_no,
+    n.passed,
+    n.completeness_profile,
+    n.missing_genes,
+    n.extra_genes,
+    n.duplicate_loci,
+    n.annotation_gaps,
+    n.trna_advisory,
+    n.order_correct,
+    n.order_status,
+    n.order_variant,
+    n.order_variant_taxon_check,
+    n.order_deviation,
+    n.order_deviation_detail,
+    n.expected_lineage_genes,
+    n.missing_expected_lineage_genes,
+    n.lineage_gene_advisories,
+    n.mitos_unmapped_features,
+    n.mitos_known_auxiliary_features,
+    n.annotation_integrity_status,
+    n.annotation_integrity_issues,
+    n.manual_curation_notes,
+    n.annotation_stats_version,
+    n.annotation_updated_at,
+    g.rrna12s,
+    g.rrna16s,
+    g.atp6,
+    g.atp6_trans,
+    g.atp8,
+    g.atp8_trans,
+    g.cox1,
+    g.cox1_trans,
+    g.cox2,
+    g.cox2_trans,
+    g.cox3,
+    g.cox3_trans,
+    g.cytb,
+    g.cytb_trans,
+    g.nad1,
+    g.nad1_trans,
+    g.nad2,
+    g.nad2_trans,
+    g.nad3,
+    g.nad3_trans,
+    g.nad4,
+    g.nad4_trans,
+    g.nad4l,
+    g.nad4l_trans,
+    g.nad5,
+    g.nad5_trans,
+    g.nad6,
+    g.nad6_trans,
+    g.atp9,
+    g.atp9_trans,
+    g.mtmuts,
+    g.mtmuts_trans,
+    g.trna_phe,
+    g.trna_val,
+    g.trna_leuuag,
+    g.trna_leuuaa,
+    g.trna_ile,
+    g.trna_met,
+    g.trna_thr,
+    g.trna_pro,
+    g.trna_lys,
+    g.trna_asp,
+    g.trna_glu,
+    g.trna_sergcu,
+    g.trna_seruga,
+    g.trna_tyr,
+    g.trna_cys,
+    g.trna_trp,
+    g.trna_ala,
+    g.trna_asn,
+    g.trna_gly,
+    g.trna_arg,
+    g.trna_his,
+    g.trna_gln
+   FROM mito_assembly a
+     JOIN sample s ON s.og_id = a.og_id
+     LEFT JOIN mito_annotation n ON n.assembly_id = a.assembly_id
+     LEFT JOIN mito_assembly_depth d ON d.assembly_id = a.assembly_id
+     LEFT JOIN mito_assembly_qc q ON q.assembly_id = a.assembly_id
+     LEFT JOIN ( SELECT mito_annotation_gene.annotation_id,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'rrna12s'::text) AS rrna12s,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'rrna16s'::text) AS rrna16s,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'atp6'::text) AS atp6,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'atp8'::text) AS atp8,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'cox1'::text) AS cox1,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'cox2'::text) AS cox2,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'cox3'::text) AS cox3,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'cytb'::text) AS cytb,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'nad1'::text) AS nad1,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'nad2'::text) AS nad2,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'nad3'::text) AS nad3,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'nad4'::text) AS nad4,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'nad4l'::text) AS nad4l,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'nad5'::text) AS nad5,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'nad6'::text) AS nad6,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_phe'::text) AS trna_phe,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_val'::text) AS trna_val,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_leuuag'::text) AS trna_leuuag,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_leuuaa'::text) AS trna_leuuaa,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_ile'::text) AS trna_ile,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_met'::text) AS trna_met,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_thr'::text) AS trna_thr,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_pro'::text) AS trna_pro,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_lys'::text) AS trna_lys,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_asp'::text) AS trna_asp,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_glu'::text) AS trna_glu,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_sergcu'::text) AS trna_sergcu,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_seruga'::text) AS trna_seruga,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_tyr'::text) AS trna_tyr,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_cys'::text) AS trna_cys,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_trp'::text) AS trna_trp,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_ala'::text) AS trna_ala,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_asn'::text) AS trna_asn,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_gly'::text) AS trna_gly,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_arg'::text) AS trna_arg,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_his'::text) AS trna_his,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'trna_gln'::text) AS trna_gln,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'atp9'::text) AS atp9,
+            max(mito_annotation_gene.length) FILTER (WHERE mito_annotation_gene.gene = 'mtmuts'::text) AS mtmuts,
+            max(mito_annotation_gene.translated_length) FILTER (WHERE mito_annotation_gene.gene = 'atp6'::text) AS atp6_trans,
+            max(mito_annotation_gene.translated_length) FILTER (WHERE mito_annotation_gene.gene = 'atp8'::text) AS atp8_trans,
+            max(mito_annotation_gene.translated_length) FILTER (WHERE mito_annotation_gene.gene = 'cox1'::text) AS cox1_trans,
+            max(mito_annotation_gene.translated_length) FILTER (WHERE mito_annotation_gene.gene = 'cox2'::text) AS cox2_trans,
+            max(mito_annotation_gene.translated_length) FILTER (WHERE mito_annotation_gene.gene = 'cox3'::text) AS cox3_trans,
+            max(mito_annotation_gene.translated_length) FILTER (WHERE mito_annotation_gene.gene = 'cytb'::text) AS cytb_trans,
+            max(mito_annotation_gene.translated_length) FILTER (WHERE mito_annotation_gene.gene = 'nad1'::text) AS nad1_trans,
+            max(mito_annotation_gene.translated_length) FILTER (WHERE mito_annotation_gene.gene = 'nad2'::text) AS nad2_trans,
+            max(mito_annotation_gene.translated_length) FILTER (WHERE mito_annotation_gene.gene = 'nad3'::text) AS nad3_trans,
+            max(mito_annotation_gene.translated_length) FILTER (WHERE mito_annotation_gene.gene = 'nad4'::text) AS nad4_trans,
+            max(mito_annotation_gene.translated_length) FILTER (WHERE mito_annotation_gene.gene = 'nad4l'::text) AS nad4l_trans,
+            max(mito_annotation_gene.translated_length) FILTER (WHERE mito_annotation_gene.gene = 'nad5'::text) AS nad5_trans,
+            max(mito_annotation_gene.translated_length) FILTER (WHERE mito_annotation_gene.gene = 'nad6'::text) AS nad6_trans,
+            max(mito_annotation_gene.translated_length) FILTER (WHERE mito_annotation_gene.gene = 'atp9'::text) AS atp9_trans,
+            max(mito_annotation_gene.translated_length) FILTER (WHERE mito_annotation_gene.gene = 'mtmuts'::text) AS mtmuts_trans
+           FROM mito_annotation_gene
+          GROUP BY mito_annotation_gene.annotation_id) g ON g.annotation_id = n.annotation_id;;
+
 -- View: public.mitogenome_submission_view
 CREATE OR REPLACE VIEW public.mitogenome_submission_view AS
  SELECT s.og_num,
-    m.og_id,
-    m.tech,
-    m.seq_date,
-    m.code,
-    m.annotation,
-    m.stats,
-    m.length,
-    m.length_emma,
-    m.cds_no,
-    m.trna_no,
-    m.rrna_no,
-    m.avg_coverage,
-    m.avg_base_coverage,
-    m.extra_genes,
-    m.missing_genes,
-    m.order_correct,
+    a.og_id,
+    s.nominal_species_id,
+    a.tech,
+    a.seq_date,
+    a.code,
+    n.annotation,
+    a.stats,
+    a.length,
+    n.length_emma,
+    n.cds_no,
+    n.trna_no,
+    n.rrna_no,
+    n.missing_genes,
+    n.extra_genes,
+    n.order_correct,
     e.table2asn_status,
     e.warning_codes,
     e.webin_status,
@@ -344,10 +637,11 @@ CREATE OR REPLACE VIEW public.mitogenome_submission_view AS
     e.submission_ready,
     l.validated_species_name,
     l.validator
-   FROM mitogenome_data m
-     LEFT JOIN sample s ON s.og_id = m.og_id
-     LEFT JOIN ena_validation_attempts e ON e.og_id = m.og_id AND e.tech = m.tech AND e.seq_date = m.seq_date AND e.code = m.code AND e.annotation = m.annotation
-     LEFT JOIN lca_validation l ON l.og_id = m.og_id AND l.tech = m.tech AND l.seq_date = m.seq_date AND l.code = m.code AND l.annotation = m.annotation;;
+   FROM mito_assembly a
+     JOIN sample s ON s.og_id = a.og_id
+     LEFT JOIN mito_annotation n ON n.assembly_id = a.assembly_id
+     LEFT JOIN ena_validation_attempts e ON e.og_id = a.og_id AND e.tech = a.tech AND e.seq_date = a.seq_date AND e.code = a.code AND e.annotation = n.annotation
+     LEFT JOIN lca_validation l ON l.og_id = a.og_id AND l.tech = a.tech AND l.seq_date = a.seq_date AND l.code = a.code AND l.annotation = n.annotation;;
 
 -- View: public.sample_view
 CREATE OR REPLACE VIEW public.sample_view AS
@@ -520,23 +814,58 @@ CREATE OR REPLACE VIEW public.v_dna_extraction_browse AS
      JOIN tissue t ON t.tissue_id = d.tissue_id
      JOIN sample s ON s.og_id = t.og_id;;
 
+-- View: public.v_draft_genome_status
+CREATE OR REPLACE VIEW public.v_draft_genome_status AS
+ SELECT d.og_num,
+    d.og_id,
+    s.nominal_species_id,
+    d.seq_date,
+    d.mach,
+    r.n_runs > 0 AS has_run_link,
+    f.draft_id IS NOT NULL AS has_fastp,
+    gs.draft_id IS NOT NULL AS has_genomescope,
+    gs.output_set AS genomescope_output_set,
+    ti.draft_id IS NOT NULL AS has_tiara,
+    ct.draft_id IS NOT NULL AS has_contamination,
+    b.draft_id IS NOT NULL AS has_busco,
+    mq.draft_id IS NOT NULL AS has_merqury,
+    gf.draft_id IS NOT NULL AS has_gfastats,
+    su.draft_id IS NOT NULL AS has_submission,
+    num_nonnulls(f.draft_id, gs.draft_id, ti.draft_id, ct.draft_id, b.draft_id, mq.draft_id, gf.draft_id) AS processes_done,
+    f.draft_id IS NOT NULL AND num_nonnulls(gs.draft_id, ti.draft_id, ct.draft_id, b.draft_id, mq.draft_id, gf.draft_id) = 0 AS reads_only
+   FROM draft_genome d
+     JOIN sample s ON s.og_id = d.og_id
+     LEFT JOIN LATERAL ( SELECT count(*) AS n_runs
+           FROM draft_genome_run x
+          WHERE x.draft_id = d.draft_id) r ON true
+     LEFT JOIN draft_fastp f ON f.draft_id = d.draft_id
+     LEFT JOIN draft_genomescope gs ON gs.draft_id = d.draft_id
+     LEFT JOIN draft_tiara ti ON ti.draft_id = d.draft_id
+     LEFT JOIN draft_contamination ct ON ct.draft_id = d.draft_id
+     LEFT JOIN draft_busco b ON b.draft_id = d.draft_id
+     LEFT JOIN draft_merqury mq ON mq.draft_id = d.draft_id
+     LEFT JOIN draft_gfastats gf ON gf.draft_id = d.draft_id
+     LEFT JOIN draft_submission su ON su.draft_id = d.draft_id;;
+
 -- View: public.v_genome_size_comparison
 CREATE OR REPLACE VIEW public.v_genome_size_comparison AS
- SELECT d.og_id,
-    d.seq_date,
+ SELECT s.og_num,
+    d.og_id,
     sp.species,
     sp.ncbi_taxon_id,
-    d.genomesize AS estimated_bp,
+    d.seq_date,
+    gs.genomesize AS estimated_bp,
     a.total_sequence_length AS ncbi_bp,
         CASE
-            WHEN a.total_sequence_length > 0 THEN round(d.genomesize::numeric / a.total_sequence_length::numeric, 3)
+            WHEN a.total_sequence_length > 0 THEN round(gs.genomesize::numeric / a.total_sequence_length::numeric, 3)
             ELSE NULL::numeric
         END AS estimated_over_ncbi,
     a.assembly_accession,
     a.assembly_level,
     a.is_refseq,
     a.is_representative
-   FROM draft_genomes d
+   FROM draft_genome d
+     LEFT JOIN draft_genomescope gs ON gs.draft_id = d.draft_id
      JOIN sample s ON s.og_id = d.og_id
      JOIN species sp ON s.nominal_species_id = sp.species
      LEFT JOIN species_ncbi_assembly a ON a.species = sp.species AND a.is_chosen;;
@@ -642,6 +971,77 @@ CREATE OR REPLACE VIEW public.v_library_browse AS
      LEFT JOIN hic_lysate y ON y.lysate_id = l.lysate_id
      JOIN tissue t ON t.tissue_id = COALESCE(d.tissue_id, r.tissue_id, y.tissue_id)
      JOIN sample s ON s.og_id = t.og_id;;
+
+-- View: public.v_mito_annotation_genes
+CREATE OR REPLACE VIEW public.v_mito_annotation_genes AS
+ SELECT s.og_num,
+    a.og_id,
+    s.nominal_species_id,
+    a.tech,
+    a.seq_date,
+    a.code,
+    n.annotation,
+    n.annotation_id,
+    n.is_selected,
+    max(g.length) FILTER (WHERE g.gene = 'rrna12s'::text) AS rrna12s,
+    max(g.length) FILTER (WHERE g.gene = 'rrna16s'::text) AS rrna16s,
+    max(g.length) FILTER (WHERE g.gene = 'atp6'::text) AS atp6,
+    max(g.translated_length) FILTER (WHERE g.gene = 'atp6'::text) AS atp6_trans,
+    max(g.length) FILTER (WHERE g.gene = 'atp8'::text) AS atp8,
+    max(g.translated_length) FILTER (WHERE g.gene = 'atp8'::text) AS atp8_trans,
+    max(g.length) FILTER (WHERE g.gene = 'cox1'::text) AS cox1,
+    max(g.translated_length) FILTER (WHERE g.gene = 'cox1'::text) AS cox1_trans,
+    max(g.length) FILTER (WHERE g.gene = 'cox2'::text) AS cox2,
+    max(g.translated_length) FILTER (WHERE g.gene = 'cox2'::text) AS cox2_trans,
+    max(g.length) FILTER (WHERE g.gene = 'cox3'::text) AS cox3,
+    max(g.translated_length) FILTER (WHERE g.gene = 'cox3'::text) AS cox3_trans,
+    max(g.length) FILTER (WHERE g.gene = 'cytb'::text) AS cytb,
+    max(g.translated_length) FILTER (WHERE g.gene = 'cytb'::text) AS cytb_trans,
+    max(g.length) FILTER (WHERE g.gene = 'nad1'::text) AS nad1,
+    max(g.translated_length) FILTER (WHERE g.gene = 'nad1'::text) AS nad1_trans,
+    max(g.length) FILTER (WHERE g.gene = 'nad2'::text) AS nad2,
+    max(g.translated_length) FILTER (WHERE g.gene = 'nad2'::text) AS nad2_trans,
+    max(g.length) FILTER (WHERE g.gene = 'nad3'::text) AS nad3,
+    max(g.translated_length) FILTER (WHERE g.gene = 'nad3'::text) AS nad3_trans,
+    max(g.length) FILTER (WHERE g.gene = 'nad4'::text) AS nad4,
+    max(g.translated_length) FILTER (WHERE g.gene = 'nad4'::text) AS nad4_trans,
+    max(g.length) FILTER (WHERE g.gene = 'nad4l'::text) AS nad4l,
+    max(g.translated_length) FILTER (WHERE g.gene = 'nad4l'::text) AS nad4l_trans,
+    max(g.length) FILTER (WHERE g.gene = 'nad5'::text) AS nad5,
+    max(g.translated_length) FILTER (WHERE g.gene = 'nad5'::text) AS nad5_trans,
+    max(g.length) FILTER (WHERE g.gene = 'nad6'::text) AS nad6,
+    max(g.translated_length) FILTER (WHERE g.gene = 'nad6'::text) AS nad6_trans,
+    max(g.length) FILTER (WHERE g.gene = 'atp9'::text) AS atp9,
+    max(g.translated_length) FILTER (WHERE g.gene = 'atp9'::text) AS atp9_trans,
+    max(g.length) FILTER (WHERE g.gene = 'mtmuts'::text) AS mtmuts,
+    max(g.translated_length) FILTER (WHERE g.gene = 'mtmuts'::text) AS mtmuts_trans,
+    max(g.length) FILTER (WHERE g.gene = 'trna_phe'::text) AS trna_phe,
+    max(g.length) FILTER (WHERE g.gene = 'trna_val'::text) AS trna_val,
+    max(g.length) FILTER (WHERE g.gene = 'trna_leuuag'::text) AS trna_leuuag,
+    max(g.length) FILTER (WHERE g.gene = 'trna_leuuaa'::text) AS trna_leuuaa,
+    max(g.length) FILTER (WHERE g.gene = 'trna_ile'::text) AS trna_ile,
+    max(g.length) FILTER (WHERE g.gene = 'trna_met'::text) AS trna_met,
+    max(g.length) FILTER (WHERE g.gene = 'trna_thr'::text) AS trna_thr,
+    max(g.length) FILTER (WHERE g.gene = 'trna_pro'::text) AS trna_pro,
+    max(g.length) FILTER (WHERE g.gene = 'trna_lys'::text) AS trna_lys,
+    max(g.length) FILTER (WHERE g.gene = 'trna_asp'::text) AS trna_asp,
+    max(g.length) FILTER (WHERE g.gene = 'trna_glu'::text) AS trna_glu,
+    max(g.length) FILTER (WHERE g.gene = 'trna_sergcu'::text) AS trna_sergcu,
+    max(g.length) FILTER (WHERE g.gene = 'trna_seruga'::text) AS trna_seruga,
+    max(g.length) FILTER (WHERE g.gene = 'trna_tyr'::text) AS trna_tyr,
+    max(g.length) FILTER (WHERE g.gene = 'trna_cys'::text) AS trna_cys,
+    max(g.length) FILTER (WHERE g.gene = 'trna_trp'::text) AS trna_trp,
+    max(g.length) FILTER (WHERE g.gene = 'trna_ala'::text) AS trna_ala,
+    max(g.length) FILTER (WHERE g.gene = 'trna_asn'::text) AS trna_asn,
+    max(g.length) FILTER (WHERE g.gene = 'trna_gly'::text) AS trna_gly,
+    max(g.length) FILTER (WHERE g.gene = 'trna_arg'::text) AS trna_arg,
+    max(g.length) FILTER (WHERE g.gene = 'trna_his'::text) AS trna_his,
+    max(g.length) FILTER (WHERE g.gene = 'trna_gln'::text) AS trna_gln
+   FROM mito_annotation n
+     JOIN mito_assembly a ON a.assembly_id = n.assembly_id
+     JOIN sample s ON s.og_id = a.og_id
+     LEFT JOIN mito_annotation_gene g ON g.annotation_id = n.annotation_id
+  GROUP BY s.og_num, a.og_id, s.nominal_species_id, a.tech, a.seq_date, a.code, n.annotation, n.annotation_id, n.is_selected;;
 
 -- View: public.v_ont_library_browse
 CREATE OR REPLACE VIEW public.v_ont_library_browse AS
@@ -828,6 +1228,51 @@ CREATE OR REPLACE VIEW public.v_sequencing_browse AS
     q.seq_comments
    FROM sequencing q
      JOIN v_library_browse b ON b.library_tube_id = q.library_tube_id;;
+
+-- View: public.v_sequencing_run_fk_readiness
+CREATE OR REPLACE VIEW public.v_sequencing_run_fk_readiness AS
+ SELECT 'sequencing'::text AS child,
+    count(*) AS child_rows,
+    count(*) FILTER (WHERE c.run_id IS NOT NULL AND r.run_id IS NULL) AS failing_rows,
+    string_agg(DISTINCT c.run_id, ', '::text) FILTER (WHERE c.run_id IS NOT NULL AND r.run_id IS NULL) AS failing_run_ids
+   FROM sequencing c
+     LEFT JOIN sequencing_run r ON r.run_id = c.run_id
+UNION ALL
+ SELECT 'raw_data'::text AS child,
+    count(*) AS child_rows,
+    count(*) FILTER (WHERE c.run_id IS NOT NULL AND r.run_id IS NULL) AS failing_rows,
+    string_agg(DISTINCT c.run_id, ', '::text) FILTER (WHERE c.run_id IS NOT NULL AND r.run_id IS NULL) AS failing_run_ids
+   FROM raw_data c
+     LEFT JOIN sequencing_run r ON r.run_id = c.run_id
+UNION ALL
+ SELECT 'hifi_reads_qc'::text AS child,
+    count(*) AS child_rows,
+    count(*) FILTER (WHERE c.run_id IS NOT NULL AND r.run_id IS NULL) AS failing_rows,
+    string_agg(DISTINCT c.run_id, ', '::text) FILTER (WHERE c.run_id IS NOT NULL AND r.run_id IS NULL) AS failing_run_ids
+   FROM hifi_reads_qc c
+     LEFT JOIN sequencing_run r ON r.run_id = c.run_id
+UNION ALL
+ SELECT 'hic_reads_qc'::text AS child,
+    count(*) AS child_rows,
+    count(*) FILTER (WHERE c.run_id IS NOT NULL AND r.run_id IS NULL) AS failing_rows,
+    string_agg(DISTINCT c.run_id, ', '::text) FILTER (WHERE c.run_id IS NOT NULL AND r.run_id IS NULL) AS failing_run_ids
+   FROM hic_reads_qc c
+     LEFT JOIN sequencing_run r ON r.run_id = c.run_id;;
+
+-- View: public.v_sequencing_run_issues
+CREATE OR REPLACE VIEW public.v_sequencing_run_issues AS
+ SELECT r.run_id,
+    r.mach IS NULL AS run_id_unparsed,
+    r.instrument IS NULL AS instrument_disagrees_or_missing,
+    r.run_date IS NULL AS run_date_disagrees_or_missing,
+    ( SELECT string_agg(DISTINCT COALESCE(s.instrument, '(null)'::text), ', '::text) AS string_agg
+           FROM sequencing s
+          WHERE s.run_id = r.run_id) AS instruments,
+    ( SELECT string_agg(DISTINCT COALESCE(s.run_date::text, '(null)'::text), ', '::text) AS string_agg
+           FROM sequencing s
+          WHERE s.run_id = r.run_id) AS run_dates
+   FROM sequencing_run r
+  WHERE r.mach IS NULL OR r.instrument IS NULL OR r.run_date IS NULL;;
 
 -- View: public.v_tissue_browse
 CREATE OR REPLACE VIEW public.v_tissue_browse AS
