@@ -158,4 +158,55 @@ Owner decision: genome size only, not the full GENOME_QC. Plan in the session pl
 - **The refit rule:** `GENOMESCOPE_RESEED` keeps a refit only if its model fit gains at least 2 points. On OG2328 and OG2334 the refit landed near the host assembly size but fitted worse, so it was rejected.
 - **Open question for the owner:** whether a refit that agrees with the host assembly should win despite a lower fit. That is a change to the reseed rule, and would apply to new runs too.
 
-**Full lists:** not run yet; the live write for about 540 drafts waits for the owner's go-ahead.
+### The second refit route (owner decision, 2026-11-02)
+
+The owner chose to add a second way for a refit to win, on condition that the assembly plays no part in the decision. Thresholds were set from a sweep, not guessed:
+
+1. **Collect.** The genome-size mode ran over all 544 drafts with uploads off. `sweep_collect.py` gathered every attempted refit from the work dirs (129 from the suspects, 39 from the rest), with the original and refit kmercov, both fit scores and heterozygosity.
+2. **Score.** `sweep_score.py` scored rule variants by whether the kept size moved closer to `host_haploid_size`. The host size is used only to score rules, never to make the decision.
+   - **Current rule:** kept 3 of 129.
+   - **Chosen second route:** kmercov within 15% of lambda; original heterozygosity above 5% and refit at or below 8%; `model_fit_allkmers` loss at most 10 points; refit `model_fit_full` at least 50. It kept about 50 more, all but one closer to the host.
+   - **Looser limits:** past a 10-point allkmers loss, refits start overshooting (OG1987 1.8×, OG1709 1.8×).
+3. **Unseen data.** The 39 refits among the rest, drafts whose fit already agreed with depth, were not used to set thresholds. The new route accepted none of them.
+
+**Why `model_fit_full` is not compared on this route:**
+- It is scored over each model's own coverage range, so a fit at half the kmercov is scored over a noisier stretch.
+- `model_fit_allkmers` covers the same k-mers for both fits.
+
+**Implemented** on `r6-genome-size-only` (`ec182ef`):
+- **Code:** `choose_reseeded_fit` in `bin/genomescope_reliability.py`, with the reasoning in its docstring.
+- **Parameters:** `genomescope_reseed_max_lambda_offset`, `_max_allkmers_loss`, `_min_original_het`, `_max_reseeded_het`.
+- **Tests:** 7 new, from sweep cases. The suite passes (180).
+
+### Full run (2026-11-02, uploads on)
+
+**What ran:**
+- `suspects.tsv`, `rest.tsv`, and the 46 drafts of 260331 once their depth re-run finished. 260331 has its own snapshot: `docs/records/genome_size_before_a6_260331.csv`.
+- **Interruption:** Slurm cancelled about 20 jobs (`CANCELLED by 0`, root) at 11:29–11:35 AWST. Nextflow kept them as running, so the run was stopped and resumed. Only the cancelled tasks re-ran.
+
+**On live, against the snapshot:**
+
+| | Suspects (183) | Rest (359) | 260331 (46) |
+|---|---:|---:|---:|
+| Reliable | 10 | 320 | 41 |
+| Unreliable | 173 | 39 | 5 |
+| Refit kept | 56 | 0 | 0 |
+| `genomesize` changed | 56 (55 closer to host) | 0 | 0 |
+
+**Other effects:**
+- No depth or host column changed on any row.
+- OG1736's stored `genomesize` of 0 is now NULL; GenomeScope gives no finite size for it.
+- The GenomeScope percentages were re-read at full precision.
+
+**Refits that won but stay unreliable.** 55 of the 56 still carry `genome_size_reliable = false`:
+- `degenerate_model_fit` (52): the heterozygosity lower bound collapses to 0. The size range itself is tight, e.g. OG2328 543–612 Mb.
+- `no_kmer_peak` (29): about 10x data has no distinct k-mer peak.
+
+Both are deliberate checks in the gate. These drafts now store a much better size (median 1.28× host, against about 0.5× before) and are honestly flagged. Whether `degenerate_model_fit` should judge the size when only the heterozygosity bound collapses is a separate question for the owner.
+
+**Coverage after the run:** every assembled draft from 250606 to 260925 with a measured depth has a verdict. Only OG1724 (no GenomeScope files) and OG1841 (too few BUSCO regions) have none. `check_draft()` shows the 588 rows until the 18:30 UTC `sync_v3`.
+
+**Not yet done:**
+- merge `r6-genome-size-only` to `master` and `phase-r-v3`;
+- re-run 260909 under the new rule (it ran under the old one: 0 refits kept);
+- archive results to Acacia; the owner clears `depth_only/stage/`.
