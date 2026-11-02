@@ -1,7 +1,7 @@
 # Phase RG.6 plan — move `v4` into `public`
 
 Status: **plan, 2026-11-02.** Nothing here has run. Source: `docs/ref_genomes_runbook_rg0_rg5.md`
-("Gate for RG.6"). RG.0–RG.5 and migrations `057`–`065` and `069`–`070` built and filled `v4`; this is
+("Gate for RG.6"). RG.0–RG.5 and migrations `057`–`065` and `069`–`071` built and filled `v4`; this is
 the swap that makes it the reference-genome schema of record.
 
 ## Where things stand
@@ -11,10 +11,11 @@ the swap that makes it the reference-genome schema of record.
 
 - **17 nightly syncs clean** since `062`; no `sync_v4` failure marker.
 - **Tables:** `ref_assembly` / `ref_assembly_part` / `ref_assembly_run` and seven per-tool tables; read
-  sets (`ref_read_set`, `ref_read_set_run`, `ref_genomescope`, `ref_hifi_adapter_filter`); read QC
+  sets (`ref_read_set`, `ref_read_set_run`, `ref_read_set_external`, `ref_genomescope`, `ref_hifi_adapter_filter`); read QC
   (`hifi_read_qc`, `hic_read_qc`); submissions (`ref_submission`, `ref_submission_haplotype`,
   `ref_sra_upload`, `ref_sra_upload_run`, `ref_sra_upload_unlinked`).
-- **Links:** 244 of 248 read sets dated, 290 of 304 SRA uploads linked, 166 of 174 submitted haplotypes
+- **Links:** 244 of 248 read sets dated (all 248 once `071` is applied: OG906 recorded as external
+  reads, OG763 dated but waiting for its DNA row), 290 of 304 SRA uploads linked, 166 of 174 submitted haplotypes
   tied to their curated part, no link to a failed run.
 - **Compatibility views** under the old names (`ref_genomes`, `raw_qc`, `hifi_reads_qc`, `hic_reads_qc`,
   `ref_genomes_assembly_uploads`, `ref_genomes_sra_uploads`, `coverage_summary`, `goat_species_v1`)
@@ -29,22 +30,23 @@ RG.6 runs when every row below is done. The middle column is what is still open.
 | # | Gate item | Open on 2026-11-02 | Who |
 |---|---|---|---|
 | G1 | The nightly sync clean for a period the owner chooses | 17 nights so far; **owner to set the period** | owner |
-| G2 | Every writer of the six replaced objects ported | **Two not ported** (below) | Claude, then their owners |
+| G2 | Every writer of the six replaced objects ported | **One not ported:** `push_hic_yield.py` ported 2026-11-02, the GCA resolver waits for its repo (below) | Claude, then their owners |
 | G3 | Every reader checked against `search_path=v4,public` | **OceanGenom_Web unchecked** (code not on this host) | web app owner |
-| G4 | Undated read sets dated or removed | **4:** OG763, OG906 (no PacBio row; OG906's reads are external `SSB/SSC` cells), OG781, OG845 (two runs each, no deciding evidence) | owner |
+| G4 | Undated read sets dated or removed | **`071` written and rehearsed, not applied.** Owner, 2026-11-02: OG906 250212 external (`SSB/SSC` cells, supplier unknown), OG845 241023, OG781 260421, OG763 251117 (its DNA row on `PACB_251117_LAAMD` is missing from the workbook) | owner applies |
 | G5 | R.6 and RG.6 ordered | **Decision needed** (below) | owner |
 | G6 | `check_drift.py` and `--verify` clean apart from the colleague's known drift | Clean | — |
 | G7 | A rehearsal on a restore of live, as RG.5 | Not yet | Claude |
 
-### G2: the two writers not yet ported
+### G2: the two writers that write the replaced tables
 
 | Writer | Writes today | After RG.6 it writes | Notes |
 |---|---|---|---|
 | `OcOm_B219` `scripts/resolve_gca_accessions.py` (each quarterly report) | `UPDATE ref_genomes_assembly_uploads SET gca_accession_hapN` | `ref_submission_haplotype.gca_accession`, as `ENA-ref-genomes` step 10 already does | Found 2026-10-20 (RG.0 §5); RG.5 noted it, nothing ported. Not cloned on this host |
-| `ref_genomes_hic_automation` `push_hic_yield.py`, from `poll-hic-multiqc.py` | `INSERT … ON CONFLICT DO NOTHING` into `hic_reads_qc`, per lane | `hic_read_qc`, with `sequencing_id` resolved as the sync does | Found 2026-10-28 (revision 3.28). Insert-only; columns match |
+| `ref_genomes_hic_automation` `push_hic_yield.py`, from `poll-hic-multiqc.py` | `INSERT … ON CONFLICT DO NOTHING` into `hic_reads_qc`, per lane | `hic_read_qc`, with `sequencing_id` resolved as the sync does | **Ported** 2026-11-02, branch `phase-rg-v4` (`4180383`, local; the repo is LaurenHuet's). Also fixes a per-row `rollback()` that dropped earlier rows. Tested on a restore: 30 rows equal, sync no-op |
 
-Both would fail on the swap day with `cannot insert into view` / `cannot update view`: loud, not
-silent, but the quarterly report and the Hi-C poll would stop until fixed.
+Unported, each fails on the swap day with `cannot insert into view` / `cannot update view`: loud, not
+silent, but the quarterly report or the Hi-C poll stops until fixed. The other scripts in
+`ref_genomes_hic_automation` only read `ref_genomes` and `hic_reads_qc`, which stay as views.
 
 ### G5: R.6 first, or RG.6 first
 
@@ -77,7 +79,7 @@ deploy the same day, so there is no window for an old writer to write into a vie
    archive); nothing live does.
 4. **Move `v4` into `public`:** every table, sequence, compatibility view, readiness and status view,
    and the functions that outlive the window (`ref_assembly_run_genomic_only`,
-   `ref_read_set_run_pacbio_only`, `ref_submission_haplotype_assembly`,
+   `ref_read_set_run_pacbio_only`, `ref_read_set_external_exclusive`, `ref_submission_haplotype_assembly`,
    `ref_submission_assembly_to_haplotypes`, `resolve_sra_upload_runs`).
 5. **Rewrite what binds to `v4` by text:**
    - the two haplotype triggers (`070`) name `v4.ref_submission` / `v4.ref_submission_haplotype` in
@@ -143,8 +145,9 @@ As RG.5, on a restore of live taken the morning of:
 ## Decisions needed from the owner
 
 1. **G1:** how many clean nights before the swap.
-2. **G4:** OG763, OG906, OG781, OG845: date (which run?) or remove each read set.
+2. **G4:** decided 2026-11-02 (`071`); apply it. Still open: who supplied OG906's SSB/SSC cells, and
+   the lab adds OG763's DNA row.
 3. **G5:** R.6 first (recommended) or RG.6 first.
-4. **G2:** who ports `OcOm_B219`'s resolver and `push_hic_yield.py`; Claude can write both ports if the
-   repos are cloned here.
+4. **G2:** `OcOm_B219`'s resolver: Claude ports it once the repo is cloned here (owner fetching it).
+   `push_hic_yield.py`: ported; its owner merges it on the swap day.
 5. **G3:** who checks OceanGenom_Web's queries against `search_path=v4,public`.
