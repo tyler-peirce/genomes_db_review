@@ -14,8 +14,8 @@ the swap that makes it the reference-genome schema of record.
   sets (`ref_read_set`, `ref_read_set_run`, `ref_read_set_external`, `ref_genomescope`, `ref_hifi_adapter_filter`); read QC
   (`hifi_read_qc`, `hic_read_qc`); submissions (`ref_submission`, `ref_submission_haplotype`,
   `ref_sra_upload`, `ref_sra_upload_run`, `ref_sra_upload_unlinked`).
-- **Links:** 244 of 248 read sets dated (all 248 once `071` is applied: OG906 recorded as external
-  reads, OG763 dated but waiting for its DNA row), 290 of 304 SRA uploads linked, 166 of 174 submitted haplotypes
+- **Links:** 248 of 248 read sets dated (`071`: OG906 recorded as external reads; OG763 dated, waiting
+  for its DNA row), 290 of 304 SRA uploads linked, 166 of 174 submitted haplotypes
   tied to their curated part, no link to a failed run.
 - **Compatibility views** under the old names (`ref_genomes`, `raw_qc`, `hifi_reads_qc`, `hic_reads_qc`,
   `ref_genomes_assembly_uploads`, `ref_genomes_sra_uploads`, `coverage_summary`, `goat_species_v1`)
@@ -32,7 +32,7 @@ RG.6 runs when every row below is done. The middle column is what is still open.
 | G1 | The nightly sync clean for a period the owner chooses | 17 nights so far; **owner to set the period** | owner |
 | G2 | Every writer of the six replaced objects ported | Done, bar one left out: `push_hic_yield.py` ported 2026-11-02; `OcOm_B219`'s GCA resolver **left to its maintainer** (owner, 2026-11-02) | — |
 | G3 | Every reader checked against `search_path=v4,public` | **OceanGenom_Web unchecked** (code not on this host) | web app owner |
-| G4 | Undated read sets dated or removed | **`071` written and rehearsed, not applied.** Owner, 2026-11-02: OG906 250212 external (`SSB/SSC` cells, supplier unknown), OG845 241023, OG781 260421, OG763 251117 (its DNA row on `PACB_251117_LAAMD` is missing from the workbook) | owner applies |
+| G4 | Undated read sets dated or removed | **Done: `071` applied 2026-11-02.** Owner's dates: OG906 250212 external (`SSB/SSC` cells, supplier unknown), OG845 241023, OG781 260421, OG763 251117 (its DNA row on `PACB_251117_LAAMD` is missing from the workbook) | — |
 | G5 | R.6 and RG.6 ordered | **Decision needed** (below) | owner |
 | G6 | `check_drift.py` and `--verify` clean apart from the colleague's known drift | Clean | — |
 | G7 | A rehearsal on a restore of live, as RG.5 | Not yet | Claude |
@@ -145,7 +145,7 @@ As RG.5, on a restore of live taken the morning of:
 ## Decisions needed from the owner
 
 1. **G1:** how many clean nights before the swap.
-2. **G4:** decided 2026-11-02 (`071`); apply it. Still open: who supplied OG906's SSB/SSC cells, and
+2. **G4:** done (`071`, applied 2026-11-02). Still open: who supplied OG906's SSB/SSC cells, and
    the lab adds OG763's DNA row.
 3. **G5:** R.6 first (recommended) or RG.6 first.
 4. **G2:** decided. `OcOm_B219`'s resolver is left to its maintainer; `push_hic_yield.py` is ported
