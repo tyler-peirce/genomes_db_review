@@ -123,3 +123,39 @@ None of these drafts has a `genome_size_reliable` verdict, because that check ru
 | Step 00 samplesheet query | 1,697 rows each; no column differs |
 
 The local checkout was put back on `main`, because this host runs the production steps.
+
+## A.6 genome-size re-run (2026-11-02)
+
+Owner decision: genome size only, not the full GENOME_QC. Plan in the session plan file. Draft pipeline branch `r6-genome-size-only` (`cd82ffd`, pushed, not merged), run from a worktree on Setonix (`…/OceanOmics-OceanGenomes-Draft-Genomes-gsize`), so the production clone stays on `master`.
+
+**What it runs:** `-entry GENOME_SIZE_ONLY` runs `CALCULATE_SEQUENCING_COVERAGE` → `GENOMESCOPE_RESEED` → `RECHECK_GENOME_SIZE` unchanged on archived files, then uploads through `PUSH_ASSEMBLY_RESULTS`. No BAM or assembly is needed. Launcher: `scripts/genome_size_only/run_genome_size_only.sh`. Lists: `suspects.tsv` (183), `rest.tsv` (361), `test_four.tsv`.
+
+**Snapshot before any upload:** `docs/records/genome_size_before_a6.csv`, the 544 in-scope drafts, every column the upload can touch.
+
+**Found on the way:** depth-only published every draft's seqkit stats as `null.seqkit_stats.tsv`, because its meta had no `assembly_prefix`.
+- **Fixed** on the branch.
+- **No harm done:** no OG had two drafts in the run, and the contents were each draft's own.
+- **The launcher** accepts the old file only if it names the draft's assembly.
+
+### Tests
+
+| Draft | Measured depth (`lambda_depth`) | Reseed | Verdict | `genomesize` |
+|---|---:|---|---|---|
+| OG1704 (control) | 30.2 | not attempted (not flagged) | reliable | unchanged, 652 Mb |
+| OG1076 | 4.9 | not attempted: below the 5x seedable minimum | unreliable: disagrees with assembly and read depth, host coverage too low | unchanged, 364 Mb |
+| OG2343 | 4.1 | not attempted | unreliable: also no k-mer peak | unchanged, 49 Mb |
+| OG1867 | 2.4 | not attempted | unreliable: six flags | unchanged, 115 Mb |
+| OG2328 (no upload) | 9.9 | **refit rejected**: 612 Mb, but model fit −9.1 points | unreliable | would stay 251 Mb (host 501 Mb) |
+| OG2334 (no upload) | 7.9 | **refit rejected**: 573 Mb, model fit −17.5 | unreliable | would stay 211 Mb (host 472 Mb) |
+
+**Uploaded for the test four.** Diff against the snapshot:
+- **Unchanged:** `genomesize`, and the depth and host columns.
+- **New:** `genome_size_reliable`, `genome_size_flags`, `kmercov`, `genomescope_fit` and the `_min` bounds.
+- **Re-read at full precision:** the GenomeScope percentages; the old loader had rounded them to 2 dp.
+
+**What the run can and cannot fix.** For these older drafts the re-run mostly adds a verdict rather than correcting the size:
+- **Low coverage:** below 5x measured depth there is nothing to refit.
+- **The refit rule:** `GENOMESCOPE_RESEED` keeps a refit only if its model fit gains at least 2 points. On OG2328 and OG2334 the refit landed near the host assembly size but fitted worse, so it was rejected.
+- **Open question for the owner:** whether a refit that agrees with the host assembly should win despite a lower fit. That is a change to the reseed rule, and would apply to new runs too.
+
+**Full lists:** not run yet; the live write for about 540 drafts waits for the owner's go-ahead.
