@@ -1162,7 +1162,10 @@ move every `v3` object into `public`, rebuild the dependent views, drop the old 
 into. Post-check: the next pipeline runs write the new tables, an old writer fails loudly on
 "cannot insert into view", and no `public` view depends on a `pre_v3_archive` table.
 
-### R.7 — Re-parent the LCA and ENA children; FKs to `sequencing_run` (`058`, `059`)
+### R.7 — Re-parent the LCA and ENA children; FKs to `sequencing_run` (`074`, `075`, done 2026-11-02)
+
+**Done:** [`r7_record.md`](r7_record.md). Items 1 and 2 below landed as `074` (with a trigger that fills `annotation_id`, so writers are unchanged) and `075` (which also restores `sequencing_run` upkeep, lost when `072` dropped the window sync). Item 3 is R.7b.
+
 
 1. **`058`:** add `annotation_id`, backfill it (proved in R.2.4), then `SET NOT NULL` on the
    four LCA tables and both ENA tables. Add each FK `NOT VALID`, then `VALIDATE`.

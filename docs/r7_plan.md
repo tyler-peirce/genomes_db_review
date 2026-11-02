@@ -1,6 +1,6 @@
 # R.7 plan — re-parent the mito child tables onto `mito_annotation`; FKs to `sequencing_run`
 
-Status: **plan, approved 2026-11-02; not run.** Waits for RG.6 to land (migration numbers `07A`/`07B` are placeholders). Earlier plans: `docs/r6_merge_plan.md` (R.6, done), `docs/r6_gate_plan.md`.
+Status: **done 2026-11-02** as `074` and `075` (record: [`r7_record.md`](r7_record.md); `075` also restores `sequencing_run` upkeep, which R.6 had dropped). Earlier plans: `docs/r6_merge_plan.md` (R.6, done), `docs/r6_gate_plan.md`.
 
 ## Context
 
