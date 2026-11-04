@@ -1651,8 +1651,8 @@ All four are done. The follow-ons each item left behind are listed with their pa
 8. Add import-time species validation on `sample.nominal_species_id`.
 9. ~~Capture the `data_package_*` subsystem in a migration and the data dictionary.~~ **Moot 2026-10-05** — the subsystem was abandoned and dropped (`031`) rather than documented.
 10. Strip dead `status_overwrite` logic from `summary` and rebuild or materialise it — less acute after `030`, but 2.0 s is still structural.
-11. **Before R.6: put the draft host and depth columns in `v3`, and branch `ENA-draft-genomes`** (Finding 17, recommendations 1–3). `host_haploid_size` and `partition_confidence` have a live writer, with 261 rows, but no `v3` column. `ENA-draft-genomes` step 00 reads `scdepth`, which the views no longer show. Steps 06 and 07 still update `draft_genomes`.
-12. **Fix the draft ENA `COVERAGE`** (Finding 17.2). Upload `busco_mean_depth` and stop sending `total_bases / genomesize`. Decide what to send for the 613 assembled drafts with no measured depth.
+11. ~~**Before R.6: put the draft host and depth columns in `v3`, and branch `ENA-draft-genomes`**~~ **Done:** `067` (2026-10-28) added the columns to `v3`; `ENA-draft-genomes` `phase-r-v3` was rehearsed and deployed with R.6 (`072`, 2026-11-02). See `docs/r6_gate_a1_record.md`, `docs/r6_gate_a3_a5_record.md`, `docs/r6_merge_record.md`.
+12. ~~**Fix the draft ENA `COVERAGE`**~~ **Done:** `busco_read_depth` is uploaded and step 03 sends it (then `scdepth`), never `total_bases / genomesize`, and stops when neither exists. The 613 drafts were re-measured by the depth-only mode (A.4) and the 260925 backfill: 826 drafts carry a measured depth. Drafts before 250606 remain unmeasured (`docs/r6_gate_a3_a5_record.md`).
 
 ### Medium priority
 
@@ -1663,7 +1663,7 @@ All four are done. The follow-ons each item left behind are listed with their pa
 5. Add missing PKs and the `rna_qc_kinnex` / `rna_library_kinx` FKs.
 6. Refactor `goat_species_v1` after adding API smoke tests.
 7. Extract migration headers into the data dictionary.
-8. Store the mito `completeness_profile` and assembly QC verdict (Finding 17.4), and the remaining draft summary values: `genomescope_fit`, `busco_regions` and `partition_note` (Finding 17.3).
+8. ~~Store the mito `completeness_profile` and assembly QC verdict (Finding 17.4), and the remaining draft summary values: `genomescope_fit`, `busco_regions` and `partition_note` (Finding 17.3).~~ **Done:** `067` and `068` (2026-10-28); writers deployed; 289 completeness profiles and the NOVA_260925_LA verdicts backfilled (`docs/r6_gate_b1_record.md`).
 9. Store the ref-genome decontamination counts. Consider making HiFi coverage per assembly through `v4.ref_assembly_run`. Link Hi-C runs to assemblies there too: none of the 186 `hicN` assemblies has one (Finding 17.5).
 10. ~~Fetch every pipeline clone before a writer audit, and add that step to the change checklist (Finding 17.6).~~ **Done 2026-10-28:** `docs/database_change_checklist.md`, "For Pipeline Writer and Reader Audits".
 
