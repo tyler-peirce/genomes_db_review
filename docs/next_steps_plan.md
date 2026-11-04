@@ -1,6 +1,6 @@
 # Next steps plan: run links for read QC, loud mito upload failures, password rotation (2026-11-04)
 
-Status: **plan, not run.** Follows R.7b ([`r7b_record.md`](r7b_record.md)) and RG.6 ([`rg6_record.md`](rg6_record.md)).
+Status: **plan, not run.** Owner decisions 2026-11-04: A strict; start with B. Follows R.7b ([`r7b_record.md`](r7b_record.md)) and RG.6 ([`rg6_record.md`](rg6_record.md)).
 
 Three pieces, independent of each other:
 - **A:** a migration.
@@ -24,7 +24,7 @@ RG.6's record left `hifi_read_qc.run_id` and `hic_read_qc.run_id` → `sequencin
   - `ref_genomes_hic_automation`'s `push_hic_yield.py` (INSERT … ON CONFLICT DO NOTHING).
 - **The risk:** both run on reads straight off the sequencer, so they can push a run before the lab workbook lists it. RG.0 found 29 such rows (7 HiFi on `PACB_250717_AD`, 22 Hi-C on `NOVA_240719_AD` / `NOVA_250114_AD`), later fixed in the workbook (`069`).
 
-### Design (depends on decision A1 below)
+### Design: **strict, decided by the owner 2026-11-04**
 
 - **Strict (recommended):** add `hifi_read_qc_run_id_fkey` and `hic_read_qc_run_id_fkey` → `sequencing_run`, NOT VALID then VALIDATE, and index `run_id`.
   - A push for a run the workbook does not have yet is refused. The writers report it; the HiFi script exits non-zero; `push_hic_yield.py` to be checked.
