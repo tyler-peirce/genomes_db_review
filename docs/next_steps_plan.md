@@ -1,6 +1,6 @@
 # Next steps plan: run links for read QC, loud mito upload failures, password rotation (2026-11-04)
 
-Status: **plan, not run.** Owner decisions 2026-11-04: A strict; start with B. Follows R.7b ([`r7b_record.md`](r7b_record.md)) and RG.6 ([`rg6_record.md`](rg6_record.md)).
+Status: **B done 2026-11-04** (record below); A and C not run. Owner decisions 2026-11-04: A strict; start with B. Follows R.7b ([`r7b_record.md`](r7b_record.md)) and RG.6 ([`rg6_record.md`](rg6_record.md)).
 
 Three pieces, independent of each other:
 - **A:** a migration.
@@ -130,3 +130,35 @@ What I can do: run the next-day checks, and grep every repo for a password liter
 1. **B first.** It changes how every future mito run reports failures, and it makes A's refusals visible.
 2. **A.**
 3. **C** on the next Monday.
+
+---
+
+## Record: B done (2026-11-04)
+
+**Mito pipeline `inverts-dev`:** `8665897` → `ee4503d` (branch `loud-upload-failures`, merged and deleted). The Setonix production clone is pulled.
+- **The two scripts:** `push_mtdna_assm_results.py` and `push_emma_annotation_results.py` exit 1 on a database error. Emma's "no annotation name" path counts as one.
+- **The two modules:** `PUSH_QC_VALIDATOR` and `PUSH_ENA_VALIDATION_RESULTS` exit with their script's code.
+- **The completion handler** (`PIPELINE_COMPLETION`) writes `sql_uploaded_data/FAILED_UPLOADS.tsv` from the execution trace and warns. It lists the last attempt per task, so a retry that succeeded is not listed.
+- **The trace** gains a `workdir` field.
+
+**Tests:**
+- `tests/unit/test_upload_exit_codes.py`: real scripts against a closed port (exit 1), and the modules no longer force `exit 0`. The suite has the same 5 pre-existing failures (Biopython missing on this host).
+- **Nextflow harness** `tests/upload_failure/` on Setonix (slurm, singularity, with `dead.cfg`, so nothing reached a database):
+  - the upload failed (exit 1), was retried once and ignored;
+  - the independent task completed;
+  - the run ended "completed successfully, but with errored process(es)" with exit 0;
+  - `FAILED_UPLOADS.tsv` named the task, its attempt, its exit code and its work dir, whose `*.upload.txt` holds the database error;
+  - `-resume` re-ran only the failed upload, with the other task cached.
+
+**Changed from the plan:**
+- **Step 4** (the MultiQC "SQL Upload Summary" reading `FAILED_UPLOADS.tsv`) was dropped. That summary runs before the end of the run, so the file does not exist yet. The completion warning and the file cover it.
+- **The real-data check** with an un-annotated sample was not run. The harness exercised the same path against an unreachable database.
+
+**Found on the way: Setonix's default software environment changed.**
+- **What changed:** since early November 2026 login nodes start in `pawseyenv/2026.11`. `nextflow/25.04.6` and `singularity/4.1.0-nompi` are no longer loadable there; they need `module load pawseyenv/2025.08` first, and Nextflow also needs `gcc-native/13.2` in that environment.
+- **What breaks:** every launcher that loads them fails:
+  - the draft `nextflow_run*.sh` and `scripts/*/run_*.sh`;
+  - the mito `nextflow_run.sh`;
+  - the mito `pawsey_profile.config`, which loads Singularity in every task through `module` and `beforeScript`.
+- **The harness ran** only with a test-only override: `pawseyenv/2025.08` loaded in the launcher, and `process.module = 'pawseyenv/2025.08:singularity/4.1.0-nompi'` in the tasks.
+- **Status:** not yet fixed in any repo.
