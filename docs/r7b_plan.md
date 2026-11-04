@@ -1,6 +1,6 @@
 # R.7b plan: store the LCA tables by `annotation_id` only (`076`)
 
-Status: **plan, 2026-11-02; not run.** Design: [`assembly_relations_plan.md`](assembly_relations_plan.md) R.7 item 3. Follows R.7 ([`r7_record.md`](r7_record.md)).
+Status: **done 2026-11-02** (record: [`r7b_record.md`](r7b_record.md)). Design: [`assembly_relations_plan.md`](assembly_relations_plan.md) R.7 item 3. Follows R.7 ([`r7_record.md`](r7_record.md)).
 
 ## Context
 

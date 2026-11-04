@@ -1164,7 +1164,7 @@ into. Post-check: the next pipeline runs write the new tables, an old writer fai
 
 ### R.7 — Re-parent the LCA and ENA children; FKs to `sequencing_run` (`074`, `075`, done 2026-11-02)
 
-**Done:** [`r7_record.md`](r7_record.md). Items 1 and 2 below landed as `074` (with a trigger that fills `annotation_id`, so writers are unchanged) and `075` (which also restores `sequencing_run` upkeep, lost when `072` dropped the window sync). Item 3 is R.7b.
+**Done:** [`r7_record.md`](r7_record.md). Items 1 and 2 below landed as `074` (with a trigger that fills `annotation_id`, so writers are unchanged) and `075` (which also restores `sequencing_run` upkeep, lost when `072` dropped the window sync). Item 3 is R.7b, **done 2026-11-02** as `076` ([`r7b_record.md`](r7b_record.md)): the LCA tables are stored by `annotation_id` (`mito_lca`, `mito_lca_raw`, `mito_lca_validation`, `mito_blast_hit`) behind compatibility views under the old names, so the views below were recreated unchanged rather than rewritten.
 
 
 1. **`058`:** add `annotation_id`, backfill it (proved in R.2.4), then `SET NOT NULL` on the
