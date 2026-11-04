@@ -1,6 +1,6 @@
 # Next steps plan: run links for read QC, loud mito upload failures, password rotation (2026-11-04)
 
-Status: **B and A done 2026-11-04** (records below); C not run. Owner decisions 2026-11-04: A strict; start with B. Follows R.7b ([`r7b_record.md`](r7b_record.md)) and RG.6 ([`rg6_record.md`](rg6_record.md)).
+Status: **B and A done 2026-11-04** (records below); C deferred to 2028 by the owner. Owner decisions 2026-11-04: A strict; start with B. Follows R.7b ([`r7b_record.md`](r7b_record.md)) and RG.6 ([`rg6_record.md`](rg6_record.md)).
 
 Three pieces, independent of each other:
 - **A:** a migration.
@@ -107,6 +107,8 @@ The draft pipeline's upload modules. Check whether they swallow errors the same 
 
 ## C. Rotate the `postgres` password (backlog: highest priority)
 
+**Deferred to 2028 (owner decision 2026-11-04).** The owner will not rotate the password now; this part is kept as the procedure for when it is done, no earlier than 2028.
+
 The password has never been rotated. It was world-readable on this host for about two months (Finding 14) and is in `OceanOmics-Database`'s git history. The runbook is `OceanOmics-Database/ROTATION.md`; the owner runs it.
 
 1. **Pick a Monday and announce it.** The DBeaver users and anyone with a cfg on Setonix will need the new password.
@@ -129,7 +131,7 @@ What I can do: run the next-day checks, and grep every repo for a password liter
 
 1. **B first.** It changes how every future mito run reports failures, and it makes A's refusals visible.
 2. **A.**
-3. **C** on the next Monday.
+3. **C** deferred to 2028.
 
 ---
 
