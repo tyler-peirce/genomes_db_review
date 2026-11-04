@@ -321,7 +321,7 @@ END $$;
 -- Name: FUNCTION lca_set_content_hash(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.lca_set_content_hash() IS 'Maintains content_hash on v2.lca and v2.lca_raw_results. Pinned search_path so the hash cannot vary with the caller''s path.';
+COMMENT ON FUNCTION public.lca_set_content_hash() IS 'Maintains content_hash on mito_lca and mito_lca_raw. Pinned search_path so the hash cannot vary with the caller''s path.';
 
 
 --
@@ -991,7 +991,7 @@ COMMENT ON COLUMN public.master_species.afd_common_name IS 'Common name(s) for t
 -- Name: COLUMN master_species.sequencing_status; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.master_species.sequencing_status IS 'Derived from OceanOmics DB tables sample and ref_genomes (matched via sample.nominal_species_id = master_species.species). Priority: ''submitted'' if sample.ncbi_bioproject_id_lvl_3_hifi is set; else ''in_assembly'' if a matching sample.og_id exists in ref_genomes; else ''in_lab'' if sample.pb_status is one of the defined PacBio lab statuses; else NULL. Automatically update quarterly (1 Jan/Apr/Jul/Oct, 02:00).';
+COMMENT ON COLUMN public.master_species.sequencing_status IS 'Derived from OceanOmics DB tables sample and ref_genomes (matched via sample.nominal_species_id = master_species.species, ncbi_name or synonym, via the view v_sample_master_species). Priority: ''submitted'' if sample.ncbi_bioproject_id_lvl_3_hifi is set; else ''in_assembly'' if a matching sample.og_id exists in ref_genomes; else ''in_lab'' if sample.pb_status is one of the defined PacBio lab statuses; else NULL. Automatically update quarterly (1 Jan/Apr/Jul/Oct, 02:00).';
 
 
 --
@@ -1033,7 +1033,7 @@ COMMENT ON COLUMN public.master_species.unnassigned_workflow IS 'Comma-separated
 -- Name: COLUMN master_species.og_count; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.master_species.og_count IS 'Total number of unique OG (Ocean Genome) specimens for the species, from sample.og_id (sample.nominal_species_id = master_species.species). Automatically update weekly (Saturday, 05:00).';
+COMMENT ON COLUMN public.master_species.og_count IS 'Total number of unique OG (Ocean Genome) specimens for the species, from sample.og_id (sample.nominal_species_id = master_species.species, ncbi_name or synonym, via the view v_sample_master_species). Automatically update weekly (Saturday, 05:00).';
 
 
 --
@@ -1079,6 +1079,34 @@ COMMENT ON COLUMN public.master_species.epbc IS 'Not yet implemented. Intended t
 
 
 --
+-- Name: COLUMN master_species.ref_genome_country; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.master_species.ref_genome_country IS 'Country where the specimen used for this species'' reference genome was collected. This is the specimen''s collection country, not the species'' native range. One value, or several joined with ''; '' if OceanOmics has reference genomes for the species from more than one country. Filled in this order: (1) OceanOmics reference genome: public.ref_genomes.og_id -> public.sample.country, matched on sample.nominal_species_id = master_species.species, ncbi_name or synonym, via the view v_sample_master_species. (2) NCBI reference genome: the BioSample geo_loc_name of the best NCBI assembly for the species (the same assembly used for genome_available), read from the NCBI Datasets API (https://www.ncbi.nlm.nih.gov/datasets/); country part only, e.g. ''Canada: Nova Scotia'' -> ''Canada''. NCBI also allows a sea or ocean name, e.g. ''Atlantic Ocean''. (3) Latitude / longitude: when (1) or (2) has coordinates but no country name, the point is converted with the Marine Regions gazetteer (https://www.marineregions.org): land or territorial waters -> that nation or dependent state; inside an EEZ -> the EEZ''s nation; a high seas area -> ''High Seas''. NULL when no country can be found. The source of each value is in ref_genome_country_source. Automatically updated monthly (2nd of month, 06:00) by master-species-automation/ref_genome_country.';
+
+
+--
+-- Name: COLUMN master_species.ref_genome_country_source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.master_species.ref_genome_country_source IS 'Where ref_genome_country came from: ''OceanOmics <OG IDs>'' = the OceanOmics reference genome sample(s) in public.sample; ''NCBI <assembly accession>'' = the BioSample of that NCBI assembly. '' (from lat/lon)'' is added when the country was converted from the specimen''s latitude / longitude with Marine Regions, e.g. ''NCBI GCA_916701305.1 (from lat/lon)''. NULL when ref_genome_country is NULL.';
+
+
+--
+-- Name: COLUMN master_species.first_reference_for_family; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.master_species.first_reference_for_family IS 'Yes / No: would a reference genome for this species be the first reference genome in its family? Calculated from genome_available across all rows of master_species: Yes = no species with the same family has genome_available = ''reference'' (an NCBI Complete Genome or Chromosome assembly); No = at least one species in the family has one (including this species itself); NULL = family is blank. Family names are compared after trimming spaces. Same rule as the "First reference for family" calculated column on the OceanGenom website (backend/app/genome_proximity.py). Automatically updated monthly (1st of month, right after genome_available, step 5 of genome_available/run_pipeline.sh) by master-species-automation/first_reference. Separate from the hand-entered internal_first_in_family.';
+
+
+--
+-- Name: COLUMN master_species.first_reference_for_genus; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.master_species.first_reference_for_genus IS 'Yes / No: would a reference genome for this species be the first reference genome in its genus? Calculated from genome_available across all rows of master_species: Yes = no species with the same genus has genome_available = ''reference'' (an NCBI Complete Genome or Chromosome assembly); No = at least one species in the genus has one (including this species itself); NULL = genus is blank. Genus names are compared after trimming spaces. Same rule as the "First reference for genus" calculated column on the OceanGenom website (backend/app/genome_proximity.py). Automatically updated monthly (1st of month, right after genome_available, step 5 of genome_available/run_pipeline.sh) by master-species-automation/first_reference. Separate from the hand-entered internal_first_in_genus.';
+
+
+--
 -- Name: ena_validation_attempts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1121,10 +1149,234 @@ CREATE TABLE public.ena_validation_attempts (
 
 
 --
+-- Name: TABLE ena_validation_attempts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ena_validation_attempts IS 'One ENA validation of one mitogenome annotation (full_seqid) per attempt: table2asn, EMBL conversion, preflight and Webin-CLI results, and whether it is submission_ready. Written by the mito pipeline bin/push_ena_validation_results.py (from collate_ena_validation.py), upserted across every non-key column, so it holds the latest result of each attempt. Submission state is ena_submissions''.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.id IS 'Surrogate key.';
+
+
+--
 -- Name: COLUMN ena_validation_attempts.og_num; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.ena_validation_attempts.og_num IS 'Numeric part of og_id, maintained by the database. Generated, not writable: do not include it in any INSERT or UPDATE column list.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.full_seqid; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.full_seqid IS 'og_id.tech.seq_date.code.annotation: the annotation validated (014).';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.og_id IS 'The sample.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.tech; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.tech IS 'ilmn, hifi or hic.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.seq_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.seq_date IS 'YYMMDD identifier component.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.code; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.code IS 'Assembler code (mito_assembly.code).';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.annotation; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.annotation IS 'Annotator code (mito_annotation.annotation). NULL on rows carried from before 014.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.ena_study; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.ena_study IS 'ENA study the validation targeted (PRJEB...).';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.validation_mode; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.validation_mode IS 'pipeline (table2asn and EMBL conversion) or validate (preflight of an existing flat file). pipeline on every row so far.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.validation_attempt; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.validation_attempt IS 'Which attempt, part of the key with full_seqid and ena_study. initial on every row so far.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.table2asn_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.table2asn_status IS 'The table2asn step: PASS or FAIL_TABLE2ASN.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.reject_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.reject_count IS 'table2asn REJECT messages.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.error_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.error_count IS 'table2asn ERROR messages.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.warning_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.warning_count IS 'table2asn WARNING messages.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.info_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.info_count IS 'table2asn INFO messages.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.fatal_discrepancy_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.fatal_discrepancy_count IS 'FATAL items in the table2asn discrepancy report.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.nostop_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.nostop_count IS 'CDS features without a stop codon.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.blocking_codes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.blocking_codes IS 'Message codes that block submission, comma-joined.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.warning_codes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.warning_codes IS 'Message codes that do not block, comma-joined (e.g. MISSING_PROTEIN_ID,NO_LOCUS_TAGS).';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.conversion_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.conversion_status IS 'The conversion to EMBL flat file (pipeline mode): PASS, SKIPPED_TABLE2ASN (table2asn failed), or NOT_APPLICABLE in validate mode.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.conversion_reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.conversion_reason IS 'Why conversion failed.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.conversion_exit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.conversion_exit IS 'Exit code of the conversion step.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.preflight_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.preflight_status IS 'PASS, FAIL, NOT_RUN or NOT_APPLICABLE: the preflight check (validate mode).';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.preflight_reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.preflight_reason IS 'Why preflight failed.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.preflight_exit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.preflight_exit IS 'Exit code of the preflight step. Empty on every row (validate mode has not been used).';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.webin_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.webin_status IS 'Webin-CLI -validate: PASS, FAIL_WEBIN, FAIL_INFRASTRUCTURE, NOT_RUN (an earlier gate failed) or NOT_REQUESTED.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.webin_reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.webin_reason IS 'Why Webin-CLI validation failed.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.webin_exit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.webin_exit IS 'Exit code of Webin-CLI.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.submission_ready; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.submission_ready IS 'true when every gate for the mode passed: webin PASS and (preflight PASS in validate mode, or table2asn and conversion PASS otherwise) (019).';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.recorded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.recorded_at IS 'When the result was last written.';
+
+
+--
+-- Name: COLUMN ena_validation_attempts.attempt_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_validation_attempts.attempt_count IS 'Times this attempt has been written: 1 on insert, +1 on each re-run (push_ena_validation_results.py).';
 
 
 --
@@ -1178,10 +1430,185 @@ COMMENT ON TABLE public.dna_extraction IS 'One row per DNA extraction attempt fr
 
 
 --
+-- Name: COLUMN dna_extraction.dna_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.dna_id IS 'DNA tube id. 3.DNAExtractions "Tube ID".';
+
+
+--
+-- Name: COLUMN dna_extraction.tissue_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.tissue_id IS 'The tissue extracted (FK to tissue). "Sample ID".';
+
+
+--
+-- Name: COLUMN dna_extraction.ext_num; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.ext_num IS 'Attempt number for this tissue. "#". With tissue_id, the attempt key.';
+
+
+--
+-- Name: COLUMN dna_extraction.status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.status IS 'Workbook "Status", free text (Extracted, Hold, For review...). Not normalised (Phase H).';
+
+
+--
+-- Name: COLUMN dna_extraction.extraction_method; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.extraction_method IS '"Extraction Method".';
+
+
+--
+-- Name: COLUMN dna_extraction.extraction_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.extraction_date IS '"Extraction Date".';
+
+
+--
+-- Name: COLUMN dna_extraction.extraction_batch_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.extraction_batch_id IS '"Extraction Batch ID".';
+
+
+--
+-- Name: COLUMN dna_extraction.final_buffer; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.final_buffer IS '"Final Buffer".';
+
+
+--
+-- Name: COLUMN dna_extraction.volume; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.volume IS 'uL. "Volume (uL)".';
+
+
+--
+-- Name: COLUMN dna_extraction.qubit_conc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.qubit_conc IS 'ng/uL. "Qubit Conc. (ng/uL)".';
+
+
+--
+-- Name: COLUMN dna_extraction.nano_drop_conc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.nano_drop_conc IS 'ng/uL. "NanoDrop Conc. (ng/uL)".';
+
+
+--
+-- Name: COLUMN dna_extraction.ratio_260_280; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.ratio_260_280 IS 'A260/A280 purity ratio. "260/280".';
+
+
+--
+-- Name: COLUMN dna_extraction.ratio_260_230; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.ratio_260_230 IS 'A260/A230 purity ratio. "260/230".';
+
+
+--
+-- Name: COLUMN dna_extraction.ratioqubit_nanodrop; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.ratioqubit_nanodrop IS 'Qubit:NanoDrop ratio. Historical values only: no workbook header maps to it (name_convert_v2.py).';
+
+
+--
+-- Name: COLUMN dna_extraction.total_yield; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.total_yield IS 'ng. "Total Yield (ng)".';
+
+
+--
+-- Name: COLUMN dna_extraction.gdna_femtol_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.gdna_femtol_id IS 'Femto Pulse run id for the gDNA size check. "gDNA Femto ID".';
+
+
+--
+-- Name: COLUMN dna_extraction.av_size; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.av_size IS 'Mean fragment size, bp. "Average size (bp)".';
+
+
+--
+-- Name: COLUMN dna_extraction.extraction_qc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.extraction_qc IS '"Pass / Fail QC": Pass, PASS, pass, MAYBE... Not normalised.';
+
+
+--
+-- Name: COLUMN dna_extraction.comment; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.comment IS '"Comment".';
+
+
+--
+-- Name: COLUMN dna_extraction.dna_freezer; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.dna_freezer IS '"DNA Archives Freezer".';
+
+
+--
+-- Name: COLUMN dna_extraction.dna_shelf; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.dna_shelf IS 'Archive shelf. "Shelf".';
+
+
+--
+-- Name: COLUMN dna_extraction.dna_rack; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.dna_rack IS 'Archive rack. "Rack".';
+
+
+--
+-- Name: COLUMN dna_extraction.dna_level; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.dna_level IS 'Archive level. "Level".';
+
+
+--
+-- Name: COLUMN dna_extraction.dna_box; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.dna_box IS 'Archive box. "Box Label".';
+
+
+--
+-- Name: COLUMN dna_extraction.dna_notes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.dna_notes IS '"Notes".';
+
+
+--
 -- Name: COLUMN dna_extraction.status_overwrite; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.dna_extraction.status_overwrite IS 'Lab flag marking which extraction to report in the summary. Boolean because the workbook holds only Y here - 129 of them across all sheets, 36 on this one, and nothing else. It has never reached the database: neither spelling of the header ("Status Overwrite" / "Overwrite Status") is in name_convert.py, so the lab has been filling a field the import silently discards while summary reads a column that is always null. See v2_scaffold_design_review.md F4a.';
+COMMENT ON COLUMN public.dna_extraction.status_overwrite IS 'Lab flag marking which extraction to report when a tissue has several. "Status Overwrite"; the workbook holds only Y, stored as true. Read by summary (backlog item 10 removes that use).';
 
 
 --
@@ -1235,10 +1662,150 @@ COMMENT ON TABLE public.hic_library IS 'One row per Hi-C library. Source: the 4.
 
 
 --
+-- Name: COLUMN hic_library.hic_library_tube_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.hic_library_tube_id IS 'Library tube id. 4.HiCLibrary "Library Tube ID". Also in library.';
+
+
+--
+-- Name: COLUMN hic_library.lysate_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.lysate_id IS 'The lysate (FK to hic_lysate). "Lysate Tube ID".';
+
+
+--
+-- Name: COLUMN hic_library.hic_num; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.hic_num IS 'Attempt number for this lysate. "#".';
+
+
+--
+-- Name: COLUMN hic_library.hic_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.hic_status IS 'Workbook "Status", free text. Not normalised (Phase H).';
+
+
+--
+-- Name: COLUMN hic_library.library_method; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.library_method IS '"Library Prep Method".';
+
+
+--
+-- Name: COLUMN hic_library.processing_notes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.processing_notes IS '"Processing notes".';
+
+
+--
+-- Name: COLUMN hic_library.library_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.library_date IS '"Library Prep Date".';
+
+
+--
+-- Name: COLUMN hic_library.library_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.library_id IS 'Library batch. "Library Batch ID".';
+
+
+--
 -- Name: COLUMN hic_library.prox_ligation_conc; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.hic_library.prox_ligation_conc IS 'LEGACY. The intended home for this measurement is hic_lysate.prox_ligation_conc (decision 11, F13), but the lab still records it on 4.HiCLibrary - 264 numeric values in OceanGenomes_Database_261006.xlsx against 77 on 4.HiCLysate - so import_v2.py writes it here by owner decision 2026-10-06 rather than drop every new value. The 226 backfilled values cannot be migrated up because 10 of their lysates carry conflicting values across their libraries and no rule picks a winner. Retire this column once the lab records the measurement on 4.HiCLysate.';
+
+
+--
+-- Name: COLUMN hic_library.purified_dna_total; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.purified_dna_total IS '"Total Purified DNA".';
+
+
+--
+-- Name: COLUMN hic_library.index_set; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.index_set IS '"Dovetail Dual Index Primer Set #1 For Illumina".';
+
+
+--
+-- Name: COLUMN hic_library.index_i5; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.index_i5 IS '"Index i5".';
+
+
+--
+-- Name: COLUMN hic_library.index_i7; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.index_i7 IS '"Index i7".';
+
+
+--
+-- Name: COLUMN hic_library.library_conc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.library_conc IS 'ng/uL. "Library Conc. (ng/uL)".';
+
+
+--
+-- Name: COLUMN hic_library.library_yield; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.library_yield IS 'ng. "Library yield (ng)".';
+
+
+--
+-- Name: COLUMN hic_library.library_size; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.library_size IS 'bp. "Library size (bp)".';
+
+
+--
+-- Name: COLUMN hic_library.pcr_dup_read_pairs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.pcr_dup_read_pairs IS 'QC run: PCR duplicate read pairs. "PCR Dup Read Pairs".';
+
+
+--
+-- Name: COLUMN hic_library.nodup_cis_read_pairs_1kb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.nodup_cis_read_pairs_1kb IS 'QC run: deduplicated cis read pairs >= 1 kb apart. "No-Dup Cis Read Pairs >= 1kb".';
+
+
+--
+-- Name: COLUMN hic_library.expected_distinct_30m_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.expected_distinct_30m_reads IS 'QC run: expected distinct reads at 30 M reads, in millions. "EXPECTED_DISTINCT at 30M reads (M)".';
+
+
+--
+-- Name: COLUMN hic_library.hic_comments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.hic_comments IS '"Comments".';
+
+
+--
+-- Name: COLUMN hic_library.status_overwrite; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.status_overwrite IS 'Lab flag marking which library to report. "Status Overwrite"; Y stored as true. Read by summary (backlog item 10).';
 
 
 --
@@ -1272,10 +1839,80 @@ COMMENT ON TABLE public.hic_lysate IS 'One row per Hi-C lysate prepared from a t
 
 
 --
+-- Name: COLUMN hic_lysate.lysate_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_lysate.lysate_id IS 'Lysate tube id. 4.HiCLysate "Lysate Tube ID".';
+
+
+--
+-- Name: COLUMN hic_lysate.tissue_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_lysate.tissue_id IS 'The tissue lysed (FK to tissue). "Sample ID".';
+
+
+--
+-- Name: COLUMN hic_lysate.lysate_num; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_lysate.lysate_num IS 'Attempt number for this tissue. "#".';
+
+
+--
+-- Name: COLUMN hic_lysate.lysate_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_lysate.lysate_status IS 'Workbook "Status", free text. Not normalised (Phase H).';
+
+
+--
 -- Name: COLUMN hic_lysate.lysate_method; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.hic_lysate.lysate_method IS 'Spreadsheet header "Prep Method". Populated on 386 rows and dropped by the importer until now.';
+
+
+--
+-- Name: COLUMN hic_lysate.lysate_prep_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_lysate.lysate_prep_date IS '"Lysate Prep Date".';
+
+
+--
+-- Name: COLUMN hic_lysate.lysate_batch_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_lysate.lysate_batch_id IS '"Lysate Batch ID".';
+
+
+--
+-- Name: COLUMN hic_lysate.lysate_conc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_lysate.lysate_conc IS 'ng/uL. "Lysate Conc. (ng/uL)".';
+
+
+--
+-- Name: COLUMN hic_lysate.total_lysate; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_lysate.total_lysate IS 'ng. "Total Lysate (ng)".';
+
+
+--
+-- Name: COLUMN hic_lysate.lysate_cde; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_lysate.lysate_cde IS 'Chromatin digestion efficiency, %. "CDE (%)".';
+
+
+--
+-- Name: COLUMN hic_lysate.prox_ligation_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_lysate.prox_ligation_date IS '"Proximity Ligation prep date".';
 
 
 --
@@ -1290,6 +1927,20 @@ COMMENT ON COLUMN public.hic_lysate.prox_ligation_conc IS 'Proximity ligation co
 --
 
 COMMENT ON COLUMN public.hic_lysate.prox_ligation_yield IS 'Derived, matching the workbook formula IF(conc="NA","NA",conc*40) on 4.HiCLysate. The 40 is the elution volume in uL; if the protocol changes this expression must change with it.';
+
+
+--
+-- Name: COLUMN hic_lysate.lysate_comments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_lysate.lysate_comments IS '"Comments".';
+
+
+--
+-- Name: COLUMN hic_lysate.status_overwrite; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_lysate.status_overwrite IS 'Lab report flag. 4.HiCLysate has no such column, so it is empty on every row.';
 
 
 --
@@ -1324,10 +1975,59 @@ COMMENT ON TABLE public.illumina_library IS 'One row per Illumina DNA library. S
 
 
 --
+-- Name: COLUMN illumina_library.illumina_library_tube_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.illumina_library.illumina_library_tube_id IS 'Library tube id. 4.Illumina "Library Tube ID". Also in library.';
+
+
+--
+-- Name: COLUMN illumina_library.dna_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.illumina_library.dna_id IS 'The DNA extraction (FK to dna_extraction). "DNA Tube ID".';
+
+
+--
+-- Name: COLUMN illumina_library.ilmn_num; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.illumina_library.ilmn_num IS 'Attempt number for this DNA. "#".';
+
+
+--
+-- Name: COLUMN illumina_library.ilmn_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.illumina_library.ilmn_status IS 'Workbook "Status", free text. Not normalised (Phase H).';
+
+
+--
+-- Name: COLUMN illumina_library.library_method; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.illumina_library.library_method IS '"Library Prep Method".';
+
+
+--
 -- Name: COLUMN illumina_library.prep_automation; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.illumina_library.prep_automation IS 'Spreadsheet header "Manual/ Automated Method", populated on 1,607 rows and dropped by the importer until now. 941 of them read "Auomated Biomek i7" and normalise to "Automated Biomek i7" at backfill.';
+
+
+--
+-- Name: COLUMN illumina_library.library_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.illumina_library.library_date IS '"Library Prep Date".';
+
+
+--
+-- Name: COLUMN illumina_library.library_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.illumina_library.library_id IS 'Library batch. "Library Batch ID".';
 
 
 --
@@ -1342,6 +2042,48 @@ COMMENT ON COLUMN public.illumina_library.library_plate_well IS 'Spreadsheet hea
 --
 
 COMMENT ON COLUMN public.illumina_library.index_plate IS 'Spreadsheet header "Index Plate". Populated on 1,297 rows and dropped by the importer until now.';
+
+
+--
+-- Name: COLUMN illumina_library.index_set; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.illumina_library.index_set IS '"DNA/RNA UD Indexes Set".';
+
+
+--
+-- Name: COLUMN illumina_library.index_well; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.illumina_library.index_well IS '"Index Adaptor Well".';
+
+
+--
+-- Name: COLUMN illumina_library.index_idx; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.illumina_library.index_idx IS 'The index sequences joined. "Concatenate Index".';
+
+
+--
+-- Name: COLUMN illumina_library.library_qubit_conc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.illumina_library.library_qubit_conc IS 'ng/uL. "Library Qubit Conc. (ng/ul)".';
+
+
+--
+-- Name: COLUMN illumina_library.il_comments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.illumina_library.il_comments IS '"Comments".';
+
+
+--
+-- Name: COLUMN illumina_library.status_overwrite; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.illumina_library.status_overwrite IS 'Lab flag marking which library to report. "Overwrite Status"; Y stored as true. Read by summary (backlog item 10).';
 
 
 --
@@ -1397,10 +2139,241 @@ COMMENT ON TABLE public.mito_annotation IS 'One annotation of an assembly. All a
 
 
 --
+-- Name: COLUMN mito_annotation.annotation_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.annotation_id IS 'Surrogate key. LCA, BLAST, validation and ENA rows resolve to it with mito_annotation_id().';
+
+
+--
+-- Name: COLUMN mito_annotation.assembly_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.assembly_id IS 'The assembly annotated (FK to mito_assembly).';
+
+
+--
+-- Name: COLUMN mito_annotation.annotation; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.annotation IS 'Annotator and version: emma102, mitos2110, mito2110mc. Unique per assembly.';
+
+
+--
 -- Name: COLUMN mito_annotation.is_selected; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.mito_annotation.is_selected IS 'Optional: a person may mark one annotation per assembly as the one they chose. Set by hand only; no writer, view or pipeline reads it (owner decision 3, 2026-10-16).';
+
+
+--
+-- Name: COLUMN mito_annotation.selected_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.selected_by IS 'Who set is_selected. Required when it is true. Set by hand only.';
+
+
+--
+-- Name: COLUMN mito_annotation.selected_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.selected_at IS 'When is_selected was set. Set by hand only.';
+
+
+--
+-- Name: COLUMN mito_annotation.length_emma; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.length_emma IS 'Length of the annotated sequence, bp. Named for EMMA but filled for MITOS annotations too.';
+
+
+--
+-- Name: COLUMN mito_annotation.cds_no; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.cds_no IS 'Protein-coding genes annotated.';
+
+
+--
+-- Name: COLUMN mito_annotation.trna_no; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.trna_no IS 'tRNAs annotated.';
+
+
+--
+-- Name: COLUMN mito_annotation.rrna_no; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.rrna_no IS 'rRNAs annotated.';
+
+
+--
+-- Name: COLUMN mito_annotation.manual_curation_notes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.manual_curation_notes IS 'Free text from a curator: what was changed by hand, dated, and where the work is. NULL for most rows.';
+
+
+--
+-- Name: COLUMN mito_annotation.extra_genes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.extra_genes IS 'Genes present beyond the expected set, '';''-joined. ''no'' or NULL: none.';
+
+
+--
+-- Name: COLUMN mito_annotation.missing_genes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.missing_genes IS 'Expected genes absent, '';''-joined, judged against completeness_profile. ''no'' or NULL: none.';
+
+
+--
+-- Name: COLUMN mito_annotation.order_correct; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.order_correct IS 'Gene order verdict: yes, no, variant (accepted by an order_variant rule), or NULL where not evaluated.';
+
+
+--
+-- Name: COLUMN mito_annotation.passed; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.passed IS 'The annotation QC gate: yes or no. The only column evaluate_qc_conditions.py routes on.';
+
+
+--
+-- Name: COLUMN mito_annotation.trna_advisory; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.trna_advisory IS 'tRNAs the QC gate waived (at most annotation_trna_tolerance, default 2), '';''-joined. ''no'' or NULL: none waived (021).';
+
+
+--
+-- Name: COLUMN mito_annotation.order_variant; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.order_variant IS 'Id of the curated gene-order rule that accepted this order (e.g. scarine_imq); set only when order_correct = variant. ''no'' or NULL: none (023).';
+
+
+--
+-- Name: COLUMN mito_annotation.order_deviation; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.order_deviation IS 'For a rejected order, genes outside the longest common subsequence against the nearest accepted order. Text so it can carry ''no''. Advisory; never affects passed (023).';
+
+
+--
+-- Name: COLUMN mito_annotation.annotation_gaps; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.annotation_gaps IS 'Interior intergenic spans >= annotation_gap_threshold (default 50 bp), '';''-joined as ND4:11768-TS1:11982(213). Advisory (023).';
+
+
+--
+-- Name: COLUMN mito_annotation.order_variant_taxon_check; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.order_variant_taxon_check IS 'Whether the BLAST LCA agrees with the rank an order_variant rule keyed on: agree, disagree:<taxon>, unresolved, or no (no rule fired). Must never become a gate (025).';
+
+
+--
+-- Name: COLUMN mito_annotation.order_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.order_status IS 'Kind of order deviation: reference, trna_displacement, rearranged_block, rearranged_major or not_evaluated (026). NULL: produced before 026.';
+
+
+--
+-- Name: COLUMN mito_annotation.order_deviation_detail; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.order_deviation_detail IS 'The displaced elements, '';''-joined in EMMA gene codes (ND1;TA;TL2...). none: nothing displaced (026).';
+
+
+--
+-- Name: COLUMN mito_annotation.expected_lineage_genes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.expected_lineage_genes IS 'Genes expected for this lineage outside the vertebrate set (e.g. atp9, mtMutS). none: no extra genes expected (026).';
+
+
+--
+-- Name: COLUMN mito_annotation.missing_expected_lineage_genes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.missing_expected_lineage_genes IS 'Which of expected_lineage_genes are absent. none: all present (026).';
+
+
+--
+-- Name: COLUMN mito_annotation.lineage_gene_advisories; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.lineage_gene_advisories IS 'Advisory notes on the lineage genes. none: nothing to report (026).';
+
+
+--
+-- Name: COLUMN mito_annotation.mitos_unmapped_features; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.mitos_unmapped_features IS 'MITOS features the MITOS-to-EMMA conversion could not map. none: all mapped (026).';
+
+
+--
+-- Name: COLUMN mito_annotation.mitos_known_auxiliary_features; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.mitos_known_auxiliary_features IS 'MITOS features kept but deliberately excluded from completeness scoring. none: no such features (026).';
+
+
+--
+-- Name: COLUMN mito_annotation.duplicate_loci; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.duplicate_loci IS 'Genes annotated more than once. none: no duplicates (026).';
+
+
+--
+-- Name: COLUMN mito_annotation.annotation_integrity_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.annotation_integrity_status IS 'ok, advisory, broken or not_evaluated: the final verdict on the published annotation after every repair branch merges. NULL means produced before 026, not clean.';
+
+
+--
+-- Name: COLUMN mito_annotation.annotation_integrity_issues; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.annotation_integrity_issues IS 'What annotation_integrity_status rests on, '';''-joined (e.g. cds_convention:stop_codon_excluded(checked_from_gff)). none on a clean run; NULL before 026.';
+
+
+--
+-- Name: COLUMN mito_annotation.annotation_stats_version; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.annotation_stats_version IS 'annotation_stats.py version that wrote the QC columns. NULL: written before 026.';
+
+
+--
+-- Name: COLUMN mito_annotation.annotation_updated_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.annotation_updated_at IS 'When annotation_stats.py last refreshed the QC columns. A stale value means a rerun did not reach this row.';
+
+
+--
+-- Name: COLUMN mito_annotation.created_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.created_at IS 'When the row was first written (database clock).';
+
+
+--
+-- Name: COLUMN mito_annotation.updated_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation.updated_at IS 'When the row was last rewritten.';
 
 
 --
@@ -1438,6 +2411,83 @@ COMMENT ON TABLE public.mito_assembly IS 'One mitogenome assembly. Written by pu
 
 
 --
+-- Name: COLUMN mito_assembly.assembly_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly.assembly_id IS 'Surrogate key. mito_annotation, depth, QC and run rows hang off it.';
+
+
+--
+-- Name: COLUMN mito_assembly.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly.og_id IS 'The sample (FK to sample).';
+
+
+--
+-- Name: COLUMN mito_assembly.tech; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly.tech IS 'Reads the assembly used: ilmn, hifi or hic.';
+
+
+--
+-- Name: COLUMN mito_assembly.seq_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly.seq_date IS 'YYMMDD of the run the reads came from. An identifier component, not a date.';
+
+
+--
+-- Name: COLUMN mito_assembly.code; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly.code IS 'Assembler and version, with any variant suffix: getorg1770, getorg1770reseed, getorg1770_mc, v323mitohifi, v10oatk... Part of the natural key (og_id, tech, seq_date, code).';
+
+
+--
+-- Name: COLUMN mito_assembly.stats; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly.stats IS 'Assembler result status as the pipeline records it: circular genome, scaffold, N scaffold(s), failed to assemble.';
+
+
+--
+-- Name: COLUMN mito_assembly.length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly.length IS 'Length of the assembled FASTA, bp. 0 when the assembly failed.';
+
+
+--
+-- Name: COLUMN mito_assembly.avg_coverage; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly.avg_coverage IS 'LEGACY, assembler-specific and NOT comparable across assemblers: k-mer coverage for GetOrganelle rows, reference-recruited read depth for MitoHiFi rows, NULL for Oatk (003). Use mito_assembly_depth.mean_depth.';
+
+
+--
+-- Name: COLUMN mito_assembly.avg_base_coverage; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly.avg_base_coverage IS 'LEGACY: GetOrganelle''s base coverage over its reduced read set, or MitoHiFi''s same single value as avg_coverage. Not comparable across assemblers (003).';
+
+
+--
+-- Name: COLUMN mito_assembly.created_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly.created_at IS 'When the row was first written (database clock).';
+
+
+--
+-- Name: COLUMN mito_assembly.updated_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly.updated_at IS 'When the assembly result was last rewritten.';
+
+
+--
 -- Name: mito_lca_validation; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1458,7 +2508,63 @@ CREATE TABLE public.mito_lca_validation (
 -- Name: TABLE mito_lca_validation; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.mito_lca_validation IS 'Human validation of LCA calls. Read by v2.summary and by the public reporting views.';
+COMMENT ON TABLE public.mito_lca_validation IS 'Species-ID validation of an annotation''s LCA calls: the species to submit and who confirmed it. validator: push_species_validation.py (nf-core) or a curator''s initials; validator_2: push_qc_validator.py (QCd-nf-core) or a curator. Submission needs both. Read by summary and the reporting views.';
+
+
+--
+-- Name: COLUMN mito_lca_validation.validated_species_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_validation.validated_species_name IS 'The species name validated for submission; the mito QC workflow puts it in the processed file headers.';
+
+
+--
+-- Name: COLUMN mito_lca_validation.validator; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_validation.validator IS 'First validator: nf-core (push_species_validation.py, which overwrites only its own rows unless --force) or a curator''s initials.';
+
+
+--
+-- Name: COLUMN mito_lca_validation.nominal_species_id_lca_comment; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_validation.nominal_species_id_lca_comment IS 'Curator''s note on the nominal ID against the LCA (workbook "Nominal species ID/LCA comment", SS/import_data_lca_validation.py).';
+
+
+--
+-- Name: COLUMN mito_lca_validation.validator_2; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_validation.validator_2 IS 'Second validator: QCd-nf-core (push_qc_validator.py, once the sample is submission_ready; never overwrites) or a curator''s initials.';
+
+
+--
+-- Name: COLUMN mito_lca_validation.data_release; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_validation.data_release IS 'Empty on every row (2026-11-04) and no writer found. Candidate for removal.';
+
+
+--
+-- Name: COLUMN mito_lca_validation.validated_rank; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_validation.validated_rank IS 'Rank the species ID was confirmed at: species, genus, genus_downgraded (a tentative cf./aff./? label released at genus), family, or unmatched (held) (024).';
+
+
+--
+-- Name: COLUMN mito_lca_validation.lca_genus; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_validation.lca_genus IS 'For a family-level release, the genus the LCA resolved: a label-upgrade candidate for a curator. NULL at every other rank (024).';
+
+
+--
+-- Name: COLUMN mito_lca_validation.row_created_on; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_validation.row_created_on IS 'When the row was first written (database clock).';
 
 
 --
@@ -1526,10 +2632,80 @@ COMMENT ON TABLE public.ont_library IS 'One row per Oxford Nanopore library. Sou
 
 
 --
+-- Name: COLUMN ont_library.ont_library_tube_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ont_library.ont_library_tube_id IS 'Library tube id. 4.ONT "Library Tube ID". Also in library.';
+
+
+--
+-- Name: COLUMN ont_library.dna_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ont_library.dna_id IS 'The DNA extraction (FK to dna_extraction). "DNA Tube ID".';
+
+
+--
+-- Name: COLUMN ont_library.ont_num; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ont_library.ont_num IS 'Attempt number, counted per DNA and kit. "#". The attempt key is (dna_id, library_method, ont_num).';
+
+
+--
+-- Name: COLUMN ont_library.ont_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ont_library.ont_status IS 'Workbook "Status", free text. Not normalised (Phase H).';
+
+
+--
+-- Name: COLUMN ont_library.library_method; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ont_library.library_method IS 'Kit, e.g. LSK or ULK. "Library Prep Method".';
+
+
+--
 -- Name: COLUMN ont_library.library_type; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.ont_library.library_type IS 'The ONT kit type from the "Library Type" header. Unrelated to library.library_type, which names the technology.';
+
+
+--
+-- Name: COLUMN ont_library.library_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ont_library.library_date IS '"Library Prep Date".';
+
+
+--
+-- Name: COLUMN ont_library.library_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ont_library.library_id IS 'Library batch. "Library Batch ID".';
+
+
+--
+-- Name: COLUMN ont_library.est_loading_size; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ont_library.est_loading_size IS 'bp. "Estimated Loading size (bp)".';
+
+
+--
+-- Name: COLUMN ont_library.ont_comments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ont_library.ont_comments IS '"Comments".';
+
+
+--
+-- Name: COLUMN ont_library.status_overwrite; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ont_library.status_overwrite IS 'Lab report flag. "Status Overwrite" exists on 4.ONT but is empty, so this is empty on every row.';
 
 
 --
@@ -1569,6 +2745,41 @@ COMMENT ON TABLE public.pacbio_library IS 'One row per PacBio HiFi library. Sour
 
 
 --
+-- Name: COLUMN pacbio_library.pacbio_library_tube_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.pacbio_library_tube_id IS 'Library tube id. 4.PacBio "Library Tube ID". Also in library.';
+
+
+--
+-- Name: COLUMN pacbio_library.dna_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.dna_id IS 'The DNA extraction (FK to dna_extraction). "DNA Tube ID".';
+
+
+--
+-- Name: COLUMN pacbio_library.pacb_num; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.pacb_num IS 'Attempt number for this DNA. "#".';
+
+
+--
+-- Name: COLUMN pacbio_library.pacb_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.pacb_status IS 'Workbook "Status", free text. Not normalised (Phase H).';
+
+
+--
+-- Name: COLUMN pacbio_library.dna_treatment; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.dna_treatment IS '"DNA treatment comments".';
+
+
+--
 -- Name: COLUMN pacbio_library.sre_kit; Type: COMMENT; Schema: public; Owner: -
 --
 
@@ -1590,10 +2801,94 @@ COMMENT ON COLUMN public.pacbio_library.final_pre_library_conc IS 'Spreadsheet h
 
 
 --
+-- Name: COLUMN pacbio_library.shear_femtol_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.shear_femtol_id IS 'Femto Pulse run id after shearing. "Shearing Femto ID".';
+
+
+--
+-- Name: COLUMN pacbio_library.shear_av_size; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.shear_av_size IS 'Mean size after shearing, bp. "Shearing Av. size (bp)".';
+
+
+--
+-- Name: COLUMN pacbio_library.library_method; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.library_method IS '"Library Prep Method".';
+
+
+--
 -- Name: COLUMN pacbio_library.prep_automation; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.pacbio_library.prep_automation IS 'Spreadsheet header "Manual/ Automated Method". Populated on 365 rows and dropped by the importer until now.';
+
+
+--
+-- Name: COLUMN pacbio_library.library_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.library_date IS '"Library Prep Date".';
+
+
+--
+-- Name: COLUMN pacbio_library.library_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.library_id IS 'Library batch. "Library Batch ID".';
+
+
+--
+-- Name: COLUMN pacbio_library.index_well; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.index_well IS '"SMRTbell barcoded adapter plate 3.0 Index well".';
+
+
+--
+-- Name: COLUMN pacbio_library.barcode; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.barcode IS '"Barcode".';
+
+
+--
+-- Name: COLUMN pacbio_library.seq_femto_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.seq_femto_id IS 'Femto Pulse run id of the final library. "Library Femto ID".';
+
+
+--
+-- Name: COLUMN pacbio_library.seq_av_size; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.seq_av_size IS 'Mean library size, bp. "Library Av. size (bp)".';
+
+
+--
+-- Name: COLUMN pacbio_library.library_conc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.library_conc IS 'ng/uL. "Library Conc. (ng/uL)".';
+
+
+--
+-- Name: COLUMN pacbio_library.comment; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.comment IS '"Comments".';
+
+
+--
+-- Name: COLUMN pacbio_library.status_overwrite; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.status_overwrite IS 'Lab flag marking which library to report. "Overwrite Status"; Y stored as true. Read by summary (backlog item 10).';
 
 
 --
@@ -1639,10 +2934,192 @@ COMMENT ON TABLE public.rna_extraction IS 'One row per RNA extraction attempt fr
 
 
 --
+-- Name: COLUMN rna_extraction.rna_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.rna_id IS 'RNA tube id. 3.RNAExtractions "Tube ID".';
+
+
+--
+-- Name: COLUMN rna_extraction.tissue_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.tissue_id IS 'The tissue extracted (FK to tissue). "Sample ID".';
+
+
+--
+-- Name: COLUMN rna_extraction.ext_num; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.ext_num IS 'Attempt number for this tissue. "#".';
+
+
+--
+-- Name: COLUMN rna_extraction.status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.status IS 'Workbook "Status", free text. Not normalised (Phase H).';
+
+
+--
+-- Name: COLUMN rna_extraction.extraction_method; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.extraction_method IS '"Extraction Method".';
+
+
+--
+-- Name: COLUMN rna_extraction.extraction_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.extraction_date IS '"Extraction Date".';
+
+
+--
+-- Name: COLUMN rna_extraction.extraction_batch_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.extraction_batch_id IS '"Extraction Batch ID".';
+
+
+--
+-- Name: COLUMN rna_extraction.final_buffer; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.final_buffer IS '"Final Buffer".';
+
+
+--
+-- Name: COLUMN rna_extraction.volume; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.volume IS 'uL. "Volume (uL)".';
+
+
+--
+-- Name: COLUMN rna_extraction.qubit_conc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.qubit_conc IS 'ng/uL. "Qubit Conc. (ng/uL)".';
+
+
+--
+-- Name: COLUMN rna_extraction.nano_drop_conc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.nano_drop_conc IS 'ng/uL. "NanoDrop Conc. (ng/uL)".';
+
+
+--
+-- Name: COLUMN rna_extraction.ratio_260_280; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.ratio_260_280 IS 'A260/A280 purity ratio. "260/280".';
+
+
+--
+-- Name: COLUMN rna_extraction.ratio_260_230; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.ratio_260_230 IS 'A260/A230 purity ratio. "260/230".';
+
+
+--
+-- Name: COLUMN rna_extraction.total_yield; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.total_yield IS 'ng. "Total Yield (ng)".';
+
+
+--
 -- Name: COLUMN rna_extraction.gdna_over_7kb_perc; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.rna_extraction.gdna_over_7kb_perc IS 'Spreadsheet header "gDNA? >7,000bp %". Populated on 185 rows and dropped by the importer until now.';
+
+
+--
+-- Name: COLUMN rna_extraction.tapestation_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.tapestation_id IS '"TapeStation Run ID".';
+
+
+--
+-- Name: COLUMN rna_extraction.rna_dv200; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.rna_dv200 IS '% of RNA fragments over 200 nt. "RNA DV200".';
+
+
+--
+-- Name: COLUMN rna_extraction.rin; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.rin IS 'RNA integrity number (1-10). "RIN".';
+
+
+--
+-- Name: COLUMN rna_extraction.extraction_qc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.extraction_qc IS '"Pass / Fail QC". Not normalised.';
+
+
+--
+-- Name: COLUMN rna_extraction.comment; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.comment IS '"Comment".';
+
+
+--
+-- Name: COLUMN rna_extraction.rna_freezer; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.rna_freezer IS '"RNA Archives Freezer".';
+
+
+--
+-- Name: COLUMN rna_extraction.rna_shelf; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.rna_shelf IS 'Archive shelf. "Shelf".';
+
+
+--
+-- Name: COLUMN rna_extraction.rna_rack; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.rna_rack IS 'Archive rack. "Rack".';
+
+
+--
+-- Name: COLUMN rna_extraction.rna_level; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.rna_level IS 'Archive level. "Level".';
+
+
+--
+-- Name: COLUMN rna_extraction.rna_box; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.rna_box IS 'Archive box. "Box Label". Empty on every row (2026-11-04).';
+
+
+--
+-- Name: COLUMN rna_extraction.rna_notes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.rna_notes IS '"Notes". Empty on every row (2026-11-04).';
+
+
+--
+-- Name: COLUMN rna_extraction.status_overwrite; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.status_overwrite IS 'Lab flag marking which extraction to report. "Overwrite Status"; Y stored as true. Read by summary (backlog item 10).';
 
 
 --
@@ -1680,6 +3157,55 @@ COMMENT ON TABLE public.rna_library_ilmn IS 'One row per Illumina RNA library. S
 
 
 --
+-- Name: COLUMN rna_library_ilmn.rna_library_tube_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_ilmn.rna_library_tube_id IS 'Library tube id (_IL mRNA, _dIL ribo-depleted). 4.RNAIllumina "Library Tube ID". Also in library.';
+
+
+--
+-- Name: COLUMN rna_library_ilmn.rna_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_ilmn.rna_id IS 'The RNA extraction (FK to rna_extraction). "RNA Tube ID".';
+
+
+--
+-- Name: COLUMN rna_library_ilmn.rna_num; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_ilmn.rna_num IS 'Attempt number, counted per RNA and prep method. "#". The attempt key is (rna_id, library_method, rna_num).';
+
+
+--
+-- Name: COLUMN rna_library_ilmn.rna_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_ilmn.rna_status IS 'Workbook "Status", free text. Not normalised (Phase H).';
+
+
+--
+-- Name: COLUMN rna_library_ilmn.library_method; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_ilmn.library_method IS '"Library Prep Method".';
+
+
+--
+-- Name: COLUMN rna_library_ilmn.library_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_ilmn.library_date IS '"Library Prep Date".';
+
+
+--
+-- Name: COLUMN rna_library_ilmn.library_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_ilmn.library_id IS 'Library batch. "Library Batch ID".';
+
+
+--
 -- Name: COLUMN rna_library_ilmn.library_size; Type: COMMENT; Schema: public; Owner: -
 --
 
@@ -1690,7 +3216,56 @@ COMMENT ON COLUMN public.rna_library_ilmn.library_size IS 'Historical values onl
 -- Name: COLUMN rna_library_ilmn.perc_product; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.rna_library_ilmn.perc_product IS 'Mapped in name_convert.py to a "% Product" header that no longer exists on 4.RNAIllumina, so it has been silently NULL. Retained pending a mapping fix, not a schema fix.';
+COMMENT ON COLUMN public.rna_library_ilmn.perc_product IS 'Empty. The "% Product" header it was meant to load no longer exists on 4.RNAIllumina, and name_convert_v2.py does not map it. Candidate for removal.';
+
+
+--
+-- Name: COLUMN rna_library_ilmn.library_qubit_conc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_ilmn.library_qubit_conc IS 'ng/uL. "Library Qubit Conc. (ng/ul)".';
+
+
+--
+-- Name: COLUMN rna_library_ilmn.library_molarity; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_ilmn.library_molarity IS 'nM. "Library Molarity (nM)".';
+
+
+--
+-- Name: COLUMN rna_library_ilmn.index_set; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_ilmn.index_set IS '"IDT for Illumina DNA/RNA UD Indexes Set".';
+
+
+--
+-- Name: COLUMN rna_library_ilmn.index_well; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_ilmn.index_well IS '"Illumina Index Adaptor Well".';
+
+
+--
+-- Name: COLUMN rna_library_ilmn.index_inx; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_ilmn.index_inx IS 'The index sequences joined. "Illumina Contatenate Index" (sic).';
+
+
+--
+-- Name: COLUMN rna_library_ilmn.comments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_ilmn.comments IS '"Comments".';
+
+
+--
+-- Name: COLUMN rna_library_ilmn.status_overwrite; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_ilmn.status_overwrite IS 'Lab flag marking which library to report. "Overwrite Status"; Y stored as true. Read by summary (backlog item 10).';
 
 
 --
@@ -1750,10 +3325,122 @@ COMMENT ON TABLE public.rna_library_kinx IS 'One row per PacBio Kinnex RNA libra
 
 
 --
+-- Name: COLUMN rna_library_kinx.rna_library_tube_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_kinx.rna_library_tube_id IS 'Library tube id (_KL). 4.RNAkinnex "Library Tube ID". Also in library.';
+
+
+--
+-- Name: COLUMN rna_library_kinx.rna_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_kinx.rna_id IS 'The RNA extraction (FK to rna_extraction). "RNA Tube ID".';
+
+
+--
+-- Name: COLUMN rna_library_kinx.rna_num; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_kinx.rna_num IS 'Attempt number for this RNA. "#".';
+
+
+--
+-- Name: COLUMN rna_library_kinx.rna_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_kinx.rna_status IS 'Workbook "Status", free text. Not normalised (Phase H).';
+
+
+--
+-- Name: COLUMN rna_library_kinx.library_method; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_kinx.library_method IS '"Library Prep Method".';
+
+
+--
+-- Name: COLUMN rna_library_kinx.processing_comment; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_kinx.processing_comment IS '"Processing comment".';
+
+
+--
+-- Name: COLUMN rna_library_kinx.synthesis_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_kinx.synthesis_date IS '"Kinnex cDNA synthesis date".';
+
+
+--
+-- Name: COLUMN rna_library_kinx.part1_batch_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_kinx.part1_batch_id IS '"Kinnex Part 1: cDNA synthesis batch".';
+
+
+--
 -- Name: COLUMN rna_library_kinx.synthesis_conc; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.rna_library_kinx.synthesis_conc IS 'Mapped in name_convert.py to a header without the embedded newline the real one has ("cDNA Concentration \n(end of section 1 conc)"), so it has been silently NULL. Fix is in the importer.';
+COMMENT ON COLUMN public.rna_library_kinx.synthesis_conc IS 'cDNA concentration at the end of Kinnex part 1, ng/uL. "cDNA Concentration (end of section 1 conc)"; the header has an embedded newline, matched since V.2 (2026-10-06).';
+
+
+--
+-- Name: COLUMN rna_library_kinx.part2_batch_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_kinx.part2_batch_id IS '"Kinnex Part 2: Batch ID".';
+
+
+--
+-- Name: COLUMN rna_library_kinx.final_qubit_conc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_kinx.final_qubit_conc IS 'ng/uL. "Final Library Qubit Conc. (ng/ul)".';
+
+
+--
+-- Name: COLUMN rna_library_kinx.library_size; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_kinx.library_size IS 'bp. "cDNA Library Size (bp)".';
+
+
+--
+-- Name: COLUMN rna_library_kinx.kinnex_primers; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_kinx.kinnex_primers IS '"PacBo Kinnex Barcoded Primers" (sic).';
+
+
+--
+-- Name: COLUMN rna_library_kinx.kinnex_barcode; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_kinx.kinnex_barcode IS '"PacBio Kinnex Library Barcode".';
+
+
+--
+-- Name: COLUMN rna_library_kinx.pool_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_kinx.pool_id IS '"Pool ID".';
+
+
+--
+-- Name: COLUMN rna_library_kinx.plate; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_kinx.plate IS '"Plate".';
+
+
+--
+-- Name: COLUMN rna_library_kinx.plate_location; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_kinx.plate_location IS '"Plate Location".';
 
 
 --
@@ -1761,6 +3448,20 @@ COMMENT ON COLUMN public.rna_library_kinx.synthesis_conc IS 'Mapped in name_conv
 --
 
 COMMENT ON COLUMN public.rna_library_kinx.sequencing_sample_id IS 'Populated on 148 rows and dropped by the importer until now. Hand-entered here, unlike the same-named formula column on 4.RNAIllumina.';
+
+
+--
+-- Name: COLUMN rna_library_kinx.comments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_kinx.comments IS '"Comments".';
+
+
+--
+-- Name: COLUMN rna_library_kinx.status_overwrite; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_kinx.status_overwrite IS 'Lab report flag. "Overwrite Status" exists on 4.RNAkinnex but is empty, so this is empty on every row.';
 
 
 --
@@ -1842,7 +3543,14 @@ CREATE TABLE public.sample (
 -- Name: TABLE sample; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.sample IS 'One row per specimen. Source: the 1.MetaData sheet, plus eight hand-entered planning columns from Summary.';
+COMMENT ON TABLE public.sample IS 'One row per specimen. Source: the 1.MetaData sheet (import_v2.py). The planning columns (workflow, priority, ilmn ... ilrna) are kept in the database, not read from the workbook (2026-10-28); the submission columns are written by the ENA pipelines.';
+
+
+--
+-- Name: COLUMN sample.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.og_id IS 'Specimen id, OG<number>. 1.MetaData "Specimen ID". Every lab, assembly and submission table hangs off it.';
 
 
 --
@@ -1853,6 +3561,216 @@ COMMENT ON COLUMN public.sample.og_num IS 'Numeric part of og_id, for sort order
 
 
 --
+-- Name: COLUMN sample.project_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.project_id IS '1.MetaData "Project ID".';
+
+
+--
+-- Name: COLUMN sample.field_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.field_id IS 'The collector''s own identifier. 1.MetaData "Field Identifier".';
+
+
+--
+-- Name: COLUMN sample.nominal_species_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.nominal_species_id IS 'The species name the specimen arrived as. 1.MetaData "Nominal Species ID". Free text, not validated against species on import (backlog item 8); the LCA validates it later (mito_lca_validation). Meaning undecided: §11 Q1 (which species table it should match).';
+
+
+--
+-- Name: COLUMN sample.common_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.common_name IS '1.MetaData "Common name/s".';
+
+
+--
+-- Name: COLUMN sample.collector; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.collector IS 'Who collected the specimen. 1.MetaData "Collector".';
+
+
+--
+-- Name: COLUMN sample.contact; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.contact IS '1.MetaData "Contact".';
+
+
+--
+-- Name: COLUMN sample.date_collected; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.date_collected IS '1.MetaData "Date_Collected" (an Excel date serial in the sheet).';
+
+
+--
+-- Name: COLUMN sample.sex; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.sex IS '1.MetaData "Sex": F, M, Unknown, TBA, or blank. Not normalised.';
+
+
+--
+-- Name: COLUMN sample.weight; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.weight IS 'Weight, g. 1.MetaData "Weight (g)".';
+
+
+--
+-- Name: COLUMN sample.country; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.country IS '1.MetaData "Country".';
+
+
+--
+-- Name: COLUMN sample.state; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.state IS '1.MetaData "State".';
+
+
+--
+-- Name: COLUMN sample.location; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.location IS '1.MetaData "Location".';
+
+
+--
+-- Name: COLUMN sample.latitude_collection; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.latitude_collection IS 'Decimal degrees. 1.MetaData "Latitude_Collection"; DMS and Excel-serial values are converted (value_conversions).';
+
+
+--
+-- Name: COLUMN sample.longitude_collection; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.longitude_collection IS 'Decimal degrees. 1.MetaData "Longitude_Collection"; converted as latitude is.';
+
+
+--
+-- Name: COLUMN sample.collection_method; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.collection_method IS '1.MetaData "Collection_Method".';
+
+
+--
+-- Name: COLUMN sample.preservation_method; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.preservation_method IS 'Specimen-level preservation. 1.MetaData "Preservation_Method". Tissue-level is tissue.preservation.';
+
+
+--
+-- Name: COLUMN sample.sample_condition; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.sample_condition IS '1.MetaData "Sample_Condition".';
+
+
+--
+-- Name: COLUMN sample.sample_condition_upon_preservation; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.sample_condition_upon_preservation IS '1.MetaData "Sample Condition upon preservation".';
+
+
+--
+-- Name: COLUMN sample.photo_voucher; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.photo_voucher IS '1.MetaData "Photo_Voucher".';
+
+
+--
+-- Name: COLUMN sample.photo_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.photo_id IS '1.MetaData "Photo_Voucher_Accession_Details".';
+
+
+--
+-- Name: COLUMN sample.specimen_voucher; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.specimen_voucher IS '1.MetaData "Specimen_Voucher".';
+
+
+--
+-- Name: COLUMN sample.voucher_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.voucher_id IS '1.MetaData "Specimen_Voucher_Accession_details".';
+
+
+--
+-- Name: COLUMN sample.ethics_permit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.ethics_permit IS '1.MetaData "Ethics_Permit".';
+
+
+--
+-- Name: COLUMN sample.collection_permit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.collection_permit IS '1.MetaData "Collection_Permit".';
+
+
+--
+-- Name: COLUMN sample.import_permit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.import_permit IS '1.MetaData "Import_Permit".';
+
+
+--
+-- Name: COLUMN sample.cultural_significance; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.cultural_significance IS '1.MetaData "Cultural_Significance".';
+
+
+--
+-- Name: COLUMN sample.cites; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.cites IS 'CITES listing. 1.MetaData "CITES".';
+
+
+--
+-- Name: COLUMN sample.cms; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.cms IS 'Convention on Migratory Species listing. 1.MetaData "CMS".';
+
+
+--
+-- Name: COLUMN sample.iucn; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.iucn IS 'IUCN Red List status. 1.MetaData "IUCN".';
+
+
+--
+-- Name: COLUMN sample.epbc; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.epbc IS 'EPBC Act listing. 1.MetaData "EPBC".';
+
+
+--
 -- Name: COLUMN sample.sample_receipt_date; Type: COMMENT; Schema: public; Owner: -
 --
 
@@ -1860,10 +3778,31 @@ COMMENT ON COLUMN public.sample.sample_receipt_date IS 'Stored as an Excel date 
 
 
 --
+-- Name: COLUMN sample.comments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.comments IS '1.MetaData "Comments".';
+
+
+--
+-- Name: COLUMN sample.workflow; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.workflow IS 'Planned workflow: Draft, Reference, Resequence, Metabarcoding, Not assigned. Set in OceanGenom_Web (Assign; og_workflow_assignment_log). Meaning undecided: §11 Q2.';
+
+
+--
+-- Name: COLUMN sample.priority; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.priority IS 'Priority: Immediate, Completed, Draft, HOLD, Not proceeding, Low. Set in OceanGenom_Web (og_priority_log). Meaning undecided: §11 Q2.';
+
+
+--
 -- Name: COLUMN sample.ilmn; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.sample.ilmn IS 'Is this sample slated for Illumina? Hand-entered lab intent (Y/N in the workbook). Compare against the actual library count in v2.summary.';
+COMMENT ON COLUMN public.sample.ilmn IS 'Is this sample slated for Illumina? Hand-entered lab intent, kept in the database (2026-10-28). Compare against summary.illumina_actual.';
 
 
 --
@@ -1899,6 +3838,139 @@ COMMENT ON COLUMN public.sample.rna IS 'Is this sample slated for RNA extraction
 --
 
 COMMENT ON COLUMN public.sample.ilrna IS 'Is this sample slated for Illumina RNA? Hand-entered lab intent.';
+
+
+--
+-- Name: COLUMN sample.assigned_species; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.assigned_species IS 'Species name assigned after identification. No current writer found; loaded at the v2 backfill. Meaning undecided: §11 Q1.';
+
+
+--
+-- Name: COLUMN sample.eschmeyer_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.eschmeyer_id IS 'Eschmeyer''s Catalog of Fishes id. 1 row; no current writer found.';
+
+
+--
+-- Name: COLUMN sample.ncbi_sample_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.ncbi_sample_name IS 'Sample name used at NCBI. 5 rows; no current writer found.';
+
+
+--
+-- Name: COLUMN sample.ncbi_biosample_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.ncbi_biosample_id IS 'The specimen''s BioSample (SAMN... at NCBI, or SAMEA...), shared by draft, ref and mito submissions. Written blank-only by ENA-draft-genomes step 06 and ENA-ref-genomes step 09.';
+
+
+--
+-- Name: COLUMN sample.hifi_lca_outcome; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.hifi_lca_outcome IS 'Outcome of the species check on the HiFi assembly, e.g. Not validated. No current writer found.';
+
+
+--
+-- Name: COLUMN sample.ncbi_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.ncbi_id IS 'NCBI Taxonomy id of the species, as text (e.g. 379402.0, an Excel float). No current writer found.';
+
+
+--
+-- Name: COLUMN sample.tol_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.tol_id IS 'Tree of Life id (e.g. fLutVit1). No current writer found.';
+
+
+--
+-- Name: COLUMN sample.ncbi_bioproject_id_lvl_3_hifi; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.ncbi_bioproject_id_lvl_3_hifi IS 'Umbrella BioProject of the reference genome. Written blank-only by ENA-ref-genomes step 09.';
+
+
+--
+-- Name: COLUMN sample.bioproject_id_haplotype_1; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.bioproject_id_haplotype_1 IS 'BioProject of haplotype 1. ENA-ref-genomes step 09, blank-only. ref_submission_haplotype holds the same per haplotype.';
+
+
+--
+-- Name: COLUMN sample.bioproject_id_haplotype_2; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.bioproject_id_haplotype_2 IS 'BioProject of haplotype 2. ENA-ref-genomes step 09, blank-only.';
+
+
+--
+-- Name: COLUMN sample.bioproject_sequencing_data; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.bioproject_sequencing_data IS 'BioProject of the raw reads. ENA-ref-genomes step 09, blank-only.';
+
+
+--
+-- Name: COLUMN sample.ncbi_assembly_upload; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.ncbi_assembly_upload IS 'Free-text assembly upload state (e.g. completed). No current writer found; ref_submission is the structured record.';
+
+
+--
+-- Name: COLUMN sample.ncbi_raw_reads_upload; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.ncbi_raw_reads_upload IS 'Free-text note of which reads were uploaded (e.g. DNA + HiC + ONT). No current writer found; ref_sra_upload is the structured record.';
+
+
+--
+-- Name: COLUMN sample.hifi_public; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.hifi_public IS '8 rows; no current writer found.';
+
+
+--
+-- Name: COLUMN sample.illumina_lca; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.illumina_lca IS 'Outcome of the species check on the Illumina data, e.g. Not validated. No current writer found.';
+
+
+--
+-- Name: COLUMN sample.ncbi_bioproject_id_draft; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.ncbi_bioproject_id_draft IS 'BioProject of the draft genome. No current writer found; draft_submission is the structured record.';
+
+
+--
+-- Name: COLUMN sample.draft_sra_accessions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.draft_sra_accessions IS 'Run accessions of the draft reads. No current writer found; draft_submission.sra_accession is the structured record.';
+
+
+--
+-- Name: COLUMN sample.draft_assembly_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.draft_assembly_accession IS 'Accession of the draft assembly. No current writer found; draft_submission.assembly_accession is the structured record.';
+
+
+--
+-- Name: COLUMN sample.embargo_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sample.embargo_status IS 'Release or Embargo: whether this specimen''s data may be made public. Set in OceanGenom_Web through embargo_assignment_view; read by the ENA pipelines.';
 
 
 --
@@ -1964,6 +4036,13 @@ COMMENT ON TABLE public.tissue IS 'One row per tissue subsample taken from a spe
 
 
 --
+-- Name: COLUMN tissue.tissue_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tissue.tissue_id IS 'Tissue id, OG<number><tissue letter>[<n>] (e.g. OG2270G2). 2.Tissue "Sample ID". Parent of extractions and lysates.';
+
+
+--
 -- Name: COLUMN tissue.og_id; Type: COMMENT; Schema: public; Owner: -
 --
 
@@ -1971,10 +4050,73 @@ COMMENT ON COLUMN public.tissue.og_id IS 'Parent specimen. The only ancestor sto
 
 
 --
+-- Name: COLUMN tissue.alt_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tissue.alt_id IS '2.Tissue "Alt ID".';
+
+
+--
+-- Name: COLUMN tissue.tissue; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tissue.tissue IS 'Tissue type: Fin Clip, Eye, Other, Unknown... 2.Tissue "Tissue". Not normalised.';
+
+
+--
+-- Name: COLUMN tissue.extracted; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tissue.extracted IS 'Times this tissue has been extracted, as the lab records it. 2.Tissue "Extracted".';
+
+
+--
 -- Name: COLUMN tissue.preservation; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.tissue.preservation IS 'Tissue-level preservation. Distinct from sample.preservation_method, which is specimen-level.';
+
+
+--
+-- Name: COLUMN tissue.freezer; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tissue.freezer IS '2.Tissue "Freezer".';
+
+
+--
+-- Name: COLUMN tissue.shelf; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tissue.shelf IS '2.Tissue "Shelf".';
+
+
+--
+-- Name: COLUMN tissue.rack; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tissue.rack IS '2.Tissue "Rack".';
+
+
+--
+-- Name: COLUMN tissue.level; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tissue.level IS '2.Tissue "Level".';
+
+
+--
+-- Name: COLUMN tissue.box; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tissue.box IS '2.Tissue "Box Label".';
+
+
+--
+-- Name: COLUMN tissue.comment; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.tissue.comment IS '2.Tissue "Comment".';
 
 
 --
@@ -2118,7 +4260,112 @@ CREATE VIEW public.summary AS
 -- Name: VIEW summary; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.summary IS 'The workbook''s Summary sheet, computed from the child tables instead of copied from Excel (decision 5). This is what replaces the nine derived columns removed from v2.sample, and it is what fixes the status fragmentation of database_review.md Finding 7 at source: the 47 distinct rna_status values were Excel string concatenation being persisted. Each technology also reports planned (lab intent) against actual (counted).';
+COMMENT ON VIEW public.summary IS 'The workbook''s Summary sheet, computed from the child tables instead of copied from Excel (decision 5). This replaces the nine derived columns removed from sample, and fixes the status fragmentation of database_review.md Finding 7 at source: the 47 distinct rna_status values were Excel string concatenation being persisted. Each technology also reports planned (lab intent) against actual (counted). Takes about 2 s (backlog item 10).';
+
+
+--
+-- Name: COLUMN summary.og_num; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.og_num IS 'sample.og_num.';
+
+
+--
+-- Name: COLUMN summary.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.og_id IS 'The specimen.';
+
+
+--
+-- Name: COLUMN summary.project_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.project_id IS 'sample.project_id.';
+
+
+--
+-- Name: COLUMN summary.workflow; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.workflow IS 'sample.workflow (set in OceanGenom_Web).';
+
+
+--
+-- Name: COLUMN summary.priority; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.priority IS 'sample.priority (set in OceanGenom_Web).';
+
+
+--
+-- Name: COLUMN summary.tissues; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.tissues IS 'Tissue rows for the specimen.';
+
+
+--
+-- Name: COLUMN summary.extracted; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.extracted IS 'DNA extractions with status exactly Extracted.';
+
+
+--
+-- Name: COLUMN summary.dna_extraction_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.dna_extraction_status IS 'Status of the one DNA extraction reported: the status_overwrite one if any, else the highest ext_num. Awaiting Status when there is none. Free text, as entered.';
+
+
+--
+-- Name: COLUMN summary.illumina_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.illumina_status IS 'Status of the reported Illumina library (status_overwrite first, then highest #), or Awaiting Status.';
+
+
+--
+-- Name: COLUMN summary.pacbio_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.pacbio_status IS 'Status of the reported PacBio library, or Awaiting Status. goat_species_v1 reads it for in_lab.';
+
+
+--
+-- Name: COLUMN summary.hic_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.hic_status IS 'Status of the reported Hi-C library, or Awaiting Status.';
+
+
+--
+-- Name: COLUMN summary.nanopore_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.nanopore_status IS 'Status of the reported ONT library, or Awaiting Status.';
+
+
+--
+-- Name: COLUMN summary.rna_extraction_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.rna_extraction_status IS 'Status of the reported RNA extraction, or Awaiting Status.';
+
+
+--
+-- Name: COLUMN summary.rna_ilmn_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.rna_ilmn_status IS 'Status of the reported Illumina RNA library, or Awaiting Status.';
+
+
+--
+-- Name: COLUMN summary.rna_kinnex_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.rna_kinnex_status IS 'Status of the reported Kinnex library, or Awaiting Status.';
 
 
 --
@@ -2129,10 +4376,150 @@ COMMENT ON COLUMN public.summary.illumina_planned IS 'Hand-entered lab intent fr
 
 
 --
+-- Name: COLUMN summary.hifi_planned; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.hifi_planned IS 'sample.hifi: slated for PacBio HiFi (lab intent). Compare with hifi_actual.';
+
+
+--
+-- Name: COLUMN summary.hic_planned; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.hic_planned IS 'sample.hic: slated for Hi-C.';
+
+
+--
+-- Name: COLUMN summary.nanopore_planned; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.nanopore_planned IS 'sample.nano: slated for ONT.';
+
+
+--
+-- Name: COLUMN summary.rna_planned; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.rna_planned IS 'sample.rna: slated for RNA extraction.';
+
+
+--
+-- Name: COLUMN summary.rna_ilmn_planned; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.rna_ilmn_planned IS 'sample.ilrna: slated for Illumina RNA.';
+
+
+--
 -- Name: COLUMN summary.illumina_actual; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.summary.illumina_actual IS 'Illumina libraries that actually exist for this sample, counted through tissue -> dna_extraction.';
+
+
+--
+-- Name: COLUMN summary.hifi_actual; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.hifi_actual IS 'PacBio libraries that exist for the specimen.';
+
+
+--
+-- Name: COLUMN summary.hic_actual; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.hic_actual IS 'Hi-C libraries that exist.';
+
+
+--
+-- Name: COLUMN summary.nanopore_actual; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.nanopore_actual IS 'ONT libraries that exist.';
+
+
+--
+-- Name: COLUMN summary.rna_actual; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.rna_actual IS 'RNA extractions that exist.';
+
+
+--
+-- Name: COLUMN summary.rna_ilmn_actual; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.rna_ilmn_actual IS 'Illumina RNA libraries that exist.';
+
+
+--
+-- Name: COLUMN summary.rna_kinnex_actual; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.rna_kinnex_actual IS 'Kinnex libraries that exist. (There is no rna_kinnex_planned.)';
+
+
+--
+-- Name: COLUMN summary.ilmn_validated_species_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.ilmn_validated_species_name IS 'Validated species names from the specimen''s Illumina mitogenome validations, '', ''-joined.';
+
+
+--
+-- Name: COLUMN summary.hifi_validated_species_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.hifi_validated_species_name IS 'The same, from HiFi mitogenomes.';
+
+
+--
+-- Name: COLUMN summary.hic_validated_species_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.hic_validated_species_name IS 'The same, from Hi-C mitogenomes.';
+
+
+--
+-- Name: COLUMN summary.field_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.field_id IS 'sample.field_id.';
+
+
+--
+-- Name: COLUMN summary.nominal_species_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.nominal_species_id IS 'sample.nominal_species_id.';
+
+
+--
+-- Name: COLUMN summary.common_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.common_name IS 'sample.common_name.';
+
+
+--
+-- Name: COLUMN summary.collector; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.collector IS 'sample.collector.';
+
+
+--
+-- Name: COLUMN summary.contact; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.contact IS 'sample.contact.';
+
+
+--
+-- Name: COLUMN summary.comments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.summary.comments IS 'sample.comments.';
 
 
 --
@@ -2171,7 +4558,168 @@ CREATE TABLE public.mito_blast_hit (
 -- Name: TABLE mito_blast_hit; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.mito_blast_hit IS 'BLAST hits retained after LCA filtering, one row per matched sequence and region.';
+COMMENT ON TABLE public.mito_blast_hit IS 'BLAST hits retained after LCA filtering, one row per matched sequence and region. Written by push_lca_blast_results.py.';
+
+
+--
+-- Name: COLUMN mito_blast_hit.match_sequence_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.match_sequence_id IS 'Accession of the matched subject sequence.';
+
+
+--
+-- Name: COLUMN mito_blast_hit.taxon_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.taxon_id IS 'BLAST staxids for the match, verbatim. Usually one NCBI taxon id, but a '';''-joined list when the accession is registered under several taxa: cast it before using it as a number (022).';
+
+
+--
+-- Name: COLUMN mito_blast_hit.scientific_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.scientific_name IS 'BLAST sscinames.';
+
+
+--
+-- Name: COLUMN mito_blast_hit.common_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.common_name IS 'BLAST scomnames.';
+
+
+--
+-- Name: COLUMN mito_blast_hit.kingdoms; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.kingdoms IS 'BLAST sskingdoms (e.g. Eukaryota).';
+
+
+--
+-- Name: COLUMN mito_blast_hit.percent_identity; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.percent_identity IS 'pident, %.';
+
+
+--
+-- Name: COLUMN mito_blast_hit.alignment_length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.alignment_length IS 'length, bp.';
+
+
+--
+-- Name: COLUMN mito_blast_hit.query_length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.query_length IS 'qlen, bp.';
+
+
+--
+-- Name: COLUMN mito_blast_hit.subject_length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.subject_length IS 'slen, bp.';
+
+
+--
+-- Name: COLUMN mito_blast_hit.mismatch; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.mismatch IS 'mismatch: mismatched positions.';
+
+
+--
+-- Name: COLUMN mito_blast_hit.gap_open; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.gap_open IS 'gapopen: gap openings.';
+
+
+--
+-- Name: COLUMN mito_blast_hit.gaps; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.gaps IS 'gaps: gap positions.';
+
+
+--
+-- Name: COLUMN mito_blast_hit.query_start; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.query_start IS 'qstart.';
+
+
+--
+-- Name: COLUMN mito_blast_hit.query_end; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.query_end IS 'qend.';
+
+
+--
+-- Name: COLUMN mito_blast_hit.subject_start; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.subject_start IS 'sstart.';
+
+
+--
+-- Name: COLUMN mito_blast_hit.subject_end; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.subject_end IS 'send.';
+
+
+--
+-- Name: COLUMN mito_blast_hit.subject_title; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.subject_title IS 'stitle: the subject''s FASTA title.';
+
+
+--
+-- Name: COLUMN mito_blast_hit.evalue; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.evalue IS 'BLAST e-value. Lower is better.';
+
+
+--
+-- Name: COLUMN mito_blast_hit.bit_score; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.bit_score IS 'BLAST bit score.';
+
+
+--
+-- Name: COLUMN mito_blast_hit.query_coverage; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.query_coverage IS 'BLAST qcovs: query cover over all HSPs, %.';
+
+
+--
+-- Name: COLUMN mito_blast_hit.subject_coverage; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.subject_coverage IS 'BLAST qcovhsp, the query cover of this HSP, %, whatever the name: the 21st -outfmt field (calculateLCA.py). Not a subject coverage.';
+
+
+--
+-- Name: COLUMN mito_blast_hit.region; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.region IS 'Marker region: 12s, 16s, CO1...';
+
+
+--
+-- Name: COLUMN mito_blast_hit.blast_run_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_blast_hit.blast_run_date IS 'YYMMDD the BLAST ran, as text.';
 
 
 --
@@ -2268,6 +4816,139 @@ COMMENT ON TABLE public.hic_read_qc IS 'Illumina run statistics for Hi-C librari
 
 
 --
+-- Name: COLUMN hic_read_qc.hic_qc_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_read_qc.hic_qc_id IS 'Surrogate key.';
+
+
+--
+-- Name: COLUMN hic_read_qc.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_read_qc.og_id IS 'The sample (FK to sample), parsed from the BaseSpace BioSampleName (OG<num><tissue>-<ext_type>_<lib_code>_<lane>).';
+
+
+--
+-- Name: COLUMN hic_read_qc.tissue; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_read_qc.tissue IS 'Tissue code from the BioSampleName. NULL: not recorded.';
+
+
+--
+-- Name: COLUMN hic_read_qc.ext_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_read_qc.ext_type IS 'Extraction code from the BioSampleName. NULL: not recorded.';
+
+
+--
+-- Name: COLUMN hic_read_qc.lib_code; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_read_qc.lib_code IS 'Library code from the BioSampleName (e.g. HICL). NULL: not recorded.';
+
+
+--
+-- Name: COLUMN hic_read_qc.lane; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_read_qc.lane IS 'Lane from the BioSampleName (L1, L2...). NULL: not recorded.';
+
+
+--
+-- Name: COLUMN hic_read_qc.run_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_read_qc.run_id IS 'The Illumina run (FK to sequencing_run; 077).';
+
+
+--
+-- Name: COLUMN hic_read_qc.sequencing_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_read_qc.sequencing_id IS 'The one Hi-C sequencing row of this OG and tissue on this run; NULL where none or several match (v_read_qc_sequencing_readiness).';
+
+
+--
+-- Name: COLUMN hic_read_qc.datecreated; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_read_qc.datecreated IS 'BaseSpace DateCreated of the dataset.';
+
+
+--
+-- Name: COLUMN hic_read_qc.isarchived; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_read_qc.isarchived IS 'BaseSpace IsArchived: the dataset has been moved to archive storage.';
+
+
+--
+-- Name: COLUMN hic_read_qc.isfiledeleted; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_read_qc.isfiledeleted IS 'BaseSpace IsFileDataDeleted: the files are gone from BaseSpace.';
+
+
+--
+-- Name: COLUMN hic_read_qc.totalreadspf; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_read_qc.totalreadspf IS 'BaseSpace TotalReadsPF: reads passing filter, both mates counted.';
+
+
+--
+-- Name: COLUMN hic_read_qc.totalclusterspf; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_read_qc.totalclusterspf IS 'BaseSpace TotalClustersPF: clusters (read pairs) passing filter.';
+
+
+--
+-- Name: COLUMN hic_read_qc.read1length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_read_qc.read1length IS 'Read 1 length, cycles (bp).';
+
+
+--
+-- Name: COLUMN hic_read_qc.read2length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_read_qc.read2length IS 'Read 2 length, cycles (bp).';
+
+
+--
+-- Name: COLUMN hic_read_qc.ispairedend; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_read_qc.ispairedend IS 'BaseSpace IsPairedEnd.';
+
+
+--
+-- Name: COLUMN hic_read_qc.yield_gb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_read_qc.yield_gb IS 'Yield, Gb: totalclusterspf x (read1length + read2length) / 1e9 (generate_hic_yield.py).';
+
+
+--
+-- Name: COLUMN hic_read_qc.totalsize_gb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_read_qc.totalsize_gb IS 'Size of the dataset''s files, GB (BaseSpace TotalSize / 1e9). Not a yield.';
+
+
+--
+-- Name: COLUMN hic_read_qc.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_read_qc.loaded_at IS 'When the row was last written (database clock).';
+
+
+--
 -- Name: hic_reads_qc; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -2334,6 +5015,111 @@ COMMENT ON TABLE public.hifi_read_qc IS 'PacBio HiFi yield and quality per libra
 
 
 --
+-- Name: COLUMN hifi_read_qc.hifi_qc_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hifi_read_qc.hifi_qc_id IS 'Surrogate key.';
+
+
+--
+-- Name: COLUMN hifi_read_qc.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hifi_read_qc.og_id IS 'The sample (FK to sample), parsed from the SMRT Link SampleName.';
+
+
+--
+-- Name: COLUMN hifi_read_qc.tissue; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hifi_read_qc.tissue IS 'Tissue code parsed from the SampleName.';
+
+
+--
+-- Name: COLUMN hifi_read_qc.ext_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hifi_read_qc.ext_type IS 'Extraction code parsed from the SampleName.';
+
+
+--
+-- Name: COLUMN hifi_read_qc.lib_code; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hifi_read_qc.lib_code IS 'Library code parsed from the SampleName (e.g. SBL).';
+
+
+--
+-- Name: COLUMN hifi_read_qc.run_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hifi_read_qc.run_id IS 'The PacBio run (FK to sequencing_run; 077). From the yield CSV''s RunName.';
+
+
+--
+-- Name: COLUMN hifi_read_qc.sequencing_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hifi_read_qc.sequencing_id IS 'The one sequencing row of this library on this run; NULL where none or several match (v_read_qc_sequencing_readiness).';
+
+
+--
+-- Name: COLUMN hifi_read_qc.barcode; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hifi_read_qc.barcode IS 'Barcode, with bc2032--bc2032 simplified to bc2032.';
+
+
+--
+-- Name: COLUMN hifi_read_qc.barcode_quality; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hifi_read_qc.barcode_quality IS 'SMRT Link BarcodeQuality.';
+
+
+--
+-- Name: COLUMN hifi_read_qc.hifi_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hifi_read_qc.hifi_reads IS 'HiFi reads (SMRT Link HiFiReads).';
+
+
+--
+-- Name: COLUMN hifi_read_qc.hifi_read_length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hifi_read_qc.hifi_read_length IS 'Mean HiFi read length, bp (HiFiReadLength).';
+
+
+--
+-- Name: COLUMN hifi_read_qc.hifi_read_quality; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hifi_read_qc.hifi_read_quality IS 'HiFi read quality as SMRT Link reports it, e.g. Q27. Text.';
+
+
+--
+-- Name: COLUMN hifi_read_qc.hifi_yield; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hifi_read_qc.hifi_yield IS 'HiFi yield, bases (HiFiYield).';
+
+
+--
+-- Name: COLUMN hifi_read_qc.polymerase_read_length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hifi_read_qc.polymerase_read_length IS 'Mean polymerase read length, bp (PolymeraseReadLength).';
+
+
+--
+-- Name: COLUMN hifi_read_qc.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hifi_read_qc.loaded_at IS 'When the row was last written (database clock).';
+
+
+--
 -- Name: hifi_reads_qc; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -2386,6 +5172,69 @@ COMMENT ON TABLE public.ref_genomescope IS 'GenomeScope2 k-mer profile of a HiFi
 
 
 --
+-- Name: COLUMN ref_genomescope.read_set_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_genomescope.read_set_id IS 'The HiFi read set (FK to ref_read_set).';
+
+
+--
+-- Name: COLUMN ref_genomescope.homozygosity; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_genomescope.homozygosity IS 'GenomeScope2 homozygosity, %, 2 places (the draft table keeps 4).';
+
+
+--
+-- Name: COLUMN ref_genomescope.heterozygosity; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_genomescope.heterozygosity IS 'GenomeScope2 heterozygosity, %, 2 places.';
+
+
+--
+-- Name: COLUMN ref_genomescope.genomesize; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_genomescope.genomesize IS 'GenomeScope2 haploid genome length, bp. 1 Gb exactly where the model failed (the writer''s default; see the table comment).';
+
+
+--
+-- Name: COLUMN ref_genomescope.repeatsize; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_genomescope.repeatsize IS 'GenomeScope2 repeat length, bp.';
+
+
+--
+-- Name: COLUMN ref_genomescope.uniquesize; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_genomescope.uniquesize IS 'GenomeScope2 unique length, bp.';
+
+
+--
+-- Name: COLUMN ref_genomescope.modelfit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_genomescope.modelfit IS 'GenomeScope2 model fit, %.';
+
+
+--
+-- Name: COLUMN ref_genomescope.errorrate; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_genomescope.errorrate IS 'GenomeScope2 read error rate, %.';
+
+
+--
+-- Name: COLUMN ref_genomescope.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_genomescope.loaded_at IS 'When the row was last written (database clock).';
+
+
+--
 -- Name: ref_hifi_adapter_filter; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2402,6 +5251,27 @@ CREATE TABLE public.ref_hifi_adapter_filter (
 --
 
 COMMENT ON TABLE public.ref_hifi_adapter_filter IS 'HiFiAdapterFilt: reads removed as adapter-contaminated, per HiFi read set (ref_read_set). Written by 0a_push_hifiadapt_results_to_sqldb.py (ref repo).';
+
+
+--
+-- Name: COLUMN ref_hifi_adapter_filter.read_set_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_hifi_adapter_filter.read_set_id IS 'The HiFi read set (FK to ref_read_set).';
+
+
+--
+-- Name: COLUMN ref_hifi_adapter_filter.contam_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_hifi_adapter_filter.contam_reads IS 'HiFi reads HiFiAdapterFilt removed as adapter-contaminated.';
+
+
+--
+-- Name: COLUMN ref_hifi_adapter_filter.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_hifi_adapter_filter.loaded_at IS 'When the row was last written (database clock).';
 
 
 --
@@ -2422,6 +5292,34 @@ CREATE TABLE public.ref_read_set (
 --
 
 COMMENT ON TABLE public.ref_read_set IS 'A HiFi read set: the PacBio reads one reference-pipeline run took in for an OG (the samplesheet''s date). seq_date is the latest seq_date of its sequencing rows, not the samplesheet date. NULL = unknown (before RG, or a public.raw_qc state no dated read set matches). Migration 062.';
+
+
+--
+-- Name: COLUMN ref_read_set.read_set_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_read_set.read_set_id IS 'Surrogate key. ref_genomescope, ref_hifi_adapter_filter and the run links hang off it.';
+
+
+--
+-- Name: COLUMN ref_read_set.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_read_set.og_id IS 'The sample (FK to sample).';
+
+
+--
+-- Name: COLUMN ref_read_set.seq_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_read_set.seq_date IS 'YYMMDD: the latest seq_date of its sequencing rows (or the staging date of an external set). NULL = unknown.';
+
+
+--
+-- Name: COLUMN ref_read_set.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_read_set.loaded_at IS 'When the row was last written (database clock).';
 
 
 --
@@ -2528,6 +5426,27 @@ COMMENT ON TABLE public.design_description IS 'Illumina prep protocols, named by
 
 
 --
+-- Name: COLUMN design_description.design_no; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.design_description.design_no IS 'Protocol number, as in sequencing.design_no.';
+
+
+--
+-- Name: COLUMN design_description.design_description; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.design_description.design_description IS 'The protocol text.';
+
+
+--
+-- Name: COLUMN design_description.comment; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.design_description.comment IS 'Short label: which lab''s standard prep.';
+
+
+--
 -- Name: draft_busco; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2557,7 +5476,91 @@ CREATE TABLE public.draft_busco (
 -- Name: TABLE draft_busco; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.draft_busco IS 'BUSCO, with BUSCO''s own assembly statistics and internal stop codons, from one short-summary JSON. Written by push_busco_results_to_sqldb.py.';
+COMMENT ON TABLE public.draft_busco IS 'BUSCO, with BUSCO''s own assembly statistics and internal stop codons, from one short-summary JSON. Written by push_busco_results_to_sqldb.py. Its N50 columns are not reliable N50s; use draft_gfastats.';
+
+
+--
+-- Name: COLUMN draft_busco.draft_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_busco.draft_id IS 'The draft (FK to draft_genome).';
+
+
+--
+-- Name: COLUMN draft_busco.complete; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_busco.complete IS 'Complete BUSCOs, % of n_markers (single_copy + multi_copy).';
+
+
+--
+-- Name: COLUMN draft_busco.single_copy; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_busco.single_copy IS 'Complete single-copy BUSCOs, %.';
+
+
+--
+-- Name: COLUMN draft_busco.multi_copy; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_busco.multi_copy IS 'Complete duplicated BUSCOs, %.';
+
+
+--
+-- Name: COLUMN draft_busco.fragmented; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_busco.fragmented IS 'Fragmented BUSCOs, %.';
+
+
+--
+-- Name: COLUMN draft_busco.missing; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_busco.missing IS 'Missing BUSCOs, %.';
+
+
+--
+-- Name: COLUMN draft_busco.n_markers; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_busco.n_markers IS 'Number of BUSCO markers in the lineage dataset searched.';
+
+
+--
+-- Name: COLUMN draft_busco.domain; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_busco.domain IS 'Domain BUSCO reports for the lineage (eukaryota on every row as of 2026-11).';
+
+
+--
+-- Name: COLUMN draft_busco.number_of_scaffolds; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_busco.number_of_scaffolds IS 'BUSCO''s own scaffold count. gfastats is the authority (draft_gfastats.gfa_num_scaffolds).';
+
+
+--
+-- Name: COLUMN draft_busco.number_of_contigs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_busco.number_of_contigs IS 'BUSCO''s own contig count. Use draft_gfastats.gfa_num_contigs.';
+
+
+--
+-- Name: COLUMN draft_busco.total_length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_busco.total_length IS 'BUSCO''s own total assembly length, bp. Use draft_gfastats.gfa_total_scaffold_length.';
+
+
+--
+-- Name: COLUMN draft_busco.percent_gaps; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_busco.percent_gaps IS 'BUSCO''s own % of N bases.';
 
 
 --
@@ -2572,6 +5575,27 @@ COMMENT ON COLUMN public.draft_busco.scaffold_n50 IS 'NOT a reliable N50: on mos
 --
 
 COMMENT ON COLUMN public.draft_busco.contigs_n50 IS 'NOT a reliable N50; see scaffold_n50. Use draft_gfastats.gfa_contig_n50.';
+
+
+--
+-- Name: COLUMN draft_busco.internal_stop_codon_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_busco.internal_stop_codon_count IS 'Complete BUSCO genes with an internal stop codon. NULL where the BUSCO version did not report it.';
+
+
+--
+-- Name: COLUMN draft_busco.internal_stop_codon_percent; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_busco.internal_stop_codon_percent IS 'Those genes as % of complete BUSCOs. A high value points at frameshifts in the assembly.';
+
+
+--
+-- Name: COLUMN draft_busco.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_busco.loaded_at IS 'When the row was last written (database clock).';
 
 
 --
@@ -2600,10 +5624,66 @@ COMMENT ON TABLE public.draft_contamination IS 'FCS-GX contamination screen via 
 
 
 --
+-- Name: COLUMN draft_contamination.draft_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_contamination.draft_id IS 'The draft (FK to draft_genome).';
+
+
+--
+-- Name: COLUMN draft_contamination.num_contigs_exclude; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_contamination.num_contigs_exclude IS 'Contigs FCS-GX marked EXCLUDE (removed whole). 0 when the report had no EXCLUDE line.';
+
+
+--
+-- Name: COLUMN draft_contamination.num_contigs_trim; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_contamination.num_contigs_trim IS 'Contigs FCS-GX marked TRIM (contaminant span cut out).';
+
+
+--
+-- Name: COLUMN draft_contamination.num_contigs_review; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_contamination.num_contigs_review IS 'Contigs FCS-GX marked REVIEW (left in, flagged).';
+
+
+--
+-- Name: COLUMN draft_contamination.bp_exclude; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_contamination.bp_exclude IS 'bp in the EXCLUDE contigs.';
+
+
+--
+-- Name: COLUMN draft_contamination.bp_trim; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_contamination.bp_trim IS 'bp in the TRIM actions.';
+
+
+--
+-- Name: COLUMN draft_contamination.bp_review; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_contamination.bp_review IS 'bp in the REVIEW contigs.';
+
+
+--
 -- Name: COLUMN draft_contamination.num_contigs_lt_500bp; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.draft_contamination.num_contigs_lt_500bp IS 'Contigs under 500 bp (*contig_count_500bp.txt). Was draft_genomes.num_contigs.';
+
+
+--
+-- Name: COLUMN draft_contamination.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_contamination.loaded_at IS 'When the row was last written (database clock).';
 
 
 --
@@ -2628,6 +5708,62 @@ CREATE TABLE public.draft_depthsizer (
 --
 
 COMMENT ON TABLE public.draft_depthsizer IS 'DepthSizer: RETIRED and CLOSED (owner decision 12, 2026-10-16). Loaded once from draft_genomes; no writer, no new rows.';
+
+
+--
+-- Name: COLUMN draft_depthsizer.draft_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_depthsizer.draft_id IS 'The draft (FK to draft_genome).';
+
+
+--
+-- Name: COLUMN draft_depthsizer.depmethod; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_depthsizer.depmethod IS 'DepthSizer depth method (mpileup on every row). Frozen historical value.';
+
+
+--
+-- Name: COLUMN draft_depthsizer.adjust; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_depthsizer.adjust IS 'DepthSizer read-length adjustment applied: IndelRatio, or blank/nan for none. Frozen.';
+
+
+--
+-- Name: COLUMN draft_depthsizer.readbp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_depthsizer.readbp IS 'Total read bp DepthSizer sized the genome from. Frozen.';
+
+
+--
+-- Name: COLUMN draft_depthsizer.mapadjust; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_depthsizer.mapadjust IS 'DepthSizer mapping adjustment ratio (0-1). Frozen.';
+
+
+--
+-- Name: COLUMN draft_depthsizer.scdepth; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_depthsizer.scdepth IS 'DepthSizer single-copy read depth. Succeeded by draft_genomescope.busco_read_depth (067). Frozen.';
+
+
+--
+-- Name: COLUMN draft_depthsizer.estgenomesize; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_depthsizer.estgenomesize IS 'DepthSizer genome size estimate, bp. Frozen; not comparable with GenomeScope genomesize.';
+
+
+--
+-- Name: COLUMN draft_depthsizer.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_depthsizer.loaded_at IS 'When the row was loaded from draft_genomes (2026-10-16).';
 
 
 --
@@ -2672,6 +5808,181 @@ COMMENT ON TABLE public.draft_fastp IS 'fastp read QC. Written by push_fastp_to_
 
 
 --
+-- Name: COLUMN draft_fastp.draft_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.draft_id IS 'The draft (FK to draft_genome).';
+
+
+--
+-- Name: COLUMN draft_fastp.passed_filter_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.passed_filter_reads IS 'Reads that passed fastp filtering (filtering_result).';
+
+
+--
+-- Name: COLUMN draft_fastp.low_quality_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.low_quality_reads IS 'Reads removed for low base quality.';
+
+
+--
+-- Name: COLUMN draft_fastp.too_many_n_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.too_many_n_reads IS 'Reads removed for too many N bases.';
+
+
+--
+-- Name: COLUMN draft_fastp.too_short_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.too_short_reads IS 'Reads removed as shorter than the length limit.';
+
+
+--
+-- Name: COLUMN draft_fastp.too_long_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.too_long_reads IS 'Reads removed as longer than the length limit.';
+
+
+--
+-- Name: COLUMN draft_fastp.raw_total_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.raw_total_reads IS 'Reads before filtering (summary.before_filtering). raw_* columns are before filtering; the unprefixed ones after.';
+
+
+--
+-- Name: COLUMN draft_fastp.raw_total_bases; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.raw_total_bases IS 'Bases before filtering.';
+
+
+--
+-- Name: COLUMN draft_fastp.raw_q20_bases; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.raw_q20_bases IS 'Bases at Q20 or better, before filtering.';
+
+
+--
+-- Name: COLUMN draft_fastp.raw_q30_bases; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.raw_q30_bases IS 'Bases at Q30 or better, before filtering.';
+
+
+--
+-- Name: COLUMN draft_fastp.raw_q20_rate; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.raw_q20_rate IS 'Fraction (0-1, not %) of bases at Q20 or better, before filtering.';
+
+
+--
+-- Name: COLUMN draft_fastp.raw_q30_rate; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.raw_q30_rate IS 'Fraction (0-1, not %) of bases at Q30 or better, before filtering.';
+
+
+--
+-- Name: COLUMN draft_fastp.raw_read1_mean_length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.raw_read1_mean_length IS 'Mean read 1 length in bp, before filtering.';
+
+
+--
+-- Name: COLUMN draft_fastp.raw_read2_mean_length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.raw_read2_mean_length IS 'Mean read 2 length in bp, before filtering.';
+
+
+--
+-- Name: COLUMN draft_fastp.raw_gc_content; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.raw_gc_content IS 'GC fraction (0-1, not %) before filtering.';
+
+
+--
+-- Name: COLUMN draft_fastp.total_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.total_reads IS 'Reads after filtering (summary.after_filtering).';
+
+
+--
+-- Name: COLUMN draft_fastp.total_bases; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.total_bases IS 'Bases after filtering.';
+
+
+--
+-- Name: COLUMN draft_fastp.q20_bases; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.q20_bases IS 'Bases at Q20 or better, after filtering.';
+
+
+--
+-- Name: COLUMN draft_fastp.q30_bases; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.q30_bases IS 'Bases at Q30 or better, after filtering.';
+
+
+--
+-- Name: COLUMN draft_fastp.q20_rate; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.q20_rate IS 'Fraction (0-1, not %) of bases at Q20 or better, after filtering.';
+
+
+--
+-- Name: COLUMN draft_fastp.q30_rate; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.q30_rate IS 'Fraction (0-1, not %) of bases at Q30 or better, after filtering.';
+
+
+--
+-- Name: COLUMN draft_fastp.read1_mean_length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.read1_mean_length IS 'Mean read 1 length in bp, after filtering.';
+
+
+--
+-- Name: COLUMN draft_fastp.read2_mean_length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.read2_mean_length IS 'Mean read 2 length in bp, after filtering.';
+
+
+--
+-- Name: COLUMN draft_fastp.gc_content; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.gc_content IS 'GC fraction (0-1, not %) after filtering.';
+
+
+--
+-- Name: COLUMN draft_fastp.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_fastp.loaded_at IS 'When the row was last written (database clock).';
+
+
+--
 -- Name: draft_genome; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2691,6 +6002,55 @@ CREATE TABLE public.draft_genome (
 --
 
 COMMENT ON TABLE public.draft_genome IS 'One Illumina draft genome assembly. Written by OceanOmics-OceanGenomes-Draft-Genomes bin/draft_genome_stats.py.';
+
+
+--
+-- Name: COLUMN draft_genome.draft_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genome.draft_id IS 'Surrogate key. Every draft_* process table is keyed on it.';
+
+
+--
+-- Name: COLUMN draft_genome.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genome.og_id IS 'The sample (FK to sample).';
+
+
+--
+-- Name: COLUMN draft_genome.seq_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genome.seq_date IS 'YYMMDD of the Illumina run the draft was built from. An identifier component, not a date: (og_id, seq_date) is the natural key.';
+
+
+--
+-- Name: COLUMN draft_genome.mach; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genome.mach IS 'Sequencer code from the fastp file name (NOVA = NovaSeq, NEXT = NextSeq).';
+
+
+--
+-- Name: COLUMN draft_genome.initial; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genome.initial IS 'Initials of the person who ran the sequencing, from the fastp file name (MACHINE_DATE_INITIAL).';
+
+
+--
+-- Name: COLUMN draft_genome.og_num; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genome.og_num IS 'Numeric part of og_id, for sorting. Generated.';
+
+
+--
+-- Name: COLUMN draft_genome.created_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genome.created_at IS 'When the row was first written (database clock).';
 
 
 --
@@ -2721,7 +6081,21 @@ CREATE TABLE public.draft_genome_run (
 -- Name: TABLE draft_genome_run; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.draft_genome_run IS 'The Illumina sequencing rows a draft was built from. Illumina only (trigger).';
+COMMENT ON TABLE public.draft_genome_run IS 'The Illumina sequencing rows a draft was built from. Written by draft_genome_stats.py link_illumina_runs() on upload: Illumina rows of the OG on that seq_date whose instrument matches mach, so iSEQ QC runs are left out. Illumina only (trigger).';
+
+
+--
+-- Name: COLUMN draft_genome_run.draft_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genome_run.draft_id IS 'The draft (FK to draft_genome).';
+
+
+--
+-- Name: COLUMN draft_genome_run.sequencing_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genome_run.sequencing_id IS 'A sequencing row (library on a run) the draft''s reads came from (FK to sequencing).';
 
 
 --
@@ -2772,6 +6146,160 @@ END) STORED,
 --
 
 COMMENT ON TABLE public.draft_genomescope IS 'GenomeScope2 fit and the coverage-summary verdict. Written by push_assembly_results_to_sqldb.py. output_set: extended where the newer columns were computed; core rows have them NULL by design.';
+
+
+--
+-- Name: COLUMN draft_genomescope.draft_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.draft_id IS 'The draft (FK to draft_genome).';
+
+
+--
+-- Name: COLUMN draft_genomescope.homozygosity; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.homozygosity IS 'GenomeScope2 homozygosity, %, upper value of its min/max pair. Rows written before numeric(8,4) are rounded to 2 places.';
+
+
+--
+-- Name: COLUMN draft_genomescope.heterozygosity; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.heterozygosity IS 'GenomeScope2 heterozygosity, %, upper value. See heterozygosity_min for the lower.';
+
+
+--
+-- Name: COLUMN draft_genomescope.genomesize; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.genomesize IS 'GenomeScope2 haploid genome length, bp, upper value. Only as good as the fit: check genome_size_reliable and genome_size_flags before quoting it.';
+
+
+--
+-- Name: COLUMN draft_genomescope.repeatsize; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.repeatsize IS 'GenomeScope2 repeat length, bp, upper value.';
+
+
+--
+-- Name: COLUMN draft_genomescope.uniquesize; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.uniquesize IS 'GenomeScope2 unique length, bp, upper value.';
+
+
+--
+-- Name: COLUMN draft_genomescope.modelfit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.modelfit IS 'GenomeScope2 model fit, %: the fit within the model''s own region (fullscore). Not the share of k-mers explained; that is modelfit_allkmers.';
+
+
+--
+-- Name: COLUMN draft_genomescope.errorrate; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.errorrate IS 'GenomeScope2 read error rate, %.';
+
+
+--
+-- Name: COLUMN draft_genomescope.homozygosity_min; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.homozygosity_min IS 'GenomeScope2 homozygosity, %, lower value of its min/max pair. NULL on core rows.';
+
+
+--
+-- Name: COLUMN draft_genomescope.heterozygosity_min; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.heterozygosity_min IS 'GenomeScope2 heterozygosity, %, lower value. NULL on core rows.';
+
+
+--
+-- Name: COLUMN draft_genomescope.genomesize_min; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.genomesize_min IS 'GenomeScope2 haploid genome length, bp, lower value. NULL on core rows, or where the model diverged (Inf).';
+
+
+--
+-- Name: COLUMN draft_genomescope.repeatsize_min; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.repeatsize_min IS 'GenomeScope2 repeat length, bp, lower value.';
+
+
+--
+-- Name: COLUMN draft_genomescope.uniquesize_min; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.uniquesize_min IS 'GenomeScope2 unique length, bp, lower value.';
+
+
+--
+-- Name: COLUMN draft_genomescope.modelfit_allkmers; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.modelfit_allkmers IS 'GenomeScope2 model fit, %, as the share of all retained k-mers the model accounts for (allscore). GenomeScope prints it in the "min" column, but it is not a bound; it can be far below modelfit.';
+
+
+--
+-- Name: COLUMN draft_genomescope.genome_size_reliable; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.genome_size_reliable IS 'The coverage-summary verdict on genomesize (*_coverage_summary.json). false: do not quote it; genome_size_flags says why. NULL on core rows.';
+
+
+--
+-- Name: COLUMN draft_genomescope.genome_size_flags; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.genome_size_flags IS '''; ''-joined reasons from the coverage summary, e.g. no_kmer_peak, degenerate_model_fit, genome_size_disagrees_with_assembly, host_coverage_too_low. NULL: none raised, or a core row.';
+
+
+--
+-- Name: COLUMN draft_genomescope.kmercov; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.kmercov IS 'GenomeScope2 fitted k-mer coverage (kmercov; fitted_kmer_coverage in older summaries).';
+
+
+--
+-- Name: COLUMN draft_genomescope.lambda_depth; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.lambda_depth IS 'busco_read_depth halved and put into k-mer space, for checking kmercov against the alignments. Not a sequencing depth: never send it as ENA COVERAGE.';
+
+
+--
+-- Name: COLUMN draft_genomescope.host_assembly_size; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.host_assembly_size IS 'Assembly bp at the host''s read depth, from per-contig depth. A lower bound: a symbiont at host depth counts as host, a high-copy host repeat does not.';
+
+
+--
+-- Name: COLUMN draft_genomescope.host_assembly_fraction; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.host_assembly_fraction IS 'host_assembly_size as a fraction (0-1) of the assembly length.';
+
+
+--
+-- Name: COLUMN draft_genomescope.output_set; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.output_set IS 'Generated: extended when any of the newer columns is set, otherwise core. Core rows predate them; their NULLs are not failures.';
+
+
+--
+-- Name: COLUMN draft_genomescope.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_genomescope.loaded_at IS 'When the row was last written (database clock).';
 
 
 --
@@ -2842,6 +6370,69 @@ COMMENT ON TABLE public.draft_gfastats IS 'gfastats assembly statistics; the aut
 
 
 --
+-- Name: COLUMN draft_gfastats.draft_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_gfastats.draft_id IS 'The draft (FK to draft_genome).';
+
+
+--
+-- Name: COLUMN draft_gfastats.gfa_num_contigs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_gfastats.gfa_num_contigs IS 'gfastats # contigs.';
+
+
+--
+-- Name: COLUMN draft_gfastats.gfa_contig_n50; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_gfastats.gfa_contig_n50 IS 'gfastats contig N50, bp. The authoritative contig N50 for a draft.';
+
+
+--
+-- Name: COLUMN draft_gfastats.gfa_num_scaffolds; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_gfastats.gfa_num_scaffolds IS 'gfastats # scaffolds.';
+
+
+--
+-- Name: COLUMN draft_gfastats.gfa_scaffold_n50; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_gfastats.gfa_scaffold_n50 IS 'gfastats scaffold N50, bp. The authoritative scaffold N50 for a draft.';
+
+
+--
+-- Name: COLUMN draft_gfastats.gfa_largest_scaffold; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_gfastats.gfa_largest_scaffold IS 'gfastats largest scaffold, bp.';
+
+
+--
+-- Name: COLUMN draft_gfastats.gfa_total_scaffold_length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_gfastats.gfa_total_scaffold_length IS 'gfastats total scaffold length, bp.';
+
+
+--
+-- Name: COLUMN draft_gfastats.gfa_gc_content_percent; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_gfastats.gfa_gc_content_percent IS 'gfastats GC content, %.';
+
+
+--
+-- Name: COLUMN draft_gfastats.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_gfastats.loaded_at IS 'When the row was last written (database clock).';
+
+
+--
 -- Name: draft_merqury; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2865,6 +6456,76 @@ CREATE TABLE public.draft_merqury (
 --
 
 COMMENT ON TABLE public.draft_merqury IS 'Merqury QV and k-mer completeness. Written by push_merqury_results_to_sqldb.py.';
+
+
+--
+-- Name: COLUMN draft_merqury.draft_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_merqury.draft_id IS 'The draft (FK to draft_genome).';
+
+
+--
+-- Name: COLUMN draft_merqury.unique_k_mers_assembly; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_merqury.unique_k_mers_assembly IS 'Merqury .qv: k-mers found only in the assembly, not in the reads (errors).';
+
+
+--
+-- Name: COLUMN draft_merqury.k_mers_total; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_merqury.k_mers_total IS 'Merqury .qv: all k-mers in the assembly.';
+
+
+--
+-- Name: COLUMN draft_merqury.qv; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_merqury.qv IS 'Merqury consensus quality value (Phred-scaled; higher is better).';
+
+
+--
+-- Name: COLUMN draft_merqury.error; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_merqury.error IS 'Merqury per-base error rate (the probability QV encodes).';
+
+
+--
+-- Name: COLUMN draft_merqury.k_mer_set; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_merqury.k_mer_set IS 'Merqury completeness: which read k-mer set it was measured against (all on every row so far).';
+
+
+--
+-- Name: COLUMN draft_merqury.solid_k_mers; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_merqury.solid_k_mers IS 'Merqury completeness: solid read k-mers found in the assembly.';
+
+
+--
+-- Name: COLUMN draft_merqury.total_k_mers; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_merqury.total_k_mers IS 'Merqury completeness: all solid read k-mers.';
+
+
+--
+-- Name: COLUMN draft_merqury.completeness; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_merqury.completeness IS 'Merqury k-mer completeness, % (solid_k_mers / total_k_mers).';
+
+
+--
+-- Name: COLUMN draft_merqury.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_merqury.loaded_at IS 'When the row was last written (database clock).';
 
 
 --
@@ -2893,6 +6554,69 @@ COMMENT ON TABLE public.draft_submission IS 'Submission accessions. Written by E
 
 
 --
+-- Name: COLUMN draft_submission.draft_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_submission.draft_id IS 'The draft (FK to draft_genome).';
+
+
+--
+-- Name: COLUMN draft_submission.sra_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_submission.sra_accession IS 'Run accession(s) of the raw reads: ERR... from ENA-draft-genomes step 06 (comma-joined, one per lane), or SRR... from the earlier NCBI submissions. Blank-only writes.';
+
+
+--
+-- Name: COLUMN draft_submission.biosample_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_submission.biosample_accession IS 'BioSample the reads and assembly were submitted under (SAMN.../SAMEA...). Step 06; blank-only.';
+
+
+--
+-- Name: COLUMN draft_submission.study; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_submission.study IS 'SRA study (SRP...) of the earlier NCBI read submissions. Loaded from draft_genomes; no current writer.';
+
+
+--
+-- Name: COLUMN draft_submission.bioproject_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_submission.bioproject_accession IS 'BioProject of the earlier NCBI submissions (PRJNA1098793). Loaded from draft_genomes; step 06 deliberately does not write it, since both current BioProjects are constants.';
+
+
+--
+-- Name: COLUMN draft_submission.ena_analysis_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_submission.ena_analysis_accession IS 'ENA analysis (ERZ...) accession from the Webin-CLI assembly receipt. ENA-draft-genomes step 06; blank-only.';
+
+
+--
+-- Name: COLUMN draft_submission.assembly_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_submission.assembly_accession IS 'Public INSDC assembly accession (GCA_...), filled once ENA processes the ERZ. ENA-draft-genomes step 07; blank-only, never overwritten. Older rows may hold NCBI JB... accessions.';
+
+
+--
+-- Name: COLUMN draft_submission.comment; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_submission.comment IS 'Free-text note from the old workbook (e.g. failed sequencing, files to remove from NCBI). 4 rows; no current writer.';
+
+
+--
+-- Name: COLUMN draft_submission.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_submission.loaded_at IS 'When the row was last written (database clock).';
+
+
+--
 -- Name: draft_tiara; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2914,6 +6638,62 @@ CREATE TABLE public.draft_tiara (
 --
 
 COMMENT ON TABLE public.draft_tiara IS 'Tiara contig classification. Written by push_decontamination_results_to_sqldb.py.';
+
+
+--
+-- Name: COLUMN draft_tiara.draft_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_tiara.draft_id IS 'The draft (FK to draft_genome).';
+
+
+--
+-- Name: COLUMN draft_tiara.num_contigs_mitochondrion; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_tiara.num_contigs_mitochondrion IS 'Contigs Tiara classed as mitochondrion.';
+
+
+--
+-- Name: COLUMN draft_tiara.num_contigs_plastid; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_tiara.num_contigs_plastid IS 'Contigs Tiara classed as plastid.';
+
+
+--
+-- Name: COLUMN draft_tiara.num_contigs_prokarya; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_tiara.num_contigs_prokarya IS 'Contigs Tiara classed as prokarya (bacteria/archaea).';
+
+
+--
+-- Name: COLUMN draft_tiara.bp_mitochondrion; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_tiara.bp_mitochondrion IS 'bp in the mitochondrion contigs.';
+
+
+--
+-- Name: COLUMN draft_tiara.bp_plastid; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_tiara.bp_plastid IS 'bp in the plastid contigs.';
+
+
+--
+-- Name: COLUMN draft_tiara.bp_prokarya; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_tiara.bp_prokarya IS 'bp in the prokarya contigs.';
+
+
+--
+-- Name: COLUMN draft_tiara.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.draft_tiara.loaded_at IS 'When the row was last written (database clock).';
 
 
 --
@@ -3041,7 +6821,7 @@ CREATE VIEW public.draft_genomes AS
 -- Name: VIEW draft_genomes; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.draft_genomes IS 'Compatibility view: the kept columns of the old draft_genomes table plus nominal_species_id, grouped by process (056), plus the read depth and host partition columns (067). Read by column name, not position. DepthSizer (retired) is not shown; see v3.draft_depthsizer. Not a write path.';
+COMMENT ON VIEW public.draft_genomes IS 'Compatibility view: the kept columns of the old draft_genomes table plus nominal_species_id, grouped by process (056), plus the read depth and host partition columns (067). Read by column name, not position. DepthSizer (retired) is not shown; see draft_depthsizer. Not a write path: writers use draft_genome and its process tables.';
 
 
 --
@@ -3066,6 +6846,13 @@ CREATE VIEW public.embargo_assignment_view AS
 
 
 --
+-- Name: VIEW embargo_assignment_view; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.embargo_assignment_view IS 'Per specimen: embargo_status beside the identifying fields and the validated species names, for OceanGenom_Web''s embargo page. Updatable: an UPDATE of embargo_status writes sample.embargo_status (trigger trg_embargo_assignment_view_upd). Nothing else is writable through it.';
+
+
+--
 -- Name: ena_candidate_loci_archive; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3087,6 +6874,69 @@ CREATE TABLE public.ena_candidate_loci_archive (
 --
 
 COMMENT ON TABLE public.ena_candidate_loci_archive IS 'Frozen copy of ena_candidate_loci as of migration 010. Records the per-candidate locus tags this pipeline submitted before locus-tag assignment moved to the downstream submission pipeline. Historical reference only.';
+
+
+--
+-- Name: COLUMN ena_candidate_loci_archive.full_seqid; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_candidate_loci_archive.full_seqid IS 'The annotation. Archive: empty, frozen by 010.';
+
+
+--
+-- Name: COLUMN ena_candidate_loci_archive.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_candidate_loci_archive.og_id IS 'The sample.';
+
+
+--
+-- Name: COLUMN ena_candidate_loci_archive.gene_serial; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_candidate_loci_archive.gene_serial IS 'Serial from ena_locus_registry_archive.';
+
+
+--
+-- Name: COLUMN ena_candidate_loci_archive.locus_tag; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_candidate_loci_archive.locus_tag IS 'Locus tag submitted.';
+
+
+--
+-- Name: COLUMN ena_candidate_loci_archive.feature_key; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_candidate_loci_archive.feature_key IS 'Feature key.';
+
+
+--
+-- Name: COLUMN ena_candidate_loci_archive.start_coordinate; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_candidate_loci_archive.start_coordinate IS 'Start, bp.';
+
+
+--
+-- Name: COLUMN ena_candidate_loci_archive.end_coordinate; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_candidate_loci_archive.end_coordinate IS 'End, bp.';
+
+
+--
+-- Name: COLUMN ena_candidate_loci_archive.strand; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_candidate_loci_archive.strand IS 'Strand.';
+
+
+--
+-- Name: COLUMN ena_candidate_loci_archive.created_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_candidate_loci_archive.created_at IS 'When written.';
 
 
 --
@@ -3116,6 +6966,83 @@ COMMENT ON TABLE public.ena_locus_registry_archive IS 'Frozen copy of ena_locus_
 
 
 --
+-- Name: COLUMN ena_locus_registry_archive.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_locus_registry_archive.og_id IS 'The sample. Archive: empty, frozen by 010.';
+
+
+--
+-- Name: COLUMN ena_locus_registry_archive.gene_serial; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_locus_registry_archive.gene_serial IS 'Serial allocated for the gene within the specimen.';
+
+
+--
+-- Name: COLUMN ena_locus_registry_archive.canonical_gene; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_locus_registry_archive.canonical_gene IS 'Canonical gene name.';
+
+
+--
+-- Name: COLUMN ena_locus_registry_archive.gene_occurrence; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_locus_registry_archive.gene_occurrence IS 'Occurrence of the gene, where it appears more than once.';
+
+
+--
+-- Name: COLUMN ena_locus_registry_archive.feature_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_locus_registry_archive.feature_type IS 'Feature type (CDS, tRNA, rRNA).';
+
+
+--
+-- Name: COLUMN ena_locus_registry_archive.strand; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_locus_registry_archive.strand IS 'Strand.';
+
+
+--
+-- Name: COLUMN ena_locus_registry_archive.feature_sequence_sha256; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_locus_registry_archive.feature_sequence_sha256 IS 'SHA-256 of the feature sequence.';
+
+
+--
+-- Name: COLUMN ena_locus_registry_archive.coordinate_snapshot; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_locus_registry_archive.coordinate_snapshot IS 'Coordinates when allocated.';
+
+
+--
+-- Name: COLUMN ena_locus_registry_archive.allocation_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_locus_registry_archive.allocation_status IS 'Allocation state.';
+
+
+--
+-- Name: COLUMN ena_locus_registry_archive.created_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_locus_registry_archive.created_at IS 'When allocated.';
+
+
+--
+-- Name: COLUMN ena_locus_registry_archive.updated_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_locus_registry_archive.updated_at IS 'When last changed.';
+
+
+--
 -- Name: ena_related_assemblies; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3131,6 +7058,69 @@ CREATE TABLE public.ena_related_assemblies (
     CONSTRAINT ena_related_archive_check CHECK ((archive = ANY (ARRAY['ENA'::text, 'NCBI'::text, 'OTHER'::text]))),
     CONSTRAINT ena_related_relationship_check CHECK ((relationship_type = ANY (ARRAY['reference'::text, 'draft'::text])))
 );
+
+
+--
+-- Name: TABLE ena_related_assemblies; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ena_related_assemblies IS 'Planned: accessions of the reference or draft assemblies an OG''s mitogenome submission relates to. Empty since created; no writer.';
+
+
+--
+-- Name: COLUMN ena_related_assemblies.id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_related_assemblies.id IS 'Surrogate key.';
+
+
+--
+-- Name: COLUMN ena_related_assemblies.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_related_assemblies.og_id IS 'The sample.';
+
+
+--
+-- Name: COLUMN ena_related_assemblies.relationship_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_related_assemblies.relationship_type IS 'reference or draft.';
+
+
+--
+-- Name: COLUMN ena_related_assemblies.archive; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_related_assemblies.archive IS 'ENA, NCBI or OTHER.';
+
+
+--
+-- Name: COLUMN ena_related_assemblies.accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_related_assemblies.accession IS 'The related assembly''s accession.';
+
+
+--
+-- Name: COLUMN ena_related_assemblies.is_primary; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_related_assemblies.is_primary IS 'The one to cite, where there are several.';
+
+
+--
+-- Name: COLUMN ena_related_assemblies.accession_source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_related_assemblies.accession_source IS 'Where the accession came from.';
+
+
+--
+-- Name: COLUMN ena_related_assemblies.updated_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_related_assemblies.updated_at IS 'When the row was last written.';
 
 
 --
@@ -3163,6 +7153,55 @@ CREATE TABLE public.ena_specimen_accessions (
     CONSTRAINT ena_specimen_og_numeric_check CHECK (((og_numeric >= 0) AND (og_numeric <= 999999))),
     CONSTRAINT ena_specimen_og_numeric_matches_check CHECK ((og_numeric = (SUBSTRING(og_id FROM 3))::integer))
 );
+
+
+--
+-- Name: TABLE ena_specimen_accessions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ena_specimen_accessions IS 'Specimen registry for ENA: one row per OG with an ENA-referenceable BioSample, where one is known. Filled by the mito pipeline bin/backfill_ena_specimen_accessions.py; 1 of 2,848 rows has an accession. Whether to keep it or make it a view over sample is open (§11 Q14).';
+
+
+--
+-- Name: COLUMN ena_specimen_accessions.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_specimen_accessions.og_id IS 'The sample (FK to sample).';
+
+
+--
+-- Name: COLUMN ena_specimen_accessions.og_numeric; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_specimen_accessions.og_numeric IS 'Numeric part of og_id (checked to match).';
+
+
+--
+-- Name: COLUMN ena_specimen_accessions.ena_biosample_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_specimen_accessions.ena_biosample_accession IS 'SAMEA/SAMN/SAMD accession. A SAMN is NCBI-registered and webin-cli cannot resolve it (007).';
+
+
+--
+-- Name: COLUMN ena_specimen_accessions.accession_source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_specimen_accessions.accession_source IS 'Where the accession came from, e.g. sample,draft_genomes.';
+
+
+--
+-- Name: COLUMN ena_specimen_accessions.verified_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_specimen_accessions.verified_at IS 'When the accession was last checked.';
+
+
+--
+-- Name: COLUMN ena_specimen_accessions.updated_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_specimen_accessions.updated_at IS 'When the row was last written.';
 
 
 --
@@ -3222,10 +7261,136 @@ COMMENT ON TABLE public.ena_submissions IS 'Submission ledger, written by the do
 
 
 --
+-- Name: COLUMN ena_submissions.full_seqid; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.full_seqid IS 'og_id.tech.seq_date.code.annotation: the annotation submitted.';
+
+
+--
 -- Name: COLUMN ena_submissions.webin_mode; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.ena_submissions.webin_mode IS 'Which Webin service answered: production or test. Part of the key so a dry run cannot overwrite the production record.';
+
+
+--
+-- Name: COLUMN ena_submissions.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.og_id IS 'The sample.';
+
+
+--
+-- Name: COLUMN ena_submissions.tech; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.tech IS 'ilmn, hifi or hic.';
+
+
+--
+-- Name: COLUMN ena_submissions.seq_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.seq_date IS 'YYMMDD identifier component.';
+
+
+--
+-- Name: COLUMN ena_submissions.code; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.code IS 'Assembler code.';
+
+
+--
+-- Name: COLUMN ena_submissions.annotation; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.annotation IS 'Annotator code.';
+
+
+--
+-- Name: COLUMN ena_submissions.submission_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.submission_status IS 'Ledger state, e.g. SUBMITTED or ACCESSION_ASSIGNED (all 539 rows as of 2026-11).';
+
+
+--
+-- Name: COLUMN ena_submissions.submitted_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.submitted_at IS 'When it was submitted.';
+
+
+--
+-- Name: COLUMN ena_submissions.submitted_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.submitted_by IS 'User who ran the submission.';
+
+
+--
+-- Name: COLUMN ena_submissions.error_message; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.error_message IS 'Submission error. Empty on every row.';
+
+
+--
+-- Name: COLUMN ena_submissions.receipt_path; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.receipt_path IS 'Path of the Webin receipt XML (on Pawsey scratch).';
+
+
+--
+-- Name: COLUMN ena_submissions.receipt_sha256; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.receipt_sha256 IS 'SHA-256 of the receipt, so a later copy can be checked.';
+
+
+--
+-- Name: COLUMN ena_submissions.webin_cli_version; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.webin_cli_version IS 'Webin-CLI version used.';
+
+
+--
+-- Name: COLUMN ena_submissions.ena_study_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.ena_study_accession IS 'ENA study (PRJEB...).';
+
+
+--
+-- Name: COLUMN ena_submissions.ena_sample_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.ena_sample_accession IS 'ENA sample (ERS...). Missing on 172 of 539 (§11 Q12).';
+
+
+--
+-- Name: COLUMN ena_submissions.ena_analysis_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.ena_analysis_accession IS 'ENA analysis (ERZ...) from the receipt.';
+
+
+--
+-- Name: COLUMN ena_submissions.ena_assembly_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.ena_assembly_accession IS 'Public assembly accession (GCA_...) once ENA processes the ERZ.';
+
+
+--
+-- Name: COLUMN ena_submissions.ena_sequence_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.ena_sequence_accession IS 'Empty on every row: genome-context submissions return analysis and assembly accessions, not sequence ones (§11 Q12).';
 
 
 --
@@ -3243,10 +7408,31 @@ COMMENT ON COLUMN public.ena_submissions.biosample_source IS 'Where that accessi
 
 
 --
+-- Name: COLUMN ena_submissions.locus_tag_prefix; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.locus_tag_prefix IS 'Locus-tag prefix registered for the submission (e.g. OG193MT).';
+
+
+--
 -- Name: COLUMN ena_submissions.run_accessions; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.ena_submissions.run_accessions IS 'Raw-read runs the assembly came from, as ERR/SRR/DRR accessions.';
+
+
+--
+-- Name: COLUMN ena_submissions.created_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.created_at IS 'When the row was first written.';
+
+
+--
+-- Name: COLUMN ena_submissions.updated_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ena_submissions.updated_at IS 'When the row was last written.';
 
 
 --
@@ -3319,6 +7505,13 @@ CREATE VIEW public.ena_submission_status AS
 
 
 --
+-- Name: VIEW ena_submission_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.ena_submission_status IS 'One row per annotation validated for ENA: its latest validation (as ena_validation_latest) and its production submission, if any. submission_status is NOT_SUBMITTED where there is none.';
+
+
+--
 -- Name: ena_validation_attempts_new_id_seq1; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -3374,6 +7567,13 @@ CREATE VIEW public.ena_validation_latest AS
 
 
 --
+-- Name: VIEW ena_validation_latest; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.ena_validation_latest IS 'The latest ena_validation_attempts row per full_seqid (by recorded_at, then id). Same columns.';
+
+
+--
 -- Name: mito_lca; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3413,7 +7613,14 @@ CREATE TABLE public.mito_lca (
 -- Name: TABLE mito_lca; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.mito_lca IS 'Lowest common ancestor calls per marker region. Live carries this key as a UNIQUE constraint only; here it is the primary key.';
+COMMENT ON TABLE public.mito_lca IS 'Lowest common ancestor calls per marker region, one row per annotation, region and result. Written by push_lca_blast_results.py (calculateLCA.py output). Row identity is content_hash, so a re-run with a changed answer adds a row; --force deletes the superseded ones.';
+
+
+--
+-- Name: COLUMN mito_lca.region; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.region IS 'Marker region: 12s, 16s, CO1...';
 
 
 --
@@ -3421,6 +7628,174 @@ COMMENT ON TABLE public.mito_lca IS 'Lowest common ancestor calls per marker reg
 --
 
 COMMENT ON COLUMN public.mito_lca.lca_run_date IS 'When the LCA pipeline ran. NOT NULL, but deliberately NOT part of the key -- row identity is the content hash (migration 017), so a re-run with a changed answer stores a new row rather than colliding with the old one.';
+
+
+--
+-- Name: COLUMN mito_lca.species_in_lca; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.species_in_lca IS 'Every species the LCA was taken over, '', ''-joined.';
+
+
+--
+-- Name: COLUMN mito_lca.number_unq_blast_hits; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.number_unq_blast_hits IS 'Unique BLAST hits the LCA was computed from.';
+
+
+--
+-- Name: COLUMN mito_lca.domain; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.domain IS 'LCA lineage: domain.';
+
+
+--
+-- Name: COLUMN mito_lca.phylum; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.phylum IS 'LCA lineage: phylum.';
+
+
+--
+-- Name: COLUMN mito_lca.class; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.class IS 'LCA lineage: class.';
+
+
+--
+-- Name: COLUMN mito_lca."order"; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca."order" IS 'LCA lineage: order. Quote the column name.';
+
+
+--
+-- Name: COLUMN mito_lca.family; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.family IS 'LCA lineage: family.';
+
+
+--
+-- Name: COLUMN mito_lca.genus; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.genus IS 'LCA lineage: genus.';
+
+
+--
+-- Name: COLUMN mito_lca.specific_epiphet; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.specific_epiphet IS 'LCA lineage: specific epithet (the column name''s spelling is a kept typo).';
+
+
+--
+-- Name: COLUMN mito_lca.species; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.species IS 'LCA species assignment (scientificName in the LCA output).';
+
+
+--
+-- Name: COLUMN mito_lca.scientific_name_authorship; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.scientific_name_authorship IS 'Authority for the name, parsed from the top hit''s label; ''not applicable: authorship info missing'' when absent.';
+
+
+--
+-- Name: COLUMN mito_lca.taxon_rank; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.taxon_rank IS 'The rank the LCA resolved to: species, genus, family...';
+
+
+--
+-- Name: COLUMN mito_lca.top_taxon_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.top_taxon_id IS 'Taxon id of the top hit (BLAST staxids).';
+
+
+--
+-- Name: COLUMN mito_lca.taxon_id_db; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.taxon_id_db IS 'Where top_taxon_id comes from: NCBI (staxids are always NCBI Taxonomy), or NCBI:name-match.';
+
+
+--
+-- Name: COLUMN mito_lca.top_accession_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.top_accession_id IS 'Accession of the top BLAST hit.';
+
+
+--
+-- Name: COLUMN mito_lca.accession_id_ref_db; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.accession_id_ref_db IS 'Reference database inferred from top_accession_id''s format: GenBank, DDBJ, BOLD, NBDL, OG (our own), or unknown.';
+
+
+--
+-- Name: COLUMN mito_lca.top_percent_query_cover; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.top_percent_query_cover IS 'Query cover of the top hit, %.';
+
+
+--
+-- Name: COLUMN mito_lca.top_percent_query_cover_hsp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.top_percent_query_cover_hsp IS 'Query cover of the top hit''s HSP, %.';
+
+
+--
+-- Name: COLUMN mito_lca.alignment_length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.alignment_length IS 'Alignment length of the top hit, bp.';
+
+
+--
+-- Name: COLUMN mito_lca.subject_length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.subject_length IS 'Length of the top hit''s subject sequence, bp.';
+
+
+--
+-- Name: COLUMN mito_lca.sequence_length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.sequence_length IS 'Length of the query region sequence, bp.';
+
+
+--
+-- Name: COLUMN mito_lca.top_confidence_score; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.top_confidence_score IS 'The top hit''s BLAST e-value (calculateLCA.py stores evalue under this name). Lower is better; 0 is the best possible. double precision: values reach ~1e-163.';
+
+
+--
+-- Name: COLUMN mito_lca.top_percent_match; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.top_percent_match IS 'Percent identity of the top hit.';
+
+
+--
+-- Name: COLUMN mito_lca.taxon_rank_db; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca.taxon_rank_db IS 'Taxonomy source(s) the lineage was taken from, '', ''-joined: fishbase, worms, ncbi. Not a rank, whatever the name (017''s comment was wrong).';
 
 
 --
@@ -3509,6 +7884,13 @@ CREATE VIEW public.lca_pivot_view AS
 
 
 --
+-- Name: VIEW lca_pivot_view; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.lca_pivot_view IS 'Per annotation: every species in the LCA, per region (12S, 16S, CO1), '', ''-joined and de-duplicated.';
+
+
+--
 -- Name: lca_results_view; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -3530,6 +7912,13 @@ CREATE VIEW public.lca_results_view AS
         END AS validation_status
    FROM (public.lca_pivot_view lp
      JOIN public.sample s ON ((lp.og_id_lp = s.og_id)));
+
+
+--
+-- Name: VIEW lca_results_view; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.lca_results_view IS 'Per annotation: lca_pivot_view beside the nominal species ID, with a validation_status: the nominal ID when it is one of the LCA species in any region, MISSING NOMINAL ID, or INVESTIGATE (066).';
 
 
 --
@@ -3563,6 +7952,13 @@ CREATE VIEW public.filtered_lca_view AS
 
 
 --
+-- Name: VIEW filtered_lca_view; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.filtered_lca_view IS 'Per annotation and region: the filtered BLAST matches whose species is the specimen''s nominal ID, ('', ''-joined match_sequence_id). Read by lca_validation_report_view.';
+
+
+--
 -- Name: goat_project_metadata_v1; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -3576,6 +7972,76 @@ CREATE VIEW public.goat_project_metadata_v1 AS
     'oceangenomes@uwa.edu.au'::text AS public_contact_email,
     CURRENT_DATE AS date_of_last_update,
     'ebp_species_goat_3.0'::text AS schema_version;
+
+
+--
+-- Name: VIEW goat_project_metadata_v1; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.goat_project_metadata_v1 IS 'GoaT (Genomes on a Tree) project metadata: one constant row describing Ocean Genomes. An external contract: a breaking change is a new _v2 beside it (§11 Q6).';
+
+
+--
+-- Name: COLUMN goat_project_metadata_v1.project_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_project_metadata_v1.project_name IS 'GoaT: constant, Ocean Genomes.';
+
+
+--
+-- Name: COLUMN goat_project_metadata_v1.project_acronym; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_project_metadata_v1.project_acronym IS 'GoaT: constant, OG.';
+
+
+--
+-- Name: COLUMN goat_project_metadata_v1.subproject_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_project_metadata_v1.subproject_name IS 'GoaT: always NULL.';
+
+
+--
+-- Name: COLUMN goat_project_metadata_v1.bioproject_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_project_metadata_v1.bioproject_id IS 'GoaT: always NULL.';
+
+
+--
+-- Name: COLUMN goat_project_metadata_v1.primary_contact; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_project_metadata_v1.primary_contact IS 'GoaT: constant, the project''s primary contact.';
+
+
+--
+-- Name: COLUMN goat_project_metadata_v1.primary_contact_institution; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_project_metadata_v1.primary_contact_institution IS 'GoaT: constant.';
+
+
+--
+-- Name: COLUMN goat_project_metadata_v1.public_contact_email; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_project_metadata_v1.public_contact_email IS 'GoaT: constant.';
+
+
+--
+-- Name: COLUMN goat_project_metadata_v1.date_of_last_update; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_project_metadata_v1.date_of_last_update IS 'GoaT: CURRENT_DATE, i.e. the day it is read, not the day anything changed.';
+
+
+--
+-- Name: COLUMN goat_project_metadata_v1.schema_version; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_project_metadata_v1.schema_version IS 'GoaT: the template version, ebp_species_goat_3.0.';
 
 
 --
@@ -3601,6 +8067,62 @@ CREATE TABLE public.ref_assembly (
 --
 
 COMMENT ON TABLE public.ref_assembly IS 'One reference-genome assembly attempt: hicN (HiFi + Hi-C), hifiN (HiFi only) or ontN. Written by OceanOmics-OceanGenomes-ref-genomes and -post-curation push scripts.';
+
+
+--
+-- Name: COLUMN ref_assembly.assembly_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly.assembly_id IS 'Surrogate key. Parts, run links and the submission hang off it.';
+
+
+--
+-- Name: COLUMN ref_assembly.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly.og_id IS 'The sample (FK to sample).';
+
+
+--
+-- Name: COLUMN ref_assembly.seq_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly.seq_date IS 'YYMMDD from the file name (<og>_v<date>). An identifier component, not a date.';
+
+
+--
+-- Name: COLUMN ref_assembly.version; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly.version IS 'Strategy and attempt from the file name: hic1, hifi2, ont1...';
+
+
+--
+-- Name: COLUMN ref_assembly.strategy; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly.strategy IS 'Generated from version: hic (HiFi + Hi-C), hifi (HiFi only) or ont.';
+
+
+--
+-- Name: COLUMN ref_assembly.attempt; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly.attempt IS 'Generated from version: the attempt number.';
+
+
+--
+-- Name: COLUMN ref_assembly.og_num; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly.og_num IS 'Numeric part of og_id, for sorting. Generated.';
+
+
+--
+-- Name: COLUMN ref_assembly.created_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly.created_at IS 'When the row was first written (database clock).';
 
 
 --
@@ -3662,6 +8184,118 @@ COMMENT ON VIEW public.goat_species_v1 IS 'GoaT species submission view; in_asse
 
 
 --
+-- Name: COLUMN goat_species_v1.ncbi_taxon_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_species_v1.ncbi_taxon_id IS 'GoaT: NCBI Taxonomy id (master_species).';
+
+
+--
+-- Name: COLUMN goat_species_v1.family; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_species_v1.family IS 'GoaT: family.';
+
+
+--
+-- Name: COLUMN goat_species_v1.species; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_species_v1.species IS 'GoaT: species name. Matched to sample.nominal_species_id by exact string.';
+
+
+--
+-- Name: COLUMN goat_species_v1.subspecies_epithet; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_species_v1.subspecies_epithet IS 'GoaT: master_species.epithet, or - . (It is the specific epithet, whatever the GoaT name.)';
+
+
+--
+-- Name: COLUMN goat_species_v1.target_list_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_species_v1.target_list_status IS 'GoaT: priority_target for five hard-coded taxon ids, otherwise potential_target.';
+
+
+--
+-- Name: COLUMN goat_species_v1.sampling_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_species_v1.sampling_status IS 'GoaT: sample_collected when any sample has this nominal species; NULL otherwise.';
+
+
+--
+-- Name: COLUMN goat_species_v1.sequencing_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_species_v1.sequencing_status IS 'GoaT, first that applies: submitted (a sample has ncbi_bioproject_id_lvl_3_hifi), in_assembly (a ref_assembly exists), in_lab (summary.pacbio_status is one of nine PacBio lab states); NULL otherwise.';
+
+
+--
+-- Name: COLUMN goat_species_v1.genome_publication; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_species_v1.genome_publication IS 'GoaT: always NULL.';
+
+
+--
+-- Name: COLUMN goat_species_v1.primary_project; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_species_v1.primary_project IS 'GoaT: always Ocean Genomes.';
+
+
+--
+-- Name: COLUMN goat_species_v1.ebp_collaborator_acronyms; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_species_v1.ebp_collaborator_acronyms IS 'GoaT: always NULL.';
+
+
+--
+-- Name: COLUMN goat_species_v1.contributing_project_lab; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_species_v1.contributing_project_lab IS 'GoaT: always NULL.';
+
+
+--
+-- Name: COLUMN goat_species_v1.collected_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_species_v1.collected_by IS 'GoaT: data_conflict for six hard-coded species; otherwise the collector of one Reference-workflow sample of the species (arbitrary when there are several).';
+
+
+--
+-- Name: COLUMN goat_species_v1.priority_flags; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_species_v1.priority_flags IS 'GoaT: always NULL.';
+
+
+--
+-- Name: COLUMN goat_species_v1.common_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_species_v1.common_name IS 'GoaT: master_species.afd_common_name, or - .';
+
+
+--
+-- Name: COLUMN goat_species_v1.synonym; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_species_v1.synonym IS 'GoaT: master_species.synonym, or - .';
+
+
+--
+-- Name: COLUMN goat_species_v1.assigned_sequencing_center; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.goat_species_v1.assigned_sequencing_center IS 'GoaT: always NULL.';
+
+
+--
 -- Name: hic_read_qc_hic_qc_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -3718,6 +8352,13 @@ COMMENT ON TABLE public.import_quarantine IS 'Rows rejected by the v2 constraint
 
 
 --
+-- Name: COLUMN import_quarantine.quarantine_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.import_quarantine.quarantine_id IS 'Surrogate key.';
+
+
+--
 -- Name: COLUMN import_quarantine.source_table; Type: COMMENT; Schema: public; Owner: -
 --
 
@@ -3739,6 +8380,20 @@ COMMENT ON COLUMN public.import_quarantine.source_row_key IS 'Business key of th
 
 
 --
+-- Name: COLUMN import_quarantine.violation_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.import_quarantine.violation_type IS 'Why the row was rejected: not_null, foreign_key, type_cast, unique, duplicate_source_row, lookup, conflicting_value, check or displaced.';
+
+
+--
+-- Name: COLUMN import_quarantine.violation_detail; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.import_quarantine.violation_detail IS 'The constraint or message, for the lab to act on.';
+
+
+--
 -- Name: COLUMN import_quarantine.raw_row; Type: COMMENT; Schema: public; Owner: -
 --
 
@@ -3746,10 +8401,31 @@ COMMENT ON COLUMN public.import_quarantine.raw_row IS 'The whole rejected row as
 
 
 --
+-- Name: COLUMN import_quarantine.first_seen; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.import_quarantine.first_seen IS 'When the violation was first recorded.';
+
+
+--
 -- Name: COLUMN import_quarantine.last_seen; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.import_quarantine.last_seen IS 'Bumped each time the same unresolved violation reappears. A stale last_seen means the source row is gone or fixed.';
+
+
+--
+-- Name: COLUMN import_quarantine.resolved_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.import_quarantine.resolved_at IS 'When it was resolved. NULL: still open (v_quarantine_open).';
+
+
+--
+-- Name: COLUMN import_quarantine.resolution_note; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.import_quarantine.resolution_note IS 'How it was resolved. Needs resolved_at.';
 
 
 --
@@ -3805,14 +8481,189 @@ CREATE TABLE public.mito_lca_raw (
 -- Name: TABLE mito_lca_raw; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.mito_lca_raw IS 'Unfiltered LCA output. lca_run_date is text here, matching v2.lca; the live tables disagree on its type while using it in equivalent uniqueness constraints. confidence_score is double precision, not real -- see the column note, and do not narrow it back.';
+COMMENT ON TABLE public.mito_lca_raw IS 'Every BLAST hit that fed an LCA call, per annotation and region (unfiltered LCA output). Written by push_lca_raw_results.py. Row identity includes content_hash: one accession can give several HSPs in one run.';
+
+
+--
+-- Name: COLUMN mito_lca_raw.sequence_region; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.sequence_region IS 'Marker region: 12s, 16s, CO1...';
+
+
+--
+-- Name: COLUMN mito_lca_raw.lca_run_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.lca_run_date IS 'YYMMDD the LCA ran, as text (also text on mito_lca).';
+
+
+--
+-- Name: COLUMN mito_lca_raw.domain; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.domain IS 'Hit lineage: domain.';
+
+
+--
+-- Name: COLUMN mito_lca_raw.phylum; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.phylum IS 'Hit lineage: phylum.';
+
+
+--
+-- Name: COLUMN mito_lca_raw.class; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.class IS 'Hit lineage: class.';
+
+
+--
+-- Name: COLUMN mito_lca_raw."order"; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw."order" IS 'Hit lineage: order. Quote the column name.';
+
+
+--
+-- Name: COLUMN mito_lca_raw.family; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.family IS 'Hit lineage: family.';
+
+
+--
+-- Name: COLUMN mito_lca_raw.genus; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.genus IS 'Hit lineage: genus.';
+
+
+--
+-- Name: COLUMN mito_lca_raw.specific_epiphet; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.specific_epiphet IS 'Hit lineage: specific epithet (kept typo in the name).';
+
+
+--
+-- Name: COLUMN mito_lca_raw.scientific_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.scientific_name IS 'The hit''s species name.';
+
+
+--
+-- Name: COLUMN mito_lca_raw.scientific_name_authorship; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.scientific_name_authorship IS 'Authority for the name, parsed from the hit label.';
+
+
+--
+-- Name: COLUMN mito_lca_raw.taxon_rank; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.taxon_rank IS 'Rank of the hit''s name: species, genus...';
+
+
+--
+-- Name: COLUMN mito_lca_raw.taxon_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.taxon_id IS 'Taxon id of the hit (BLAST staxids).';
+
+
+--
+-- Name: COLUMN mito_lca_raw.taxon_id_db; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.taxon_id_db IS 'Where taxon_id comes from: NCBI, or NCBI:name-match.';
+
+
+--
+-- Name: COLUMN mito_lca_raw.verbatim_identification; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.verbatim_identification IS 'The subject''s FASTA label as BLAST returned it, e.g. [organism=Galeocerdo cuvier] ... mitochondrion, complete genome.';
+
+
+--
+-- Name: COLUMN mito_lca_raw.accession_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.accession_id IS 'Accession of the hit.';
+
+
+--
+-- Name: COLUMN mito_lca_raw.accession_id_ref_db; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.accession_id_ref_db IS 'Reference database inferred from accession_id''s format: GenBank, DDBJ, BOLD, NBDL, OG, unknown.';
+
+
+--
+-- Name: COLUMN mito_lca_raw.percent_match; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.percent_match IS 'Percent identity of the hit.';
+
+
+--
+-- Name: COLUMN mito_lca_raw.percent_query_cover; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.percent_query_cover IS 'Query cover, %.';
+
+
+--
+-- Name: COLUMN mito_lca_raw.percent_query_cover_hsp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.percent_query_cover_hsp IS 'Query cover of the HSP, %.';
+
+
+--
+-- Name: COLUMN mito_lca_raw.alignment_length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.alignment_length IS 'Alignment length, bp.';
+
+
+--
+-- Name: COLUMN mito_lca_raw.subject_length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.subject_length IS 'Subject sequence length, bp.';
+
+
+--
+-- Name: COLUMN mito_lca_raw.sequence_length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.sequence_length IS 'Query region sequence length, bp.';
+
+
+--
+-- Name: COLUMN mito_lca_raw.confidence_score; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.confidence_score IS 'The hit''s BLAST e-value (calculateLCA.py stores evalue under this name). Lower is better. double precision: values reach ~1e-163; do not narrow it to real.';
+
+
+--
+-- Name: COLUMN mito_lca_raw.taxon_rank_db; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_raw.taxon_rank_db IS 'Taxonomy source the hit''s lineage was taken from: fishbase, worms or ncbi. Not a rank, whatever the name.';
 
 
 --
 -- Name: COLUMN mito_lca_raw.content_hash; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.mito_lca_raw.content_hash IS 'See v2.lca.content_hash. Part of the key here because one BLAST accession can yield several HSPs in a single run, which share accession and run date but differ in percent_match -- 33 such rows exist in live today.';
+COMMENT ON COLUMN public.mito_lca_raw.content_hash IS 'md5 of the row content, maintained by the mito_lca_raw_content_hash trigger. Part of the key because one BLAST accession can yield several HSPs in a single run, which share accession and run date but differ in percent_match. Never in an INSERT or UPDATE column list.';
 
 
 --
@@ -3890,6 +8741,13 @@ CREATE VIEW public.sample_view AS
 
 
 --
+-- Name: VIEW sample_view; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.sample_view IS 'The sample fields lca_validation_report_view shows, with _sv-suffixed names, for specimens that have an LCA validation row.';
+
+
+--
 -- Name: lca_validation_report_view; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -3943,6 +8801,13 @@ CREATE VIEW public.lca_validation_report_view AS
 
 
 --
+-- Name: VIEW lca_validation_report_view; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.lca_validation_report_view IS 'The LCA validation report, one row per mito_lca_validation row, for curators in OceanGenom_Web. Updatable through trigger trg_lca_validation_report_view_upd (the validation fields only; the key fields are refused).';
+
+
+--
 -- Name: library; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3965,10 +8830,38 @@ COMMENT ON TABLE public.library IS 'Identity registry giving every library, of a
 
 
 --
+-- Name: COLUMN library.library_tube_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.library.library_tube_id IS 'Library tube id, unique across every technology. Equal to the tube id in the technology table library_type names.';
+
+
+--
 -- Name: COLUMN library.library_type; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.library.library_type IS 'Which technology table holds this library''s attributes. Replaces sequencing.seq_type, which import_data.py currently derives by testing for _D / _R substrings in the tube ID.';
+
+
+--
+-- Name: COLUMN library.dna_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.library.dna_id IS 'The DNA extraction, for illumina, pacbio and ont libraries (FK to dna_extraction). Exactly one of dna_id, rna_id, lysate_id is set.';
+
+
+--
+-- Name: COLUMN library.rna_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.library.rna_id IS 'The RNA extraction, for rna_ilmn and rna_kinx libraries (FK to rna_extraction).';
+
+
+--
+-- Name: COLUMN library.lysate_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.library.lysate_id IS 'The lysate, for hic libraries (FK to hic_lysate).';
 
 
 --
@@ -4024,7 +8917,35 @@ CREATE TABLE public.mito_annotation_gene (
 -- Name: TABLE mito_annotation_gene; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.mito_annotation_gene IS 'Per-gene lengths of one annotation. No row: the annotation has no value for that gene.';
+COMMENT ON TABLE public.mito_annotation_gene IS 'Per-gene lengths of one annotation. No row: the annotation has no value for that gene. Written by push_emma_annotation_results.py with its annotation.';
+
+
+--
+-- Name: COLUMN mito_annotation_gene.annotation_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation_gene.annotation_id IS 'The annotation (FK to mito_annotation).';
+
+
+--
+-- Name: COLUMN mito_annotation_gene.gene; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation_gene.gene IS 'The gene (FK to mito_gene).';
+
+
+--
+-- Name: COLUMN mito_annotation_gene.length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation_gene.length IS 'Annotated length of the gene, bp.';
+
+
+--
+-- Name: COLUMN mito_annotation_gene.translated_length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_annotation_gene.translated_length IS 'Translated length, amino acids. Protein-coding genes only.';
 
 
 --
@@ -4071,6 +8992,104 @@ COMMENT ON TABLE public.mito_assembly_depth IS 'The remap depth step''s verdict 
 
 
 --
+-- Name: COLUMN mito_assembly_depth.assembly_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly_depth.assembly_id IS 'The assembly (FK to mito_assembly).';
+
+
+--
+-- Name: COLUMN mito_assembly_depth.depth_method; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly_depth.depth_method IS 'remap_full_v1 = measured by remapping the full post-QC read set to this assembly (circular molecules folded on a doubled reference). not_measured = the step ran and measured nothing (the assembly never reached annotation, or the step was skipped); every other column is then NULL except depth_measured_at.';
+
+
+--
+-- Name: COLUMN mito_assembly_depth.mean_depth; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly_depth.mean_depth IS 'Mean per-base read depth of the sample''s own reads remapped to this assembly. Comparable across assemblers and technologies; use this, not mito_assembly.avg_coverage.';
+
+
+--
+-- Name: COLUMN mito_assembly_depth.median_depth; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly_depth.median_depth IS 'Median per-base depth.';
+
+
+--
+-- Name: COLUMN mito_assembly_depth.depth_sd; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly_depth.depth_sd IS 'Standard deviation of per-base depth.';
+
+
+--
+-- Name: COLUMN mito_assembly_depth.depth_cv; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly_depth.depth_cv IS 'Coefficient of variation of per-base depth (depth_sd / mean_depth).';
+
+
+--
+-- Name: COLUMN mito_assembly_depth.breadth_1x; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly_depth.breadth_1x IS 'Fraction (0-1) of target positions at depth >= 1.';
+
+
+--
+-- Name: COLUMN mito_assembly_depth.breadth_10x; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly_depth.breadth_10x IS 'Fraction (0-1) of target positions at depth >= 10.';
+
+
+--
+-- Name: COLUMN mito_assembly_depth.mito_mapped_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly_depth.mito_mapped_reads IS 'Primary alignments that passed the identity and clipping filters (mito_depth.py).';
+
+
+--
+-- Name: COLUMN mito_assembly_depth.total_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly_depth.total_reads IS 'Primary reads in the read set mapped.';
+
+
+--
+-- Name: COLUMN mito_assembly_depth.mito_read_fraction; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly_depth.mito_read_fraction IS 'mito_mapped_reads / total_reads.';
+
+
+--
+-- Name: COLUMN mito_assembly_depth.depth_target_length_bp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly_depth.depth_target_length_bp IS 'Length of the target the depth was measured over, bp (the monomer, when a circular target was doubled).';
+
+
+--
+-- Name: COLUMN mito_assembly_depth.depth_target_fasta; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly_depth.depth_target_fasta IS 'File name of the FASTA the reads were mapped to.';
+
+
+--
+-- Name: COLUMN mito_assembly_depth.depth_measured_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly_depth.depth_measured_at IS 'When the depth step recorded its result, including a not_measured result.';
+
+
+--
 -- Name: mito_assembly_qc; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4093,6 +9112,13 @@ CREATE TABLE public.mito_assembly_qc (
 --
 
 COMMENT ON TABLE public.mito_assembly_qc IS 'Assembly-level QC verdict from mitogenome_assembly_summary.py, one row per assembly (068). Written by push_assembly_qc.py.';
+
+
+--
+-- Name: COLUMN mito_assembly_qc.assembly_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly_qc.assembly_id IS 'The assembly (FK to mito_assembly).';
 
 
 --
@@ -4158,7 +9184,21 @@ CREATE TABLE public.mito_assembly_run (
 -- Name: TABLE mito_assembly_run; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.mito_assembly_run IS 'The sequencing rows (a library on a run) an assembly was built from, derived from (og_id, seq_date) and tech. ilmn excludes iSEQ QC runs.';
+COMMENT ON TABLE public.mito_assembly_run IS 'The sequencing rows (a library on a run) an assembly was built from, derived from (og_id, seq_date) and tech; ilmn excludes iSEQ QC runs. Derived by the Phase R window sync and loaded at the 072 merge. No writer has added rows since, so assemblies created after 2026-11-02 have none (078).';
+
+
+--
+-- Name: COLUMN mito_assembly_run.assembly_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly_run.assembly_id IS 'The assembly (FK to mito_assembly).';
+
+
+--
+-- Name: COLUMN mito_assembly_run.sequencing_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_assembly_run.sequencing_id IS 'A sequencing row the assembly''s reads came from (FK to sequencing).';
 
 
 --
@@ -4178,7 +9218,35 @@ CREATE TABLE public.mito_gene (
 -- Name: TABLE mito_gene; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.mito_gene IS 'Mitochondrial gene names. A new gene is an INSERT here plus v3.rebuild_mito_gene_views(); gene is also the legacy length column name, and gene || ''_trans'' the translated-length one.';
+COMMENT ON TABLE public.mito_gene IS 'Mitochondrial gene names. A new gene is an INSERT here plus rebuild_mito_gene_views(); gene is also the legacy length column name, and gene || ''_trans'' the translated-length one.';
+
+
+--
+-- Name: COLUMN mito_gene.gene; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_gene.gene IS 'Gene name as used in the legacy column names (cox1, nad4l, trna_leuuag, rrna12s).';
+
+
+--
+-- Name: COLUMN mito_gene.gene_class; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_gene.gene_class IS 'pcg (protein-coding), rrna or trna.';
+
+
+--
+-- Name: COLUMN mito_gene.sort_order; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_gene.sort_order IS 'Column order in v_mito_annotation_genes and the compatibility view.';
+
+
+--
+-- Name: COLUMN mito_gene.has_translation; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_gene.has_translation IS 'true for genes that also carry a translated length (<gene>_trans).';
 
 
 --
@@ -4408,7 +9476,168 @@ CREATE VIEW public.mitogenome_submission_view AS
 -- Name: VIEW mitogenome_submission_view; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.mitogenome_submission_view IS 'mitogenome_submission_view rebuilt on the v3 tables, grouped by output (056); avg_coverage and avg_base_coverage are not shown. The ENA and LCA joins move to annotation_id at R.7.';
+COMMENT ON VIEW public.mitogenome_submission_view IS 'One row per mitogenome assembly and annotation (one per unannotated assembly): the assembly and annotation results beside the ENA validation and the validated species. Built on mito_assembly and mito_annotation (056); joins ENA validation and LCA validation on the five-part key. avg_coverage and avg_base_coverage are not shown.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.og_num; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.og_num IS 'sample.og_num.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.og_id IS 'The specimen.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.nominal_species_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.nominal_species_id IS 'sample.nominal_species_id.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.tech; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.tech IS 'mito_assembly.tech.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.seq_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.seq_date IS 'mito_assembly.seq_date.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.code; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.code IS 'mito_assembly.code.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.annotation; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.annotation IS 'mito_annotation.annotation; NULL for an unannotated assembly.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.stats; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.stats IS 'mito_assembly.stats.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.length IS 'mito_assembly.length, bp.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.length_emma; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.length_emma IS 'mito_annotation.length_emma, bp.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.cds_no; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.cds_no IS 'mito_annotation.cds_no.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.trna_no; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.trna_no IS 'mito_annotation.trna_no.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.rrna_no; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.rrna_no IS 'mito_annotation.rrna_no.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.missing_genes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.missing_genes IS 'mito_annotation.missing_genes.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.extra_genes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.extra_genes IS 'mito_annotation.extra_genes.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.order_correct; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.order_correct IS 'mito_annotation.order_correct.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.table2asn_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.table2asn_status IS 'ena_validation_attempts.table2asn_status. One row per validation attempt, so an annotation with several attempts appears several times.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.warning_codes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.warning_codes IS 'ena_validation_attempts.warning_codes.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.webin_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.webin_status IS 'ena_validation_attempts.webin_status.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.webin_reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.webin_reason IS 'ena_validation_attempts.webin_reason.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.submission_ready; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.submission_ready IS 'ena_validation_attempts.submission_ready.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.validated_species_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.validated_species_name IS 'mito_lca_validation.validated_species_name.';
+
+
+--
+-- Name: COLUMN mitogenome_submission_view.validator; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mitogenome_submission_view.validator IS 'mito_lca_validation.validator.';
 
 
 --
@@ -4426,6 +9655,76 @@ CREATE TABLE public.ncbi_genome_assemblies (
     assembly_release_date date,
     contig_n50 integer
 );
+
+
+--
+-- Name: TABLE ncbi_genome_assemblies; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ncbi_genome_assemblies IS 'NCBI genome assembly metadata (1,830 rows): what is already assembled for a species. No writer and no reading view found; no FK to species. The empty species_ncbi_assembly was meant to hold the same and is what v_genome_size_comparison reads; consolidating them is a backlog item.';
+
+
+--
+-- Name: COLUMN ncbi_genome_assemblies.assembly_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ncbi_genome_assemblies.assembly_accession IS 'GCA_/GCF_ accession. Unique.';
+
+
+--
+-- Name: COLUMN ncbi_genome_assemblies.assembly_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ncbi_genome_assemblies.assembly_name IS 'Assembly name.';
+
+
+--
+-- Name: COLUMN ncbi_genome_assemblies.assembly_level; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ncbi_genome_assemblies.assembly_level IS 'Contig, Scaffold, Chromosome or Complete Genome.';
+
+
+--
+-- Name: COLUMN ncbi_genome_assemblies.assembly_bioproject_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ncbi_genome_assemblies.assembly_bioproject_accession IS 'BioProject of the assembly.';
+
+
+--
+-- Name: COLUMN ncbi_genome_assemblies.organism_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ncbi_genome_assemblies.organism_name IS 'Organism name as NCBI gives it.';
+
+
+--
+-- Name: COLUMN ncbi_genome_assemblies.organism_taxonomic_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ncbi_genome_assemblies.organism_taxonomic_id IS 'NCBI Taxonomy id.';
+
+
+--
+-- Name: COLUMN ncbi_genome_assemblies.assembly_refseq_category; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ncbi_genome_assemblies.assembly_refseq_category IS 'RefSeq category; the string NaN where there is none.';
+
+
+--
+-- Name: COLUMN ncbi_genome_assemblies.assembly_release_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ncbi_genome_assemblies.assembly_release_date IS 'Release date.';
+
+
+--
+-- Name: COLUMN ncbi_genome_assemblies.contig_n50; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ncbi_genome_assemblies.contig_n50 IS 'Contig N50, bp.';
 
 
 --
@@ -4493,7 +9792,21 @@ CREATE TABLE public.og_workflow_notification (
 -- Name: TABLE og_workflow_notification; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.og_workflow_notification IS 'Notification feed for OceanGenom_Web: new workflow recommendations and workflow assignments.';
+COMMENT ON TABLE public.og_workflow_notification IS 'Notification feed for OceanGenom_Web: one row per project each time workflows are assigned on the site.';
+
+
+--
+-- Name: COLUMN og_workflow_notification.project_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.og_workflow_notification.project_id IS 'sample.project_id of the OGs assigned together (NULL for OGs with no project ID).';
+
+
+--
+-- Name: COLUMN og_workflow_notification.og_ids; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.og_workflow_notification.og_ids IS 'The OGs of that project assigned in this one action. og_id is only set on older, per-OG rows.';
 
 
 --
@@ -4554,6 +9867,20 @@ COMMENT ON TABLE public.prep_automation IS 'Controlled vocabulary for the spread
 
 
 --
+-- Name: COLUMN prep_automation.prep_automation; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.prep_automation.prep_automation IS 'The normalised value: Manual or Automated Biomek i7.';
+
+
+--
+-- Name: COLUMN prep_automation.description; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.prep_automation.description IS 'What the value means at the bench.';
+
+
+--
 -- Name: raw_data; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4564,6 +9891,48 @@ CREATE TABLE public.raw_data (
     filename text NOT NULL,
     og_num integer GENERATED ALWAYS AS ((SUBSTRING(og_id FROM 3))::integer) STORED
 );
+
+
+--
+-- Name: TABLE raw_data; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.raw_data IS 'Raw sequencing files: one row per FASTQ file of an OG on a run and lane. No current writer found in the pipeline repositories; took no new rows Jul-Nov 2026 (§11 Q13). FK run_id to sequencing_run (075).';
+
+
+--
+-- Name: COLUMN raw_data.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.raw_data.og_id IS 'The sample (FK to sample). NULL on 30 rows.';
+
+
+--
+-- Name: COLUMN raw_data.run_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.raw_data.run_id IS 'The run (FK to sequencing_run).';
+
+
+--
+-- Name: COLUMN raw_data.lane_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.raw_data.lane_id IS 'Library and lane as the sequencer named them, e.g. F15-0238_L1.';
+
+
+--
+-- Name: COLUMN raw_data.filename; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.raw_data.filename IS 'The FASTQ file name.';
+
+
+--
+-- Name: COLUMN raw_data.og_num; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.raw_data.og_num IS 'Numeric part of og_id, for sorting. Generated.';
 
 
 --
@@ -4598,7 +9967,28 @@ CREATE TABLE public.ref_assembly_part (
 -- Name: TABLE ref_assembly_part; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.ref_assembly_part IS 'One sequence set of an assembly at a stage: hap1, hap2, p_ctg/a_ctg (hifiasm primary/alternate contigs), or dual.';
+COMMENT ON TABLE public.ref_assembly_part IS 'One sequence set of an assembly at a stage: hap1, hap2, p_ctg/a_ctg (hifiasm primary/alternate contigs), or dual. Created by scripts/lib/refdb.py when a push script first writes a result for it (ref repo and post-curation). Every per-tool ref_* table is keyed on part_id.';
+
+
+--
+-- Name: COLUMN ref_assembly_part.part_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly_part.part_id IS 'Surrogate key. The per-tool tables are keyed on it.';
+
+
+--
+-- Name: COLUMN ref_assembly_part.assembly_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly_part.assembly_id IS 'The assembly (FK to ref_assembly).';
+
+
+--
+-- Name: COLUMN ref_assembly_part.stage; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly_part.stage IS 'The stage (FK to ref_stage).';
 
 
 --
@@ -4606,6 +9996,13 @@ COMMENT ON TABLE public.ref_assembly_part IS 'One sequence set of an assembly at
 --
 
 COMMENT ON COLUMN public.ref_assembly_part.haplotype IS 'dual = hap1 and hap2 together: Merqury on both haplotypes, or OMNIC on the combined scaffold set.';
+
+
+--
+-- Name: COLUMN ref_assembly_part.created_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly_part.created_at IS 'When the row was first written (database clock).';
 
 
 --
@@ -4636,7 +10033,21 @@ CREATE TABLE public.ref_assembly_run (
 -- Name: TABLE ref_assembly_run; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.ref_assembly_run IS 'The sequencing rows an assembly was built from: PacBio/ONT DNA, and Hi-C once writers record it (trigger).';
+COMMENT ON TABLE public.ref_assembly_run IS 'The sequencing rows an assembly was built from: PacBio/ONT DNA, and Hi-C once writers record it (trigger). Derived by the RG window sync and loaded at the 073 merge. No writer has added rows since (078).';
+
+
+--
+-- Name: COLUMN ref_assembly_run.assembly_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly_run.assembly_id IS 'The assembly (FK to ref_assembly).';
+
+
+--
+-- Name: COLUMN ref_assembly_run.sequencing_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly_run.sequencing_id IS 'A sequencing row the assembly''s reads came from (FK to sequencing).';
 
 
 --
@@ -4666,7 +10077,70 @@ CREATE TABLE public.ref_busco (
 -- Name: TABLE ref_busco; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.ref_busco IS 'BUSCO completeness and BUSCO''s own assembly statistics. Written by 03a_push_busco_results_to_sqldb.py (ref repo and post-curation).';
+COMMENT ON TABLE public.ref_busco IS 'BUSCO completeness and BUSCO''s own assembly statistics. Written by 03a_push_busco_results_to_sqldb.py (ref repo and post-curation). Its N50 columns are not reliable N50s; use ref_gfastats.';
+
+
+--
+-- Name: COLUMN ref_busco.part_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_busco.part_id IS 'The assembly part (FK to ref_assembly_part).';
+
+
+--
+-- Name: COLUMN ref_busco.dataset; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_busco.dataset IS 'BUSCO lineage dataset searched, e.g. actinopterygii_odb10, vertebrata_odb10.';
+
+
+--
+-- Name: COLUMN ref_busco.complete; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_busco.complete IS 'Complete BUSCOs, % of n_markers.';
+
+
+--
+-- Name: COLUMN ref_busco.single_copy; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_busco.single_copy IS 'Complete single-copy BUSCOs, %.';
+
+
+--
+-- Name: COLUMN ref_busco.multi_copy; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_busco.multi_copy IS 'Complete duplicated BUSCOs, %.';
+
+
+--
+-- Name: COLUMN ref_busco.fragmented; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_busco.fragmented IS 'Fragmented BUSCOs, %.';
+
+
+--
+-- Name: COLUMN ref_busco.missing; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_busco.missing IS 'Missing BUSCOs, %.';
+
+
+--
+-- Name: COLUMN ref_busco.n_markers; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_busco.n_markers IS 'Number of markers in the dataset.';
+
+
+--
+-- Name: COLUMN ref_busco.internal_stop_codon_percent; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_busco.internal_stop_codon_percent IS 'Complete BUSCO genes with an internal stop codon, %.';
 
 
 --
@@ -4681,6 +10155,27 @@ COMMENT ON COLUMN public.ref_busco.scaffold_n50_bus IS 'BUSCO''s own scaffold N5
 --
 
 COMMENT ON COLUMN public.ref_busco.contigs_n50_bus IS 'BUSCO''s own contig N50; see scaffold_n50_bus. Use ref_gfastats.contig_n50.';
+
+
+--
+-- Name: COLUMN ref_busco.percent_gaps; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_busco.percent_gaps IS 'BUSCO''s own % of N bases.';
+
+
+--
+-- Name: COLUMN ref_busco.number_of_scaffolds; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_busco.number_of_scaffolds IS 'BUSCO''s own scaffold count. Use ref_gfastats.num_scaffolds.';
+
+
+--
+-- Name: COLUMN ref_busco.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_busco.loaded_at IS 'When the row was last written (database clock).';
 
 
 --
@@ -4704,6 +10199,55 @@ CREATE TABLE public.ref_chromosome_stats (
 --
 
 COMMENT ON TABLE public.ref_chromosome_stats IS 'Chromosome assignment of the curated assembly (SUPER_* scaffolds). Written by 06b_push_percentage_stats_to_sqldb.py (post-curation).';
+
+
+--
+-- Name: COLUMN ref_chromosome_stats.part_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_chromosome_stats.part_id IS 'The assembly part (FK to ref_assembly_part).';
+
+
+--
+-- Name: COLUMN ref_chromosome_stats.num_chromosomes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_chromosome_stats.num_chromosomes IS 'SUPER_* scaffolds: chromosomes assigned in curation.';
+
+
+--
+-- Name: COLUMN ref_chromosome_stats.pct_assigned; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_chromosome_stats.pct_assigned IS '% of assembly length in SUPER_* scaffolds.';
+
+
+--
+-- Name: COLUMN ref_chromosome_stats.pct_no_super; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_chromosome_stats.pct_no_super IS '% of assembly length outside them (100 - pct_assigned).';
+
+
+--
+-- Name: COLUMN ref_chromosome_stats.num_seq_no_super; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_chromosome_stats.num_seq_no_super IS 'Sequences not assigned to a chromosome.';
+
+
+--
+-- Name: COLUMN ref_chromosome_stats.max_len_no_super; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_chromosome_stats.max_len_no_super IS 'Longest unassigned sequence, bp.';
+
+
+--
+-- Name: COLUMN ref_chromosome_stats.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_chromosome_stats.loaded_at IS 'When the row was last written (database clock).';
 
 
 --
@@ -4737,6 +10281,104 @@ COMMENT ON TABLE public.ref_gfastats IS 'gfastats assembly statistics; the autho
 
 
 --
+-- Name: COLUMN ref_gfastats.part_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_gfastats.part_id IS 'The assembly part (FK to ref_assembly_part).';
+
+
+--
+-- Name: COLUMN ref_gfastats.num_contigs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_gfastats.num_contigs IS 'gfastats # contigs.';
+
+
+--
+-- Name: COLUMN ref_gfastats.contig_n50; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_gfastats.contig_n50 IS 'gfastats contig N50, bp. The authoritative contig N50.';
+
+
+--
+-- Name: COLUMN ref_gfastats.contig_n50_size_mb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_gfastats.contig_n50_size_mb IS 'contig N50 in Mb, as the tool reported it: stored, not derived from contig_n50 (RG.0 §1.6).';
+
+
+--
+-- Name: COLUMN ref_gfastats.num_scaffolds; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_gfastats.num_scaffolds IS 'gfastats # scaffolds.';
+
+
+--
+-- Name: COLUMN ref_gfastats.scaffold_n50; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_gfastats.scaffold_n50 IS 'gfastats scaffold N50, bp. The authoritative scaffold N50.';
+
+
+--
+-- Name: COLUMN ref_gfastats.scaffold_n50_size_mb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_gfastats.scaffold_n50_size_mb IS 'scaffold N50 in Mb, as the tool reported it: stored, not derived.';
+
+
+--
+-- Name: COLUMN ref_gfastats.largest_scaffold; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_gfastats.largest_scaffold IS 'gfastats largest scaffold, bp.';
+
+
+--
+-- Name: COLUMN ref_gfastats.largest_scaffold_size_mb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_gfastats.largest_scaffold_size_mb IS 'largest scaffold in Mb, as the tool reported it: stored, not derived.';
+
+
+--
+-- Name: COLUMN ref_gfastats.total_scaffold_length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_gfastats.total_scaffold_length IS 'gfastats total scaffold length, bp.';
+
+
+--
+-- Name: COLUMN ref_gfastats.total_scaffold_length_size_mb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_gfastats.total_scaffold_length_size_mb IS 'total scaffold length in Mb, as the tool reported it: stored, not derived.';
+
+
+--
+-- Name: COLUMN ref_gfastats.gc_content_percent; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_gfastats.gc_content_percent IS 'gfastats GC content, %.';
+
+
+--
+-- Name: COLUMN ref_gfastats.num_gaps; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_gfastats.num_gaps IS 'gfastats # gaps. Written by the post-curation push only (295 of 1,294 rows on 2026-11-04); NULL on ref-repo rows.';
+
+
+--
+-- Name: COLUMN ref_gfastats.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_gfastats.loaded_at IS 'When the row was last written (database clock).';
+
+
+--
 -- Name: ref_merqury_completeness; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4754,7 +10396,42 @@ CREATE TABLE public.ref_merqury_completeness (
 -- Name: TABLE ref_merqury_completeness; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.ref_merqury_completeness IS 'Merqury k-mer completeness. Written by 02d_push_merqury_completeness_results_to_sqldb.py (ref repo and post-curation). public.ref_genomes.k_mer_set is not carried: it was never filled.';
+COMMENT ON TABLE public.ref_merqury_completeness IS 'Merqury k-mer completeness. Written by 02d_push_merqury_completeness_results_to_sqldb.py (ref repo and post-curation). The old ref_genomes.k_mer_set was not carried: it was never filled.';
+
+
+--
+-- Name: COLUMN ref_merqury_completeness.part_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_merqury_completeness.part_id IS 'The assembly part (FK to ref_assembly_part).';
+
+
+--
+-- Name: COLUMN ref_merqury_completeness.solid_k_mers; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_merqury_completeness.solid_k_mers IS 'Solid read k-mers found in the assembly.';
+
+
+--
+-- Name: COLUMN ref_merqury_completeness.total_k_mers; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_merqury_completeness.total_k_mers IS 'All solid read k-mers.';
+
+
+--
+-- Name: COLUMN ref_merqury_completeness.completeness; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_merqury_completeness.completeness IS 'Merqury k-mer completeness, % (solid_k_mers / total_k_mers).';
+
+
+--
+-- Name: COLUMN ref_merqury_completeness.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_merqury_completeness.loaded_at IS 'When the row was last written (database clock).';
 
 
 --
@@ -4777,6 +10454,48 @@ CREATE TABLE public.ref_merqury_qv (
 --
 
 COMMENT ON TABLE public.ref_merqury_qv IS 'Merqury consensus QV. Written by 02b_push_merqury_qv_results_to_sqldb.py (ref repo and post-curation). On a dual part it is the value for hap1 and hap2 together.';
+
+
+--
+-- Name: COLUMN ref_merqury_qv.part_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_merqury_qv.part_id IS 'The assembly part (FK to ref_assembly_part).';
+
+
+--
+-- Name: COLUMN ref_merqury_qv.unique_k_mers_assembly; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_merqury_qv.unique_k_mers_assembly IS 'Merqury .qv: k-mers found only in the assembly, not in the reads (errors).';
+
+
+--
+-- Name: COLUMN ref_merqury_qv.k_mers_total; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_merqury_qv.k_mers_total IS 'Merqury .qv: all k-mers in the assembly.';
+
+
+--
+-- Name: COLUMN ref_merqury_qv.qv; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_merqury_qv.qv IS 'Merqury consensus quality value (Phred-scaled; higher is better).';
+
+
+--
+-- Name: COLUMN ref_merqury_qv.error; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_merqury_qv.error IS 'Merqury per-base error rate (the probability QV encodes).';
+
+
+--
+-- Name: COLUMN ref_merqury_qv.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_merqury_qv.loaded_at IS 'When the row was last written (database clock).';
 
 
 --
@@ -4806,6 +10525,76 @@ COMMENT ON TABLE public.ref_omnic IS 'Hi-C mapping QC (Dovetail OMNIC). Written 
 
 
 --
+-- Name: COLUMN ref_omnic.part_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_omnic.part_id IS 'The assembly part (FK to ref_assembly_part).';
+
+
+--
+-- Name: COLUMN ref_omnic.total; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_omnic.total IS 'pairtools stats total: Hi-C read pairs.';
+
+
+--
+-- Name: COLUMN ref_omnic.total_unmapped; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_omnic.total_unmapped IS 'Pairs with neither side mapped.';
+
+
+--
+-- Name: COLUMN ref_omnic.total_single_sided_mapped; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_omnic.total_single_sided_mapped IS 'Pairs with one side mapped.';
+
+
+--
+-- Name: COLUMN ref_omnic.total_mapped; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_omnic.total_mapped IS 'Pairs with both sides mapped.';
+
+
+--
+-- Name: COLUMN ref_omnic.total_dups; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_omnic.total_dups IS 'Mapped pairs marked as duplicates.';
+
+
+--
+-- Name: COLUMN ref_omnic.total_nodups; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_omnic.total_nodups IS 'Mapped pairs after deduplication.';
+
+
+--
+-- Name: COLUMN ref_omnic.cis; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_omnic.cis IS 'Deduplicated pairs with both sides on the same sequence.';
+
+
+--
+-- Name: COLUMN ref_omnic.trans; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_omnic.trans IS 'Deduplicated pairs on different sequences.';
+
+
+--
+-- Name: COLUMN ref_omnic.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_omnic.loaded_at IS 'When the row was last written (database clock).';
+
+
+--
 -- Name: ref_seqkit_stats; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4828,6 +10617,69 @@ CREATE TABLE public.ref_seqkit_stats (
 --
 
 COMMENT ON TABLE public.ref_seqkit_stats IS 'seqkit stats of the curated FASTA. Written by 05a_push_stats_compiled_results_to_sql.py (post-curation).';
+
+
+--
+-- Name: COLUMN ref_seqkit_stats.part_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_seqkit_stats.part_id IS 'The assembly part (FK to ref_assembly_part).';
+
+
+--
+-- Name: COLUMN ref_seqkit_stats.format; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_seqkit_stats.format IS 'seqkit stats format (FASTA).';
+
+
+--
+-- Name: COLUMN ref_seqkit_stats.type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_seqkit_stats.type IS 'seqkit stats sequence type (DNA). Quote the column name.';
+
+
+--
+-- Name: COLUMN ref_seqkit_stats.num_seqs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_seqkit_stats.num_seqs IS 'Sequences in the curated FASTA.';
+
+
+--
+-- Name: COLUMN ref_seqkit_stats.sum_len; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_seqkit_stats.sum_len IS 'Total length, bp.';
+
+
+--
+-- Name: COLUMN ref_seqkit_stats.min_len; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_seqkit_stats.min_len IS 'Shortest sequence, bp.';
+
+
+--
+-- Name: COLUMN ref_seqkit_stats.avg_len; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_seqkit_stats.avg_len IS 'Mean sequence length, bp.';
+
+
+--
+-- Name: COLUMN ref_seqkit_stats.max_len; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_seqkit_stats.max_len IS 'Longest sequence, bp.';
+
+
+--
+-- Name: COLUMN ref_seqkit_stats.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_seqkit_stats.loaded_at IS 'When the row was last written (database clock).';
 
 
 --
@@ -4936,6 +10788,62 @@ COMMENT ON TABLE public.ref_submission IS 'NCBI/ENA submission of a reference ge
 
 
 --
+-- Name: COLUMN ref_submission.submission_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_submission.submission_id IS 'Surrogate key. Haplotype accessions and SRA uploads hang off it.';
+
+
+--
+-- Name: COLUMN ref_submission.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_submission.og_id IS 'The sample (FK to sample). One submission per OG.';
+
+
+--
+-- Name: COLUMN ref_submission.assembly_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_submission.assembly_id IS 'The OG''s one curated (stage 3) assembly (FK to ref_assembly); NULL where it has none or several. Copied to ref_submission_haplotype.assembly_id by trigger.';
+
+
+--
+-- Name: COLUMN ref_submission.biosample; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_submission.biosample IS 'BioSample accession the genome was submitted under (SAMN.../SAMEA...).';
+
+
+--
+-- Name: COLUMN ref_submission.bioproject_umbrella; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_submission.bioproject_umbrella IS 'Umbrella BioProject of the genome (PRJNA.../PRJEB...).';
+
+
+--
+-- Name: COLUMN ref_submission.bioproject_rawdata; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_submission.bioproject_rawdata IS 'BioProject the raw reads were submitted to.';
+
+
+--
+-- Name: COLUMN ref_submission.embargo_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_submission.embargo_status IS 'Release or Embargo: whether the genome may be made public.';
+
+
+--
+-- Name: COLUMN ref_submission.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_submission.loaded_at IS 'When the row was last written (database clock).';
+
+
+--
 -- Name: ref_submission_haplotype; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4967,6 +10875,27 @@ COMMENT ON TABLE public.ref_submission_haplotype IS 'Per-haplotype BioProject an
 
 
 --
+-- Name: COLUMN ref_submission_haplotype.submission_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_submission_haplotype.submission_id IS 'The submission (FK to ref_submission).';
+
+
+--
+-- Name: COLUMN ref_submission_haplotype.haplotype; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_submission_haplotype.haplotype IS 'hap1 or hap2.';
+
+
+--
+-- Name: COLUMN ref_submission_haplotype.bioproject; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_submission_haplotype.bioproject IS 'The haplotype''s own BioProject, under the umbrella.';
+
+
+--
 -- Name: COLUMN ref_submission_haplotype.assembly_accession; Type: COMMENT; Schema: public; Owner: -
 --
 
@@ -4978,6 +10907,13 @@ COMMENT ON COLUMN public.ref_submission_haplotype.assembly_accession IS 'WGS mas
 --
 
 COMMENT ON COLUMN public.ref_submission_haplotype.gca_accession IS 'Public INSDC assembly accession (GCA_...), resolved after processing (step 10).';
+
+
+--
+-- Name: COLUMN ref_submission_haplotype.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_submission_haplotype.loaded_at IS 'When the row was last written (database clock).';
 
 
 --
@@ -5055,10 +10991,52 @@ COMMENT ON TABLE public.ref_sra_upload IS 'Raw reads uploaded to the SRA/ENA for
 
 
 --
+-- Name: COLUMN ref_sra_upload.srr_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_sra_upload.srr_accession IS 'Run accession of the uploaded reads (SRR.../ERR...).';
+
+
+--
+-- Name: COLUMN ref_sra_upload.submission_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_sra_upload.submission_id IS 'The genome submission the reads belong to (FK to ref_submission).';
+
+
+--
+-- Name: COLUMN ref_sra_upload.filenames; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_sra_upload.filenames IS 'The uploaded file names, '', ''-joined. resolve_sra_upload_runs() matches them to sequencing rows.';
+
+
+--
+-- Name: COLUMN ref_sra_upload.data_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_sra_upload.data_type IS 'hifi, hic, ont or illumina. NULL: not recorded.';
+
+
+--
+-- Name: COLUMN ref_sra_upload.ncbi_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_sra_upload.ncbi_status IS 'Released or ToBeReleased. NULL: not recorded. The release date is in release_date.';
+
+
+--
 -- Name: COLUMN ref_sra_upload.release_date; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.ref_sra_upload.release_date IS 'Scheduled public release (embargo end) of the run: ENA holdUntilDate, written by ENA-ref-genomes step 09. public.ref_genomes_sra_uploads keeps it in ncbi_status instead of a status.';
+
+
+--
+-- Name: COLUMN ref_sra_upload.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_sra_upload.loaded_at IS 'When the row was last written (database clock).';
 
 
 --
@@ -5104,6 +11082,13 @@ COMMENT ON TABLE public.ref_read_set_external IS 'HiFi read sets whose reads are
 
 
 --
+-- Name: COLUMN ref_read_set_external.read_set_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_read_set_external.read_set_id IS 'The read set (FK to ref_read_set).';
+
+
+--
 -- Name: COLUMN ref_read_set_external.cells; Type: COMMENT; Schema: public; Owner: -
 --
 
@@ -5115,6 +11100,20 @@ COMMENT ON COLUMN public.ref_read_set_external.cells IS 'The read files or cells
 --
 
 COMMENT ON COLUMN public.ref_read_set_external.supplier IS 'Who sequenced them, where known.';
+
+
+--
+-- Name: COLUMN ref_read_set_external.note; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_read_set_external.note IS 'Where the reads were found and what is not known about them.';
+
+
+--
+-- Name: COLUMN ref_read_set_external.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_read_set_external.loaded_at IS 'When the row was last written (database clock).';
 
 
 --
@@ -5145,7 +11144,21 @@ CREATE TABLE public.ref_read_set_run (
 -- Name: TABLE ref_read_set_run; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.ref_read_set_run IS 'The PacBio sequencing rows in a read set. PacBio DNA libraries only (trigger). Migration 062.';
+COMMENT ON TABLE public.ref_read_set_run IS 'The PacBio sequencing rows in a read set. PacBio DNA libraries only (trigger); never on an external read set (trigger). Written by scripts/lib/refdb.py with its read set. Migration 062.';
+
+
+--
+-- Name: COLUMN ref_read_set_run.read_set_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_read_set_run.read_set_id IS 'The read set (FK to ref_read_set).';
+
+
+--
+-- Name: COLUMN ref_read_set_run.sequencing_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_read_set_run.sequencing_id IS 'A PacBio sequencing row in the set (FK to sequencing).';
 
 
 --
@@ -5162,7 +11175,21 @@ CREATE TABLE public.ref_sra_upload_run (
 -- Name: TABLE ref_sra_upload_run; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.ref_sra_upload_run IS 'The sequencing rows (library on a run) an SRA upload''s files came from. Several where one upload carries several libraries. Migration 064.';
+COMMENT ON TABLE public.ref_sra_upload_run IS 'The sequencing rows (library on a run) an SRA upload''s files came from; several where one upload carries several libraries. Written by ENA-ref-genomes step 09, and by resolve_sra_upload_runs() from the file names. Migration 064.';
+
+
+--
+-- Name: COLUMN ref_sra_upload_run.srr_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_sra_upload_run.srr_accession IS 'The upload (FK to ref_sra_upload).';
+
+
+--
+-- Name: COLUMN ref_sra_upload_run.sequencing_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_sra_upload_run.sequencing_id IS 'A sequencing row its files came from (FK to sequencing).';
 
 
 --
@@ -5180,7 +11207,28 @@ CREATE TABLE public.ref_sra_upload_unlinked (
 -- Name: TABLE ref_sra_upload_unlinked; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.ref_sra_upload_unlinked IS 'SRA uploads reviewed and left with no sequencing link, and why (064''s evidence). The sync does not re-resolve these; delete a row once the lab has fixed the cause.';
+COMMENT ON TABLE public.ref_sra_upload_unlinked IS 'SRA uploads reviewed and left with no sequencing link, and why (064''s evidence). resolve_sra_upload_runs() does not re-resolve these; delete a row once the lab has fixed the cause.';
+
+
+--
+-- Name: COLUMN ref_sra_upload_unlinked.srr_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_sra_upload_unlinked.srr_accession IS 'The upload (FK to ref_sra_upload).';
+
+
+--
+-- Name: COLUMN ref_sra_upload_unlinked.reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_sra_upload_unlinked.reason IS 'Why no sequencing row could be linked, e.g. no filenames, or a staged file matching no raw file by size.';
+
+
+--
+-- Name: COLUMN ref_sra_upload_unlinked.reviewed_on; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_sra_upload_unlinked.reviewed_on IS 'When the upload was reviewed.';
 
 
 --
@@ -5198,7 +11246,28 @@ CREATE TABLE public.ref_stage (
 -- Name: TABLE ref_stage; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.ref_stage IS 'Assembly stages, from the pipeline file names (<og>_v<date>.<version>.<stage>.<tool>...).';
+COMMENT ON TABLE public.ref_stage IS 'Assembly stages, from the pipeline file names (<og>_v<date>.<version>.<stage>.<tool>...). Fixed lookup (057); no writer.';
+
+
+--
+-- Name: COLUMN ref_stage.stage; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_stage.stage IS 'Stage number in the file name: 0 contigs, 1 scaffolded, 2 decontaminated, 3 curated.';
+
+
+--
+-- Name: COLUMN ref_stage.name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_stage.name IS 'Short stage name.';
+
+
+--
+-- Name: COLUMN ref_stage.description; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_stage.description IS 'What the stage contains and which tool produced it.';
 
 
 --
@@ -5237,6 +11306,48 @@ COMMENT ON TABLE public.rna_qc_kinnex IS 'Kinnex RNA read QC: one row per librar
 
 
 --
+-- Name: COLUMN rna_qc_kinnex.rna_tube_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_qc_kinnex.rna_tube_id IS 'The Kinnex library (rna_library_kinx tube id). Part of the key (061).';
+
+
+--
+-- Name: COLUMN rna_qc_kinnex.rna_tube_id_2; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_qc_kinnex.rna_tube_id_2 IS 'A second library pooled into the same QC row, where there was one.';
+
+
+--
+-- Name: COLUMN rna_qc_kinnex.read_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_qc_kinnex.read_count IS 'Reads.';
+
+
+--
+-- Name: COLUMN rna_qc_kinnex.run_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_qc_kinnex.run_id IS 'The PacBio run (FK to sequencing_run).';
+
+
+--
+-- Name: COLUMN rna_qc_kinnex.read_length_mean; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_qc_kinnex.read_length_mean IS 'Mean read length, bp.';
+
+
+--
+-- Name: COLUMN rna_qc_kinnex.read_length_n50; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_qc_kinnex.read_length_n50 IS 'Read length N50, bp.';
+
+
+--
 -- Name: schema_migrations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5252,6 +11363,27 @@ CREATE TABLE public.schema_migrations (
 --
 
 COMMENT ON TABLE public.schema_migrations IS 'Migration ledger for sql/. One row per applied file, with a SHA-256 of its contents so an applied migration cannot be edited unnoticed. Written by bin/apply_migrations.py; never populate it by hand. Created by 000_bootstrap_schema_migrations.sql, which must be run with psql before the first apply_migrations.py invocation on an empty database.';
+
+
+--
+-- Name: COLUMN schema_migrations.filename; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.schema_migrations.filename IS 'The sql/ file applied, e.g. 078_phase_r_rg_comments.sql.';
+
+
+--
+-- Name: COLUMN schema_migrations.sha256; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.schema_migrations.sha256 IS 'SHA-256 of the file when applied. bin/apply_migrations.py --verify refuses to continue when a file stops matching.';
+
+
+--
+-- Name: COLUMN schema_migrations.applied_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.schema_migrations.applied_at IS 'When it was applied.';
 
 
 --
@@ -5280,7 +11412,14 @@ CREATE TABLE public.sequencing (
 -- Name: TABLE sequencing; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.sequencing IS 'One row per sequencing record. Source: the 5.Sequencing sheet.';
+COMMENT ON TABLE public.sequencing IS 'One row per sequencing record. Source: the 5.Sequencing sheet (import_v2.py). Each row names one library (library_tube_id) and one run (run_id). Grain undecided: a library on a run in most rows, but see §11 Q5.';
+
+
+--
+-- Name: COLUMN sequencing.sequencing_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing.sequencing_id IS '5.Sequencing "Sequencing ID", usually <library tube>_<run_id>. Run-link tables (draft_genome_run, mito_assembly_run, ref_*_run) point here.';
 
 
 --
@@ -5298,10 +11437,80 @@ COMMENT ON COLUMN public.sequencing.status IS 'Spreadsheet header "Status". Popu
 
 
 --
+-- Name: COLUMN sequencing.technology; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing.technology IS '"Technology": Illumina, PacBio, PacBio Kinnex, ONT, Hi-C... Not normalised.';
+
+
+--
+-- Name: COLUMN sequencing.instrument; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing.instrument IS '"Sequencing Instrument": NovaSeq, NextSeq, iSEQ, Revio...';
+
+
+--
+-- Name: COLUMN sequencing.run_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing.run_date IS '"Sequencing Date". Can differ from seq_date, which is parsed from run_id.';
+
+
+--
+-- Name: COLUMN sequencing.run_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing.run_id IS 'Run id, MACHINE_YYMMDD_INITIALS. "Sequencing Run ID". FK to sequencing_run (075).';
+
+
+--
+-- Name: COLUMN sequencing.seq_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing.seq_date IS 'Generated: the YYMMDD component of run_id. An identifier component, not a date: the assembly tables key on it.';
+
+
+--
+-- Name: COLUMN sequencing.cell_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing.cell_id IS 'SMRT cell well or flow cell. "SMRTcell well / Flowcell".';
+
+
+--
+-- Name: COLUMN sequencing.smrt_num; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing.smrt_num IS 'SMRT cells used. "No. SMRTcells".';
+
+
+--
 -- Name: COLUMN sequencing.seq_type; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.sequencing.seq_type IS 'Retained for the existing consumers that filter on it. library.library_type is now the authoritative technology label; derive this from it at cutover rather than having the importer compute it.';
+
+
+--
+-- Name: COLUMN sequencing.design_no; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing.design_no IS 'Illumina prep protocol (FK to design_description; 063).';
+
+
+--
+-- Name: COLUMN sequencing.hic_depth; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing.hic_depth IS 'Hi-C sequencing depth as the lab records it, text. "HiC Depth".';
+
+
+--
+-- Name: COLUMN sequencing.seq_comments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing.seq_comments IS '"Comments".';
 
 
 --
@@ -5328,6 +11537,62 @@ COMMENT ON TABLE public.sequencing_run IS 'One sequencing run, derived from sequ
 
 
 --
+-- Name: COLUMN sequencing_run.run_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing_run.run_id IS 'Run id, MACHINE_YYMMDD_INITIALS (e.g. NEXT_230801_AD), as in sequencing.run_id.';
+
+
+--
+-- Name: COLUMN sequencing_run.mach; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing_run.mach IS 'Machine code parsed from run_id (NOVA, NEXT, ISEQ, MISEQ, PACB, ONT; case varies: iSeq, iSEQ). NULL where run_id does not follow the pattern.';
+
+
+--
+-- Name: COLUMN sequencing_run.run_seq_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing_run.run_seq_date IS 'The YYMMDD component of run_id. An identifier component, not a date; see run_date.';
+
+
+--
+-- Name: COLUMN sequencing_run.initial; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing_run.initial IS 'Initials parsed from run_id.';
+
+
+--
+-- Name: COLUMN sequencing_run.instrument; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing_run.instrument IS 'sequencing.instrument where every row of the run agrees; NULL where they disagree or none is set.';
+
+
+--
+-- Name: COLUMN sequencing_run.run_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing_run.run_date IS 'sequencing.run_date where every row of the run agrees; NULL otherwise. Can differ from run_seq_date.';
+
+
+--
+-- Name: COLUMN sequencing_run.created_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing_run.created_at IS 'When the run was first seen (database clock).';
+
+
+--
+-- Name: COLUMN sequencing_run.updated_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing_run.updated_at IS 'When the derived values last changed.';
+
+
+--
 -- Name: species; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5343,6 +11608,83 @@ CREATE TABLE public.species (
     ncbi_taxon_id integer,
     synonym text
 );
+
+
+--
+-- Name: TABLE species; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.species IS 'Species names with their lineage, one row per name. Loaded from NCBI rankedlineage.dmp by OceanOmics-OceanGenomes-Draft-Genomes scripts/taxonomy/load_taxonomy.py (insert-only, existing rows never touched), plus earlier AFD-sourced rows. The draft pipeline routes BUSCO lineages on class. One of several species sources: which is authoritative is undecided (§11 Q1).';
+
+
+--
+-- Name: COLUMN species.species; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.species.species IS 'Species name. The key.';
+
+
+--
+-- Name: COLUMN species.class; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.species.class IS 'Class. Holds the phylum where NCBI gives no class, so it is never NULL for the BUSCO lineage selector.';
+
+
+--
+-- Name: COLUMN species.ordr; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.species.ordr IS 'Order (spelled ordr to avoid the keyword).';
+
+
+--
+-- Name: COLUMN species.family; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.species.family IS 'Family.';
+
+
+--
+-- Name: COLUMN species.genus; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.species.genus IS 'Genus.';
+
+
+--
+-- Name: COLUMN species.epithet; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.species.epithet IS 'Specific epithet.';
+
+
+--
+-- Name: COLUMN species.afd_common_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.species.afd_common_name IS 'Common name from the Australian Faunal Directory, on AFD-sourced rows.';
+
+
+--
+-- Name: COLUMN species.family_common_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.species.family_common_name IS 'Common name of the family, e.g. Elapid Snakes.';
+
+
+--
+-- Name: COLUMN species.ncbi_taxon_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.species.ncbi_taxon_id IS 'NCBI Taxonomy id. NULL on rows not from NCBI.';
+
+
+--
+-- Name: COLUMN species.synonym; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.species.synonym IS 'A synonym or the accepted name.';
 
 
 --
@@ -5362,6 +11704,90 @@ CREATE TABLE public.species_ncbi_assembly (
     release_date date,
     retrieved_at timestamp without time zone DEFAULT now() NOT NULL
 );
+
+
+--
+-- Name: TABLE species_ncbi_assembly; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.species_ncbi_assembly IS 'Planned NCBI assembly table, with a species FK and one chosen assembly per species. Empty since it was created; ncbi_genome_assemblies holds the data. v_genome_size_comparison reads this table, so its NCBI columns are NULL on every row until the two are consolidated (backlog item).';
+
+
+--
+-- Name: COLUMN species_ncbi_assembly.assembly_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.species_ncbi_assembly.assembly_accession IS 'GCA_/GCF_ accession.';
+
+
+--
+-- Name: COLUMN species_ncbi_assembly.species; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.species_ncbi_assembly.species IS 'The species (FK to species).';
+
+
+--
+-- Name: COLUMN species_ncbi_assembly.ncbi_taxon_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.species_ncbi_assembly.ncbi_taxon_id IS 'NCBI Taxonomy id.';
+
+
+--
+-- Name: COLUMN species_ncbi_assembly.assembly_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.species_ncbi_assembly.assembly_name IS 'Assembly name.';
+
+
+--
+-- Name: COLUMN species_ncbi_assembly.assembly_level; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.species_ncbi_assembly.assembly_level IS 'Contig, Scaffold, Chromosome or Complete Genome.';
+
+
+--
+-- Name: COLUMN species_ncbi_assembly.total_sequence_length; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.species_ncbi_assembly.total_sequence_length IS 'bp.';
+
+
+--
+-- Name: COLUMN species_ncbi_assembly.is_refseq; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.species_ncbi_assembly.is_refseq IS 'A RefSeq assembly.';
+
+
+--
+-- Name: COLUMN species_ncbi_assembly.is_representative; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.species_ncbi_assembly.is_representative IS 'NCBI''s representative assembly for the species.';
+
+
+--
+-- Name: COLUMN species_ncbi_assembly.is_chosen; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.species_ncbi_assembly.is_chosen IS 'The one assembly chosen for the species (partial unique index).';
+
+
+--
+-- Name: COLUMN species_ncbi_assembly.release_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.species_ncbi_assembly.release_date IS 'Release date.';
+
+
+--
+-- Name: COLUMN species_ncbi_assembly.retrieved_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.species_ncbi_assembly.retrieved_at IS 'When the row was fetched from NCBI.';
 
 
 --
@@ -5451,6 +11877,125 @@ COMMENT ON VIEW public.v_draft_genome_status IS 'One row per draft genome: which
 
 
 --
+-- Name: COLUMN v_draft_genome_status.og_num; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_draft_genome_status.og_num IS 'draft_genome.og_num.';
+
+
+--
+-- Name: COLUMN v_draft_genome_status.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_draft_genome_status.og_id IS 'The specimen.';
+
+
+--
+-- Name: COLUMN v_draft_genome_status.nominal_species_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_draft_genome_status.nominal_species_id IS 'sample.nominal_species_id.';
+
+
+--
+-- Name: COLUMN v_draft_genome_status.seq_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_draft_genome_status.seq_date IS 'draft_genome.seq_date.';
+
+
+--
+-- Name: COLUMN v_draft_genome_status.mach; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_draft_genome_status.mach IS 'draft_genome.mach.';
+
+
+--
+-- Name: COLUMN v_draft_genome_status.has_run_link; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_draft_genome_status.has_run_link IS 'At least one draft_genome_run row.';
+
+
+--
+-- Name: COLUMN v_draft_genome_status.has_fastp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_draft_genome_status.has_fastp IS 'A draft_fastp row exists.';
+
+
+--
+-- Name: COLUMN v_draft_genome_status.has_genomescope; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_draft_genome_status.has_genomescope IS 'A draft_genomescope row exists.';
+
+
+--
+-- Name: COLUMN v_draft_genome_status.genomescope_output_set; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_draft_genome_status.genomescope_output_set IS 'draft_genomescope.output_set: core or extended.';
+
+
+--
+-- Name: COLUMN v_draft_genome_status.has_tiara; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_draft_genome_status.has_tiara IS 'A draft_tiara row exists.';
+
+
+--
+-- Name: COLUMN v_draft_genome_status.has_contamination; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_draft_genome_status.has_contamination IS 'A draft_contamination row exists.';
+
+
+--
+-- Name: COLUMN v_draft_genome_status.has_busco; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_draft_genome_status.has_busco IS 'A draft_busco row exists.';
+
+
+--
+-- Name: COLUMN v_draft_genome_status.has_merqury; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_draft_genome_status.has_merqury IS 'A draft_merqury row exists.';
+
+
+--
+-- Name: COLUMN v_draft_genome_status.has_gfastats; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_draft_genome_status.has_gfastats IS 'A draft_gfastats row exists.';
+
+
+--
+-- Name: COLUMN v_draft_genome_status.has_submission; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_draft_genome_status.has_submission IS 'A draft_submission row exists. Not counted in processes_done.';
+
+
+--
+-- Name: COLUMN v_draft_genome_status.processes_done; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_draft_genome_status.processes_done IS 'How many of the seven processes (fastp, genomescope, tiara, contamination, busco, merqury, gfastats) have a row, 0-7.';
+
+
+--
+-- Name: COLUMN v_draft_genome_status.reads_only; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_draft_genome_status.reads_only IS 'fastp ran and none of the six assembly processes did.';
+
+
+--
 -- Name: v_genome_size_comparison; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -5475,6 +12020,13 @@ CREATE VIEW public.v_genome_size_comparison AS
      JOIN public.sample s ON ((s.og_id = d.og_id)))
      JOIN public.species sp ON ((s.nominal_species_id = sp.species)))
      LEFT JOIN public.species_ncbi_assembly a ON (((a.species = sp.species) AND a.is_chosen)));
+
+
+--
+-- Name: VIEW v_genome_size_comparison; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.v_genome_size_comparison IS 'Per draft: the GenomeScope genome size against the chosen NCBI assembly of the nominal species. Reads species_ncbi_assembly, which is empty, so ncbi_bp and the columns after it are NULL on every row until it is consolidated with ncbi_genome_assemblies.';
 
 
 --
@@ -5913,6 +12465,62 @@ COMMENT ON VIEW public.v_read_qc_sequencing_readiness IS 'Read-QC rows with no s
 
 
 --
+-- Name: COLUMN v_read_qc_sequencing_readiness.kind; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_read_qc_sequencing_readiness.kind IS 'hifi or hic: which read-QC table the row is from.';
+
+
+--
+-- Name: COLUMN v_read_qc_sequencing_readiness.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_read_qc_sequencing_readiness.og_id IS 'The specimen.';
+
+
+--
+-- Name: COLUMN v_read_qc_sequencing_readiness.tissue; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_read_qc_sequencing_readiness.tissue IS 'Tissue code of the read-QC row.';
+
+
+--
+-- Name: COLUMN v_read_qc_sequencing_readiness.ext_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_read_qc_sequencing_readiness.ext_type IS 'Extraction code.';
+
+
+--
+-- Name: COLUMN v_read_qc_sequencing_readiness.lib_code; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_read_qc_sequencing_readiness.lib_code IS 'Library code.';
+
+
+--
+-- Name: COLUMN v_read_qc_sequencing_readiness.lane; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_read_qc_sequencing_readiness.lane IS 'Lane (hic only).';
+
+
+--
+-- Name: COLUMN v_read_qc_sequencing_readiness.run_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_read_qc_sequencing_readiness.run_id IS 'The run.';
+
+
+--
+-- Name: COLUMN v_read_qc_sequencing_readiness.reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_read_qc_sequencing_readiness.reason IS 'Why sequencing_id is NULL: run not in sequencing, library tube not in library, several or no matching sequencing rows.';
+
+
+--
 -- Name: v_read_set_run_readiness; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -5939,6 +12547,34 @@ COMMENT ON VIEW public.v_read_set_run_readiness IS 'Read sets with no run link t
 
 
 --
+-- Name: COLUMN v_read_set_run_readiness.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_read_set_run_readiness.og_id IS 'The specimen.';
+
+
+--
+-- Name: COLUMN v_read_set_run_readiness.seq_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_read_set_run_readiness.seq_date IS 'ref_read_set.seq_date.';
+
+
+--
+-- Name: COLUMN v_read_set_run_readiness.read_set_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_read_set_run_readiness.read_set_id IS 'The read set with no run link.';
+
+
+--
+-- Name: COLUMN v_read_set_run_readiness.pacbio_rows_for_og; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_read_set_run_readiness.pacbio_rows_for_og IS 'The OG''s PacBio DNA sequencing rows not marked Failed, '', ''-joined: the candidates to link.';
+
+
+--
 -- Name: v_ref_assembly_run_readiness; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -5960,7 +12596,42 @@ CREATE VIEW public.v_ref_assembly_run_readiness AS
 -- Name: VIEW v_ref_assembly_run_readiness; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.v_ref_assembly_run_readiness IS 'Assemblies with no run link, and the OG''s PacBio/ONT DNA rows to choose from. Their seq_date matches no run date (RG.0 §1.5); the writers link new assemblies.';
+COMMENT ON VIEW public.v_ref_assembly_run_readiness IS 'Assemblies with no run link, and the OG''s PacBio/ONT DNA rows to choose from. Their seq_date matches no run date (RG.0 §1.5). No writer links new assemblies since the RG.6 merge (078), so every new assembly appears here.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_run_readiness.og_num; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_run_readiness.og_num IS 'ref_assembly.og_num.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_run_readiness.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_run_readiness.og_id IS 'The specimen.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_run_readiness.seq_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_run_readiness.seq_date IS 'ref_assembly.seq_date.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_run_readiness.version; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_run_readiness.version IS 'ref_assembly.version.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_run_readiness.long_read_rows_for_og; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_run_readiness.long_read_rows_for_og IS 'The OG''s PacBio/ONT DNA sequencing rows not marked Failed, '', ''-joined: the candidates to link.';
 
 
 --
@@ -5993,6 +12664,125 @@ SELECT
 --
 
 COMMENT ON VIEW public.v_ref_assembly_status IS 'One row per assembly: which stages exist, and at which stages each tool has results (e.g. busco_stages = ''0,2,3'').';
+
+
+--
+-- Name: COLUMN v_ref_assembly_status.og_num; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_status.og_num IS 'ref_assembly.og_num.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_status.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_status.og_id IS 'The specimen.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_status.seq_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_status.seq_date IS 'ref_assembly.seq_date.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_status.version; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_status.version IS 'ref_assembly.version.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_status.strategy; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_status.strategy IS 'ref_assembly.strategy.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_status.attempt; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_status.attempt IS 'ref_assembly.attempt.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_status.run_links; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_status.run_links IS 'ref_assembly_run rows (0 for assemblies created since RG.6; see that table).';
+
+
+--
+-- Name: COLUMN v_ref_assembly_status.parts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_status.parts IS 'ref_assembly_part rows.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_status.stages; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_status.stages IS 'Stages present, comma-joined (e.g. 0,1,2,3).';
+
+
+--
+-- Name: COLUMN v_ref_assembly_status.curated; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_status.curated IS 'A stage-3 (curated) part exists.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_status.gfastats_stages; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_status.gfastats_stages IS 'Stages with a ref_gfastats row, comma-joined.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_status.busco_stages; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_status.busco_stages IS 'Stages with a ref_busco row.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_status.merqury_qv_stages; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_status.merqury_qv_stages IS 'Stages with a ref_merqury_qv row.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_status.merqury_completeness_stages; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_status.merqury_completeness_stages IS 'Stages with a ref_merqury_completeness row.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_status.omnic_stages; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_status.omnic_stages IS 'Stages with a ref_omnic row.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_status.seqkit_stats_stages; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_status.seqkit_stats_stages IS 'Stages with a ref_seqkit_stats row.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_status.chromosome_stats_stages; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_status.chromosome_stats_stages IS 'Stages with a ref_chromosome_stats row.';
 
 
 --
@@ -6046,6 +12836,153 @@ CREATE VIEW public.v_ref_assembly_summary AS
 --
 
 COMMENT ON VIEW public.v_ref_assembly_summary IS 'One row per assembly and haplotype (not dual): the latest stage present and its headline metrics.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_summary.og_num; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_summary.og_num IS 'ref_assembly.og_num.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_summary.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_summary.og_id IS 'The specimen.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_summary.seq_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_summary.seq_date IS 'ref_assembly.seq_date.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_summary.version; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_summary.version IS 'ref_assembly.version.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_summary.haplotype; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_summary.haplotype IS 'hap1, hap2, p_ctg or a_ctg (dual parts are left out).';
+
+
+--
+-- Name: COLUMN v_ref_assembly_summary.final_stage; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_summary.final_stage IS 'The highest stage this haplotype has. The metrics after it are that stage''s.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_summary.final_stage_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_summary.final_stage_name IS 'ref_stage.name of final_stage.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_summary.num_scaffolds; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_summary.num_scaffolds IS 'ref_gfastats.num_scaffolds.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_summary.scaffold_n50_size_mb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_summary.scaffold_n50_size_mb IS 'ref_gfastats.scaffold_n50_size_mb.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_summary.total_scaffold_length_size_mb; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_summary.total_scaffold_length_size_mb IS 'ref_gfastats.total_scaffold_length_size_mb.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_summary.gc_content_percent; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_summary.gc_content_percent IS 'ref_gfastats.gc_content_percent.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_summary.num_chromosomes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_summary.num_chromosomes IS 'ref_chromosome_stats.num_chromosomes (curated parts only).';
+
+
+--
+-- Name: COLUMN v_ref_assembly_summary.pct_assigned; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_summary.pct_assigned IS 'ref_chromosome_stats.pct_assigned.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_summary.busco_dataset; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_summary.busco_dataset IS 'ref_busco.dataset.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_summary.busco_complete; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_summary.busco_complete IS 'ref_busco.complete, %.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_summary.busco_single_copy; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_summary.busco_single_copy IS 'ref_busco.single_copy, %.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_summary.busco_multi_copy; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_summary.busco_multi_copy IS 'ref_busco.multi_copy, %.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_summary.busco_fragmented; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_summary.busco_fragmented IS 'ref_busco.fragmented, %.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_summary.busco_missing; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_summary.busco_missing IS 'ref_busco.missing, %.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_summary.qv; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_summary.qv IS 'ref_merqury_qv.qv.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_summary.kmer_completeness; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_summary.kmer_completeness IS 'ref_merqury_completeness.completeness, %.';
 
 
 --
@@ -6204,7 +13141,35 @@ UNION ALL
 -- Name: VIEW v_sequencing_run_fk_readiness; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.v_sequencing_run_fk_readiness IS 'For each table R.7 will FK to sequencing_run: rows that would fail today, and their run IDs. The two read-QC rows read hifi_read_qc and hic_read_qc since RG.6 (073).';
+COMMENT ON VIEW public.v_sequencing_run_fk_readiness IS 'Per table with an FK to sequencing_run (sequencing, raw_data: 075; hifi_read_qc, hic_read_qc: 077): rows whose run is not in sequencing_run. The FKs make this 0; kept as the check.';
+
+
+--
+-- Name: COLUMN v_sequencing_run_fk_readiness.child; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_sequencing_run_fk_readiness.child IS 'The table checked.';
+
+
+--
+-- Name: COLUMN v_sequencing_run_fk_readiness.child_rows; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_sequencing_run_fk_readiness.child_rows IS 'Its rows.';
+
+
+--
+-- Name: COLUMN v_sequencing_run_fk_readiness.failing_rows; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_sequencing_run_fk_readiness.failing_rows IS 'Rows whose run_id is not in sequencing_run. 0 while the FKs hold.';
+
+
+--
+-- Name: COLUMN v_sequencing_run_fk_readiness.failing_run_ids; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_sequencing_run_fk_readiness.failing_run_ids IS 'Those run ids, '', ''-joined.';
 
 
 --
@@ -6234,6 +13199,48 @@ COMMENT ON VIEW public.v_sequencing_run_issues IS 'Runs whose ID does not parse,
 
 
 --
+-- Name: COLUMN v_sequencing_run_issues.run_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_sequencing_run_issues.run_id IS 'The run.';
+
+
+--
+-- Name: COLUMN v_sequencing_run_issues.run_id_unparsed; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_sequencing_run_issues.run_id_unparsed IS 'run_id does not match MACHINE_YYMMDD_INITIALS.';
+
+
+--
+-- Name: COLUMN v_sequencing_run_issues.instrument_disagrees_or_missing; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_sequencing_run_issues.instrument_disagrees_or_missing IS 'The run''s sequencing rows disagree on instrument, or none has one.';
+
+
+--
+-- Name: COLUMN v_sequencing_run_issues.run_date_disagrees_or_missing; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_sequencing_run_issues.run_date_disagrees_or_missing IS 'The run''s sequencing rows disagree on run_date, or none has one.';
+
+
+--
+-- Name: COLUMN v_sequencing_run_issues.instruments; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_sequencing_run_issues.instruments IS 'The instruments its rows give, '', ''-joined; (null) for a row with none.';
+
+
+--
+-- Name: COLUMN v_sequencing_run_issues.run_dates; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_sequencing_run_issues.run_dates IS 'The run dates its rows give, '', ''-joined; (null) for a row with none.';
+
+
+--
 -- Name: v_sra_upload_run_readiness; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -6257,6 +13264,48 @@ CREATE VIEW public.v_sra_upload_run_readiness AS
 --
 
 COMMENT ON VIEW public.v_sra_upload_run_readiness IS 'SRA uploads with no sequencing link, and why. Most are run IDs the workbook has wrong (064''s header); fix at source, delete the ref_sra_upload_unlinked row, and insert the links resolve_sra_upload_runs() returns. Since RG.6 no nightly sync does this.';
+
+
+--
+-- Name: COLUMN v_sra_upload_run_readiness.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_sra_upload_run_readiness.og_id IS 'The specimen (ref_submission.og_id).';
+
+
+--
+-- Name: COLUMN v_sra_upload_run_readiness.srr_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_sra_upload_run_readiness.srr_accession IS 'The upload with no sequencing link.';
+
+
+--
+-- Name: COLUMN v_sra_upload_run_readiness.data_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_sra_upload_run_readiness.data_type IS 'ref_sra_upload.data_type.';
+
+
+--
+-- Name: COLUMN v_sra_upload_run_readiness.reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_sra_upload_run_readiness.reason IS 'ref_sra_upload_unlinked.reason, or not resolved by the forward rule where it has not been reviewed.';
+
+
+--
+-- Name: COLUMN v_sra_upload_run_readiness.reviewed_on; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_sra_upload_run_readiness.reviewed_on IS 'ref_sra_upload_unlinked.reviewed_on; NULL where not reviewed.';
+
+
+--
+-- Name: COLUMN v_sra_upload_run_readiness.filenames; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_sra_upload_run_readiness.filenames IS 'The first 200 characters of ref_sra_upload.filenames.';
 
 
 --
@@ -6285,7 +13334,7 @@ CREATE VIEW public.v_tissue_browse AS
 -- Name: VIEW v_tissue_browse; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.v_tissue_browse IS 'Tissues with specimen context. Read-only; import against v2.tissue.';
+COMMENT ON VIEW public.v_tissue_browse IS 'Tissues with specimen context. Read-only; write to tissue.';
 
 
 --
@@ -6314,6 +13363,34 @@ COMMENT ON TABLE public.value_conversions IS 'Values stored by a conversion rule
 
 
 --
+-- Name: COLUMN value_conversions.source_table; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.value_conversions.source_table IS 'Table the value was stored in.';
+
+
+--
+-- Name: COLUMN value_conversions.row_key; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.value_conversions.row_key IS 'Key of the row (og_id, tube id...).';
+
+
+--
+-- Name: COLUMN value_conversions.column_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.value_conversions.column_name IS 'Column the value was stored in.';
+
+
+--
+-- Name: COLUMN value_conversions.raw_value; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.value_conversions.raw_value IS 'The workbook text as typed.';
+
+
+--
 -- Name: COLUMN value_conversions.stored_value; Type: COMMENT; Schema: public; Owner: -
 --
 
@@ -6321,10 +13398,31 @@ COMMENT ON COLUMN public.value_conversions.stored_value IS 'What was stored, as 
 
 
 --
+-- Name: COLUMN value_conversions.rule; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.value_conversions.rule IS 'Which v2_value_rules.py rule converted it: no_value, unit, bound, surface, length, dms, excel_serial_coordinate, dms_assumed_hemisphere, length_split, depth_range.';
+
+
+--
 -- Name: COLUMN value_conversions.converted_by; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.value_conversions.converted_by IS 'import_v2.py or apply_value_rules.py.';
+
+
+--
+-- Name: COLUMN value_conversions.first_seen; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.value_conversions.first_seen IS 'When the conversion was first recorded.';
+
+
+--
+-- Name: COLUMN value_conversions.last_seen; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.value_conversions.last_seen IS 'When the same conversion was last made.';
 
 
 --
@@ -6347,6 +13445,55 @@ CREATE TABLE public.workbook_attempt_keys (
 --
 
 COMMENT ON TABLE public.workbook_attempt_keys IS 'Attempt-keyed rows of the lab workbook, staged by import_v2.py --stage-attempt-keys so backfill_v2.sql can prefer the workbook''s side of a tie. Replaced wholesale on each staging run; workbook_file records which workbook.';
+
+
+--
+-- Name: COLUMN workbook_attempt_keys.source_table; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.workbook_attempt_keys.source_table IS 'Target table.';
+
+
+--
+-- Name: COLUMN workbook_attempt_keys.row_key; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.workbook_attempt_keys.row_key IS 'The row''s key (tube id...).';
+
+
+--
+-- Name: COLUMN workbook_attempt_keys.parent_key; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.workbook_attempt_keys.parent_key IS 'Its parent''s key (tissue, DNA, RNA or lysate).';
+
+
+--
+-- Name: COLUMN workbook_attempt_keys.attempt_scope; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.workbook_attempt_keys.attempt_scope IS 'The prep method, on the two sheets that count attempts per method (4.ONT, 4.RNAIllumina); otherwise NULL.';
+
+
+--
+-- Name: COLUMN workbook_attempt_keys.attempt_num; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.workbook_attempt_keys.attempt_num IS 'The workbook "#".';
+
+
+--
+-- Name: COLUMN workbook_attempt_keys.workbook_file; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.workbook_attempt_keys.workbook_file IS 'Which workbook was staged.';
+
+
+--
+-- Name: COLUMN workbook_attempt_keys.staged_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.workbook_attempt_keys.staged_at IS 'When it was staged.';
 
 
 --
