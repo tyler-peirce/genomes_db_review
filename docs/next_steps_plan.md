@@ -1,6 +1,6 @@
 # Next steps plan: run links for read QC, loud mito upload failures, password rotation (2026-11-04)
 
-Status: **B done 2026-11-04** (record below); A and C not run. Owner decisions 2026-11-04: A strict; start with B. Follows R.7b ([`r7b_record.md`](r7b_record.md)) and RG.6 ([`rg6_record.md`](rg6_record.md)).
+Status: **B and A done 2026-11-04** (records below); C not run. Owner decisions 2026-11-04: A strict; start with B. Follows R.7b ([`r7b_record.md`](r7b_record.md)) and RG.6 ([`rg6_record.md`](rg6_record.md)).
 
 Three pieces, independent of each other:
 - **A:** a migration.
@@ -162,3 +162,29 @@ What I can do: run the next-day checks, and grep every repo for a password liter
   - the mito `pawsey_profile.config`, which loads Singularity in every task through `module` and `beforeScript`.
 - **The harness ran** only with a test-only override: `pawseyenv/2025.08` loaded in the launcher, and `process.module = 'pawseyenv/2025.08:singularity/4.1.0-nompi'` in the tasks.
 - **Status:** not yet fixed in any repo.
+
+---
+
+## Record: A done (2026-11-04)
+
+**`077_read_qc_run_fks.sql`, applied to live 2026-11-04.** The ledger has 78 files and verifies.
+- **The FKs:** `hifi_read_qc_run_id_fkey` and `hic_read_qc_run_id_fkey` to `sequencing_run`, both validated, with `hifi_read_qc_run_id_idx` and `hic_read_qc_run_id_idx`.
+- **The upkeep:** `refresh_sequencing_run()` now also keeps a run that read QC uses.
+- **The comment** on `sequencing_run` names all five referencing tables.
+
+**Measured before:**
+- `v_sequencing_run_fk_readiness`: 0 unmatched (`hifi_read_qc` 279, `hic_read_qc` 552); `run_id` is NOT NULL in both, with no NULLs.
+- No active read-QC writes. Pre-change dump `~/oceanomics_genomes_pre_077_261104b.dump`.
+
+**Writers:** both already fail loudly, and neither changed.
+- `0b_push_hifi_yield_results_to_sqldb.py` (`phase-rg-v4`) writes in one transaction and exits 1 on any error.
+- `push_hic_yield.py` uses a savepoint per row and exits 1 if any row errored.
+
+**Rehearsal** (restore of live, 2026-11-04):
+- **Apply:** both FKs validated. The built-in probe, a whole `hic_read_qc` row copied onto an unknown run, was refused. The first version of the probe copied only the key columns and tripped `hic_read_qc_has_value` instead, so it now copies the whole row.
+- **The real `push_hic_yield.py`**, on a two-row CSV: the row on its real run was skipped as existing; the row on `NOVA_991231_ZZ` was refused by `hic_read_qc_run_id_fkey`, and the script exited 1.
+- **Revert:** schema identical (0 diff lines). Re-apply, and replay with the ledger row deleted: a no-op (same md5).
+
+**Baseline:** `077`'s hunks only (commit `7cff863`). Drift shows only the colleague's three objects.
+
+**Effect:** a read-QC push for a run the lab workbook does not list yet is refused and reported. Import the run (the nightly import), then re-run the push.

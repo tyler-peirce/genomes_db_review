@@ -52,7 +52,7 @@ Plan: [`ref_genomes_rg6_plan.md`](ref_genomes_rg6_plan.md). R.6 (`072`) ran firs
 ## Left for later
 
 - **RG.7:** after a quiet period, drop `pre_v4_archive`, with a `pg_dump` taken the morning of, kept outside git.
-- **R.7** (migration numbers from `074`): FKs to `sequencing_run` for `sequencing`, `raw_data`, `hifi_read_qc` and `hic_read_qc`, once something maintains `sequencing_run`. `v_sequencing_run_fk_readiness` now reads the new read-QC tables.
+- ~~**R.7**: FKs to `sequencing_run` for `sequencing`, `raw_data`, `hifi_read_qc` and `hic_read_qc`, once something maintains `sequencing_run`.~~ **Done:** `075` (2026-11-02) added the upkeep and the `sequencing`, `raw_data` and `rna_qc_kinnex` FKs; `077` (2026-11-04) the `hifi_read_qc` and `hic_read_qc` FKs (strict). `v_sequencing_run_fk_readiness` now reads the new read-QC tables.
 - **Default branches:** done 2026-11-04. All five fast-forwarded to `phase-rg-v4` and pushed (ref-genomes `master` `b330b00`, post-curation `master` `36db095`, `ENA-ref-genomes` `main` `3f245cf`, `ref_genomes_hic_automation` `main` `4180383`, `ref_gen_automation` `master` `fc75e7f`), with tests passing (33, 30, 10). On Pawsey, lhuet's ref-genomes, Hi-C and HiFi-only clones are on `phase-rg-v4`. **Her `post_curation` clone was still on the old `master` (`76215a5`) on 2026-11-04:** its pushes fail on the views until she pulls.
 - **`OcOm_B219`'s GCA resolver** fails on `ref_genomes_assembly_uploads` until ported. The view's comment names the tables to write.
 - **The two broken `build_*` functions** (above).
