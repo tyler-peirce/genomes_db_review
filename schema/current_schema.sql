@@ -682,7 +682,9 @@ BEGIN
    WHERE r.run_id = ANY (p_runs)
      AND NOT EXISTS (SELECT 1 FROM sequencing s WHERE s.run_id = r.run_id)
      AND NOT EXISTS (SELECT 1 FROM raw_data d WHERE d.run_id = r.run_id)
-     AND NOT EXISTS (SELECT 1 FROM rna_qc_kinnex k WHERE k.run_id = r.run_id);
+     AND NOT EXISTS (SELECT 1 FROM rna_qc_kinnex k WHERE k.run_id = r.run_id)
+     AND NOT EXISTS (SELECT 1 FROM hifi_read_qc h WHERE h.run_id = r.run_id)
+     AND NOT EXISTS (SELECT 1 FROM hic_read_qc c WHERE c.run_id = r.run_id);
 END
 $_$;
 
@@ -5322,7 +5324,7 @@ CREATE TABLE public.sequencing_run (
 -- Name: TABLE sequencing_run; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.sequencing_run IS 'One sequencing run, derived from sequencing.run_id. Kept current by the sequencing_run_ensure and sequencing_run_refresh_* triggers on sequencing (075); sequencing, raw_data and rna_qc_kinnex have FKs to it.';
+COMMENT ON TABLE public.sequencing_run IS 'One sequencing run, derived from sequencing.run_id. Kept current by the sequencing_run_ensure and sequencing_run_refresh_* triggers on sequencing (075); sequencing, raw_data, rna_qc_kinnex (075), hifi_read_qc and hic_read_qc (077) have FKs to it.';
 
 
 --
@@ -7298,10 +7300,24 @@ CREATE UNIQUE INDEX hic_read_qc_natural_key ON public.hic_read_qc USING btree (o
 
 
 --
+-- Name: hic_read_qc_run_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX hic_read_qc_run_id_idx ON public.hic_read_qc USING btree (run_id);
+
+
+--
 -- Name: hic_read_qc_sequencing_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX hic_read_qc_sequencing_id_idx ON public.hic_read_qc USING btree (sequencing_id);
+
+
+--
+-- Name: hifi_read_qc_run_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX hifi_read_qc_run_id_idx ON public.hifi_read_qc USING btree (run_id);
 
 
 --
@@ -7972,6 +7988,14 @@ ALTER TABLE ONLY public.hic_read_qc
 
 
 --
+-- Name: hic_read_qc hic_read_qc_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hic_read_qc
+    ADD CONSTRAINT hic_read_qc_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.sequencing_run(run_id);
+
+
+--
 -- Name: hic_read_qc hic_read_qc_sequencing_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7985,6 +8009,14 @@ ALTER TABLE ONLY public.hic_read_qc
 
 ALTER TABLE ONLY public.hifi_read_qc
     ADD CONSTRAINT hifi_read_qc_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.sample(og_id);
+
+
+--
+-- Name: hifi_read_qc hifi_read_qc_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hifi_read_qc
+    ADD CONSTRAINT hifi_read_qc_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.sequencing_run(run_id);
 
 
 --

@@ -84,6 +84,7 @@ ALTER TABLE public.hic_read_qc ADD CONSTRAINT hic_read_qc_lib_code_check CHECK (
 ALTER TABLE public.hic_read_qc ADD CONSTRAINT hic_read_qc_og_id_fkey FOREIGN KEY (og_id) REFERENCES sample(og_id);
 ALTER TABLE public.hic_read_qc ADD CONSTRAINT hic_read_qc_pkey PRIMARY KEY (hic_qc_id);
 ALTER TABLE public.hic_read_qc ADD CONSTRAINT hic_read_qc_run_id_check CHECK (run_id <> ''::text);
+ALTER TABLE public.hic_read_qc ADD CONSTRAINT hic_read_qc_run_id_fkey FOREIGN KEY (run_id) REFERENCES sequencing_run(run_id);
 ALTER TABLE public.hic_read_qc ADD CONSTRAINT hic_read_qc_sequencing_id_fkey FOREIGN KEY (sequencing_id) REFERENCES sequencing(sequencing_id) ON DELETE SET NULL;
 ALTER TABLE public.hic_read_qc ADD CONSTRAINT hic_read_qc_tissue_check CHECK (tissue <> ''::text);
 ALTER TABLE public.hifi_read_qc ADD CONSTRAINT hifi_read_qc_ext_type_check CHECK (ext_type <> ''::text);
@@ -93,6 +94,7 @@ ALTER TABLE public.hifi_read_qc ADD CONSTRAINT hifi_read_qc_natural_key UNIQUE (
 ALTER TABLE public.hifi_read_qc ADD CONSTRAINT hifi_read_qc_og_id_fkey FOREIGN KEY (og_id) REFERENCES sample(og_id);
 ALTER TABLE public.hifi_read_qc ADD CONSTRAINT hifi_read_qc_pkey PRIMARY KEY (hifi_qc_id);
 ALTER TABLE public.hifi_read_qc ADD CONSTRAINT hifi_read_qc_run_id_check CHECK (run_id <> ''::text);
+ALTER TABLE public.hifi_read_qc ADD CONSTRAINT hifi_read_qc_run_id_fkey FOREIGN KEY (run_id) REFERENCES sequencing_run(run_id);
 ALTER TABLE public.hifi_read_qc ADD CONSTRAINT hifi_read_qc_sequencing_id_fkey FOREIGN KEY (sequencing_id) REFERENCES sequencing(sequencing_id) ON DELETE SET NULL;
 ALTER TABLE public.hifi_read_qc ADD CONSTRAINT hifi_read_qc_tissue_check CHECK (tissue <> ''::text);
 ALTER TABLE public.illumina_library ADD CONSTRAINT illumina_library_attempt_key UNIQUE (dna_id, ilmn_num) DEFERRABLE;

@@ -38,9 +38,11 @@ CREATE UNIQUE INDEX hic_lysate_pkey ON public.hic_lysate USING btree (lysate_id)
 CREATE INDEX hic_lysate_tissue_id_idx ON public.hic_lysate USING btree (tissue_id);
 CREATE UNIQUE INDEX hic_read_qc_natural_key ON public.hic_read_qc USING btree (og_id, COALESCE(tissue, ''::text), COALESCE(ext_type, ''::text), COALESCE(lib_code, ''::text), COALESCE(lane, ''::text), run_id);
 CREATE UNIQUE INDEX hic_read_qc_pkey ON public.hic_read_qc USING btree (hic_qc_id);
+CREATE INDEX hic_read_qc_run_id_idx ON public.hic_read_qc USING btree (run_id);
 CREATE INDEX hic_read_qc_sequencing_id_idx ON public.hic_read_qc USING btree (sequencing_id);
 CREATE UNIQUE INDEX hifi_read_qc_natural_key ON public.hifi_read_qc USING btree (og_id, tissue, ext_type, lib_code, run_id);
 CREATE UNIQUE INDEX hifi_read_qc_pkey ON public.hifi_read_qc USING btree (hifi_qc_id);
+CREATE INDEX hifi_read_qc_run_id_idx ON public.hifi_read_qc USING btree (run_id);
 CREATE INDEX hifi_read_qc_sequencing_id_idx ON public.hifi_read_qc USING btree (sequencing_id);
 CREATE UNIQUE INDEX illumina_library_attempt_key ON public.illumina_library USING btree (dna_id, ilmn_num);
 CREATE INDEX illumina_library_dna_id_idx ON public.illumina_library USING btree (dna_id);
