@@ -79,10 +79,13 @@ WHERE n.nspname = 'public'
 ORDER BY 1, 2
 """
 
+# Any schema prefix, not just public: v2/v3/v4 objects were built beside public and moved into
+# it (048, 072, 073) under the same name. Matching only "public." read "v3.draft_busco" as an
+# object named "v3" and left 93 migrated objects looking baseline-only (2026-11-04).
 CREATE_RE = re.compile(
     r"CREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP\s+|TEMPORARY\s+|UNLOGGED\s+)?"
     r"(?:MATERIALIZED\s+)?(TABLE|VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?"
-    r"(?:public\.)?\"?([A-Za-z_][A-Za-z0-9_]*)\"?",
+    r"(?:\"?[A-Za-z_][A-Za-z0-9_]*\"?\.)?\"?([A-Za-z_][A-Za-z0-9_]*)\"?",
     re.I)
 
 

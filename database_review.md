@@ -1,6 +1,6 @@
 # Ocean Genomes Database Review
 
-Review date: 2026-10-02 (revision 2)  
+Review date: 2026-10-02 (revision 2); last revised 2026-11-04 (3.40)  
 First reviewed: 2026-07-07  
 Database: PostgreSQL 14.24, `oceanomics_genomes` @ 146.118.120.134  
 Scope: Schema design, relationship quality, data completeness signals, view design, migration governance, and improvement planning  
@@ -80,7 +80,7 @@ The `data_package_*` subsystem is the largest single piece of undocumented schem
 | 6 | Columns unused or nearly unused | **Unchanged.** All 16 named columns still fully empty. |
 | 7 | Dates/numbers/statuses stored as text | **Mixed.** New tables are properly typed; legacy unchanged; status cardinality worsened. |
 | 8 | Reporting views hide logic and carry performance risk | **Worse, and now measured.** `summary` takes 7.6 s. |
-| 9 | Documentation coverage minimal | **Improved.** 0 → 3 object comments, 12 → 60 column comments. |
+| 9 | Documentation coverage minimal | **Resolved for this project's objects** (2026-11-04, `078`/`079`): 130 of 132 tables and views and 1,123 of 2,041 columns in `public` commented (was 3 and 60 in October). |
 | 10 | — | **New at review; resolved 2026-10-05.** One system declared, ledger gap closed, drift check scheduled. |
 | 11 | — | **New. RESOLVED 2026-10-02** by migration `027`. Production views read frozen August snapshots. |
 | 12 | — | **New.** Snapshot tables have become permanent fixtures. |
@@ -690,12 +690,17 @@ Recommendation:
 
 Severity: Medium  
 Theme: Team knowledge, maintainability  
-Status since revision 1: **improved**
+Status since revision 1: **improved**; **resolved 2026-11-04 for everything this project owns** (`078`, `079`)
 
-| Metric | Jul | Oct |
-|---|---|---|
-| Table/view comments | 0 / 42 | 3 / 70 |
-| Column comments | 12 / 934 | 60 / 1,502 |
+| Metric | Jul | Oct | Nov 4, before `078` | After `079` |
+|---|---|---|---|---|
+| Table/view comments | 0 / 42 | 3 / 70 | 113 / 132 | 130 / 132 |
+| Column comments | 12 / 934 | 60 / 1,502 | 125 / 2,041 | 1,123 / 2,041 |
+
+Nov figures are for `public`, measured with `scripts/comment_coverage.sql`. The two objects still
+without a comment are OceanGenom_Web's `master_species` and `master_species_genome`. The
+uncommented columns are that application's five tables (39) and the compatibility and browse
+views (879), whose columns are the base tables'. The October analysis follows.
 
 The 48 new column comments are concentrated where the new work landed:
 
@@ -1157,96 +1162,90 @@ Recommendation:
 
 ## 7. Table-by-Table Review Notes
 
+**Rewritten 2026-11-04 (revision 3.40)**, after Phases V, R and RG and migrations `078`/`079`. The
+notes before this described the October schema: `sample` before `v2`, the flat `draft_genomes`,
+`mitogenome_data` and `ref_genomes`, and the data-delivery tables (dropped by `031`). What each
+table is, its grain and its writer are now in `docs/data_dictionary.md`. Every column has a
+database comment (`\d+ <table>`). This section keeps only the review judgement: what is good,
+and what is still wrong. Figures are from live on 2026-11-04.
+
 ### `sample`
 
-Role: Core biological sample table. 2,675 → 3,294 rows.
+3,411 rows. The hub: every lab, assembly and submission table has an FK to `og_id` (93 FKs in
+`public`).
 
-Strengths: still the hub for `og_id`; PK present; `og_num` generated.
+Still wrong: `nominal_species_id` is free text. 499 distinct values are not in `species` (503 not
+in `master_species`), which makes import-time validation (backlog item 8) the one check still
+getting worse. The planning columns (`workflow`, `priority`) are maintained in OceanGenom_Web, and
+there are now 13 submission columns with no current writer, each duplicating a structured
+record in `draft_submission` or `ref_submission`. Their comments say so.
 
-Issues (all carried over): species links unconstrained and degrading (892 `nominal_species_id` values absent from `species`, up from 645); nine fully empty workflow/sequencing columns after 619 new rows; physical measurement fields still text; status fields degrading (`ilrna_status` 10 → 44 distinct values).
+### Lab tables (`tissue` through the library tables, `library`, `sequencing`)
 
-Recommendation: unchanged — reduce derived workflow/status fields, push status to child tables or views. Add import-time species validation, which is the one thing actively getting worse.
+Rebuilt by `v2` (`035`–`048`): typed values, attempt keys, a `library` registry that gives
+`sequencing` one FK target, quarantine for rejected rows, and `status_overwrite` finally loaded
+(129 Y flags). Every lab column's comment names the workbook sheet and header it comes from.
 
-### `tissue`, `dna_extraction`, `rna_extraction`
+Still wrong: status columns are free text (DNA extraction 9 distinct values, PacBio 13): Phase
+H. `sequencing` grain is still undecided (§11 Q5). 12 `sequencing` rows have no run id.
 
-Grew 34%, 16%, 3%. FKs intact. `og_id` and `tissue_id` still unindexed on all three — and `summary` scans all three per sample. These are the top three index candidates.
+### Draft genomes
 
-### Library tables
+Split by Phase R (`052`, merged `072`) into `draft_genome` and one table per process, with
+`v_draft_genome_status` showing the gaps. This is the shape the review asked for. 1,720 drafts.
 
-`illumina_library` +21%, `rna_library_ilmn` +44%, `pacbio_library` +3%, `rna_library_kinx` +6%. `ont_library` and `hic_library` took no new rows at all in three months, which is worth confirming as expected rather than as a broken import.
-
-`rna_library_kinx` still has no FK to `rna_extraction`. All eight `status_overwrite` columns still empty. No FK column on any library table is indexed.
-
-### `sequencing`
-
-4,212 → 4,765. All 553 new rows correctly link to exactly one library, which is a good sign for the import path. The 40 zero-link and 40 blank-technology rows are unchanged and therefore historical. `PacBio Kinnex` still has no FK target.
-
-### `species`, `master_species`, `master_species_genome`
-
-See Finding 2. `master_species_genome` is well-built but was built on the table revision 1 recommended retiring, raising the cost of that retirement.
-
-### `species_ncbi_assembly` and `ncbi_genome_assemblies`
-
-`species_ncbi_assembly` is still 0 rows after three months. `ncbi_genome_assemblies` (1,772 rows) now holds NCBI assembly metadata with a different column set and no FK to `species`.
-
-This answers revision 1's open question 6 and replaces it with a new one: two NCBI assembly tables exist, one empty with a species FK and a chosen-assembly partial unique index, one populated with neither. `v_genome_size_comparison` should be checked for which it reads.
-
-Recommendation: consolidate. Keep the populated one, port the `is_chosen` partial unique index and the `species` FK onto it, and drop the empty one.
-
-### `draft_genomes`, `ref_genomes`, upload tables
-
-`draft_genomes` 1,448 → 1,542 with **0 orphan `og_id`** — ready for an FK today. `ref_genomes` 1,835 → 1,994 with 4 orphans. `ref_genomes_sra_uploads` doubled (153 → 304) and its `og_id` is still unindexed.
-
-`draft_genomes` is still very wide and still mixes read metrics, assembly metrics, BUSCO metrics, AWS paths, SRA metadata, and review fields. Unchanged recommendation to split, unchanged low priority.
+Still wrong: BUSCO's N50 columns are unreliable and carried as-is (commented; use
+`draft_gfastats`). 261 host and partition values exist only in `pre_v3_archive.draft_genomes`
+and are lost at R.8 unless backfilled (Finding 17.1). The upload modules have not yet been
+checked for swallowed errors, as the mito writers were.
 
 ### Mitogenome and LCA tables
 
-The most-improved area of the database.
+Split by Phase R (`051`, `068`, `074`–`076`). 2,521 assemblies and 2,146 annotations, all kept.
+LCA, BLAST, validation and ENA rows are keyed on `annotation_id`. The re-annotation orphaning
+that triggered Phase R cannot recur.
 
-- `mitogenome_data` was rebuilt twice (`016`, `018`) to restore `og_num` as a generated column at position 1, with a bidirectional `EXCEPT` verification before the table swap in `020`'s equivalent rebuild. 13 typed depth columns added by `003`; `depth_method` is populated on 2,296 of 2,301 rows (1,907 `remap_full_v1`, 389 `not_measured`, 5 NULL).
-- `lca` and `lca_raw_results` are content-addressed via a `BEFORE INSERT OR UPDATE` trigger on `content_hash`, with unique constraints the push scripts name as `ON CONFLICT` targets. `lca` shrank 6,384 → 4,784 because re-runs no longer append near-duplicates. An LCA re-run whose output differs still adds rows, because `content_hash` is part of the key: on 2026-10-26, 66 sample+region groups had two `lca_run_date`s, and 9 of them had different species lists.
-- Species-ID checking (`066`, 2026-10-26). `lca_pivot_view` lists, for each region, every species from every LCA run. `lca_results_view.validation_status` returns the nominal ID when it is one of the entries in `s12_lca`, `s16_lca` or `co1_lca` (whole entries only, any `;Genus` suffix ignored). Otherwise it returns `INVESTIGATE`, or `MISSING NOMINAL ID` when the sample has no nominal ID. `lca_validation_report_view` no longer has `nom_id_in_results`, which looked at `blast_filtered_lca`. It keeps the `filtered_12s/16s/co1` accessions so a reviewer can see what the support for a match rests on.
-- `blast_filtered_lca` was rebuilt, orphans eliminated, and `taxon_id` widened to text in `022` after `;`-joined `staxids` cost 87 assemblies their LCA rows. The two confidence columns went `real` → `double precision` for the same reason, with a full re-hash so `content_hash` stayed consistent under the new types.
-- `lca_validation` gained `validated_rank` (`024`), recording whether a sample's species ID was confirmed at species, genus, downgraded genus, or family level.
-- `026`'s annotation-integrity columns are populated on only 74 of 2,301 rows (39 `ok`, 19 `advisory`, 16 `broken`, 2,227 NULL) — expected, since the migration header states NULL means "produced before this migration" and rows refresh on their next pipeline run.
+Still wrong:
+- **`mito_assembly_run` has had no writer since `072`.** The window sync derived it, and nothing
+  replaced the sync. Two assemblies created since the merge have no run links.
+- The LCA column names mislead: `confidence_score` is a BLAST e-value, `taxon_rank_db` is a
+  taxonomy source, and `mito_blast_hit.subject_coverage` is `qcovhsp`. `017`'s comment on
+  `taxon_rank_db` was wrong; `078` corrects all three in the comments.
+- `mito_lca_validation.data_release` is empty, with no writer.
 
-Remaining issues: `lca` and `lca_raw_results` have no declared PK (Finding 13); `lca_old` is still present, still unreviewed, and now FK'd to a snapshot table (Finding 12); none of these tables has an FK to `sample` despite 0 orphans.
+### Reference genomes
 
-### ENA submission tables
+Split by Phase RG (`057`–`071`, merged `073`): assemblies, parts per stage and haplotype, read
+sets, one table per tool, submissions with per-haplotype accessions, and SRA uploads linked to
+sequencing rows.
 
-Well modelled. `ena_validation_attempts` (1,185 rows, 1,149 `submission_ready`, webin status 1,149 PASS / 22 NOT_RUN / 12 FAIL_WEBIN / 2 NOT_REQUESTED) is keyed on `full_seqid` + annotation after `014`, with `og_num` generated at column 2 after `020`.
+Still wrong: **`ref_assembly_run` has had no writer since `073`**, the same gap as the mito run
+links (`v_ref_assembly_run_readiness` lists the assemblies). The decontamination counts are not
+stored, and none of the 186 `hic` assemblies is linked to its Hi-C runs (backlog, medium).
 
-`ena_submissions` (539 rows, all `ACCESSION_ASSIGNED`) is the downstream-owned ledger. Column population:
+### Read QC and raw data
 
-| Column | Populated |
-|---|---:|
-| `ena_study_accession` | 539 / 539 |
-| `ena_analysis_accession` | 539 / 539 |
-| `biosample_accession` | 539 / 539 |
-| `receipt_path`, `receipt_sha256`, `locus_tag_prefix` | 539 / 539 |
-| `ena_assembly_accession` | 537 / 539 |
-| `ena_sample_accession` | 367 / 539 |
-| `ena_sequence_accession` | **0 / 539** |
+`hifi_read_qc` and `hic_read_qc` are keyed per library and run, with FKs to `sample` and
+`sequencing_run` (`077`). `rna_qc_kinnex` has a key and FKs (`061`).
 
-`ena_sequence_accession` empty on every row is probably correct — genome-context submissions return analysis/assembly accessions, not sequence ones — but it should be documented as such, or dropped, rather than left looking like a gap. `ena_sample_accession` missing on 172 of 539 is the one worth asking about.
+Still wrong: `raw_data` (8,010 rows, 30 with no `og_id`) has had no new rows since July, and
+`rna_qc_kinnex` has no current writer (§11 Q13). Which entity QC records belong to is still open
+(§11 Q4).
 
-`ena_specimen_accessions` (2,848 rows) is a parallel specimen registry with no FK to `sample`, though all 2,848 `og_id` values match. `007`'s header explains the BioSample problem well: OceanOmics registers at NCBI (SAMN), ENA's Webin service only resolves samples registered through Webin, and the archives mint from independent ranges so SAMN cannot be relabelled as SAMEA. That constraint is real and the table handles it correctly — but the table should still FK to `sample`.
+### ENA tables
 
-`ena_related_assemblies` is empty. `ena_locus_registry_archive` and `ena_candidate_loci_archive` are both empty, meaning `010` archived nothing — no locus tags had been allocated before allocation moved downstream. Both have good object comments explaining they are frozen history and must not be treated as current tag assignments. Consider dropping them: an empty archive with a comment saying "historical reference only" is more confusing than no table.
+Unchanged and well modelled. `ena_validation_attempts` has 1,374 rows. `ena_submissions` has 539,
+all `ACCESSION_ASSIGNED`; `ena_sequence_accession` is empty by design, now said in its comment,
+and `ena_sample_accession` is missing on 172 rows (§11 Q12). `ena_specimen_accessions` now has an
+FK to `sample`, but only 1 of its 2,848 rows has an accession (§11 Q14). `ena_related_assemblies`
+and the two `ena_*_archive` tables are empty; the archives go at R.8.
 
-### Data delivery tables
+### Species and NCBI assemblies
 
-Eight new tables, ten foreign keys, `ON DELETE CASCADE` down the tree, composite unique constraints, `jsonb` for link sets and repository revisions, `timestamptz` throughout, and separate lifecycle timestamps (`approved_at`, `packaged_at`, `uploaded_at`, `links_generated_at`, `email_accepted_at`) rather than one overloaded status column.
-
-This is the best-modelled subsystem in the database. It is also entirely undocumented, in no migration, in no baseline, and in no data dictionary — and it is barely populated (one delivery, three components, 110 items, 10 artifacts; the email and link-set tables are empty, as is `project_delivery_contact`), so it appears to be mid-rollout.
-
-Recommendation: capture it in a migration file and the data dictionary now, while whoever built it still remembers why. `data_package_item.og_id` should FK to `sample`.
-
-### QC and raw data tables
-
-`raw_data` took no new rows (still 8,010, still 30 blank `og_id`). `raw_qc` +12 rows, 3 orphans. `hifi_reads_qc` and `hic_reads_qc` grew and are both **0 orphan** — FK-ready today. `rna_qc_kinnex` unchanged at 96 rows, still no PK, no unique constraint, no FK.
-
-Revision 1's question — whether QC records belong to samples, libraries, runs, lanes, or files — is still open and still blocking.
+Unchanged: `species` (22,724, NCBI-loaded by the draft repo), `master_species` (19,817,
+OceanGenom_Web's) and two NCBI assembly tables (§11 Q1). New finding: `v_genome_size_comparison`
+reads the **empty** `species_ncbi_assembly`, so its NCBI columns are NULL on every row.
+Consolidating the two assembly tables fixes that too.
 
 ## 8. Recommended Target Principles
 
@@ -1381,10 +1380,22 @@ Note that dropping the tables makes `sql/revert/027_...` permanently unrunnable.
 
 ### Phase G: Documentation
 
-1. Extract the 26 migration headers into `docs/data_dictionary.md`.
-2. Document the `data_package_*` subsystem.
-3. Document `seq_date` as an identifier component, not a date.
-4. Comment the remaining active tables.
+**Mostly done 2026-11-04 (`078`, `079`, revision 3.40).**
+
+1. Extract the migration headers into `docs/data_dictionary.md`. **Open** (backlog, medium): the
+   dictionary now points at the headers rather than copying them.
+2. ~~Document the `data_package_*` subsystem.~~ **Moot:** `031` dropped it.
+3. ~~Document `seq_date` as an identifier component, not a date.~~ **Done:** in the dictionary's
+   conventions and on every `seq_date` column.
+4. ~~Comment the remaining active tables.~~ **Done:** `078` commented every column of the 46 Phase
+   R/RG tables and fixed their stale table comments. `079` commented the rest of `public`: every
+   base-table column, every table and view, and every column of the contract and reporting views.
+   Left out on purpose: OceanGenom_Web's five tables, the archive schemas, and the columns of the
+   compatibility and browse views, which are the base tables' columns. Coverage is in §13.
+5. **New:** `docs/data_dictionary.md` rewritten as the map of the current schema: grain, writer and
+   row count per table, one diagram per family, archive drop conditions, and the data caveats.
+6. **New, waiting on §11:** the comments that touch Q1, Q2, Q5 and Q6 end "Meaning undecided:
+   §11 Q<n>". Each answer is a small migration that removes that sentence.
 
 ### Phase H: Status normalisation, then sequencing/library redesign
 
@@ -1609,11 +1620,31 @@ Both gates are now cleared. **V.0 was dropped by decision and V.1 is done**, bot
 
    **What this does and does not fix.** It resolves *addressing* completely: `FROM sample` and `FROM public.sample` both reach the new table and the `search_path` stops mattering. It does nothing for *contracts* — the removed `og_id` columns, the sixteen removed `sample` columns, `status_overwrite` as `boolean`, the real date and numeric types, and the `sequencing` library registry break a stale query wherever the table sits. Consolidation is the last step of the cutover, not a way to avoid the middle ones; doing it early would only convert loud breakage into late breakage.
 
-**V.7 — Close out.** Next. (1) Drop `pre_v2_archive` after a quiet period; `~/oceanomics_genomes_pre_v6_261015.dump` is the permanent copy. (2) Teach `bin/check_drift.py --coverage` that `035`–`046`'s `v2.x` became `public.x` via `048`. Today it counts those 39 objects baseline-only (50 in all). (3) Refresh the nine object comments that still say `v2.` (`schema/current_schema.sql`). The 17 objects become migration-covered; re-run `bin/check_drift.py --coverage` and update section 13. Phase H's remaining scope shrinks to what is genuinely beyond `v2`.
+**V.7 — Close out.** Next. (1) Drop `pre_v2_archive` after a quiet period; `~/oceanomics_genomes_pre_v6_261015.dump` is the permanent copy. (2) ~~Teach `bin/check_drift.py --coverage` that `035`–`046`'s `v2.x` became `public.x` via `048`.~~ **Done 2026-11-04:** it accepts any schema prefix, which also covers `v3`/`v4` (27 → 120 of 132 migration-covered). (3) ~~Refresh the object comments that still say `v2.`~~ **Done 2026-11-04 in `079`.** The 17 objects become migration-covered; re-run `bin/check_drift.py --coverage` and update section 13. Phase H's remaining scope shrinks to what is genuinely beyond `v2`.
 
 ### Phase R: assembly relations (planned 2026-10-15)
 
-**R.0–R.5 done; R.6, the merge, is next.** On 2026-10-16, `050`–`055` were applied to live. They built the new tables in a schema `v3`, beside `public`, which a nightly sync keeps equal to `public`. On 2026-10-19, `056` reordered the `v3` mito and draft views. The pipeline branches are committed but not deployed. Plan: `docs/assembly_relations_plan.md`. Runbook: `docs/assembly_relations_runbook_r0_r5.md`.
+**Status 2026-11-04: R.0–R.7b and RG.0–RG.6 done; R.8 and RG.7 remain.** The merges ran on
+2026-11-02: `072` (R.6) moved the mito and draft tables into `public`, `073` (RG.6) did the same for
+the reference-genome tables, and `074`–`076` (R.7, R.7b) re-keyed the LCA, BLAST, validation and
+ENA tables on `annotation_id`. `077` added the read-QC run FKs. The flat tables are in
+`pre_v3_archive` and `pre_v4_archive`. Records: `docs/r6_merge_record.md`, `docs/rg6_record.md`,
+`docs/r7_record.md`, `docs/r7b_record.md`.
+
+What remains:
+- **R.8:** drop `pre_v3_archive` and the two empty `ena_*_archive` tables, after a quiet period
+  of clean nightly imports and drift runs. Take a `pg_dump` that morning, kept outside git, as the
+  permanent copy. Backfill or accept the loss of the 261 draft values held only there first
+  (Finding 17.1).
+- **RG.7:** the same for `pre_v4_archive`.
+- **Run links (found 2026-11-04, `078`):** nothing has written `mito_assembly_run` since `072`,
+  or `ref_assembly_run` since `073`. The window syncs derived them, and nothing replaced the
+  syncs. This is a writer change, before or with R.8.
+- **The draft upload modules:** check them for swallowed errors, as was done for the mito writers.
+
+The history follows.
+
+**R.0–R.5 done; R.6, the merge, was next (as of 2026-10-28).** On 2026-10-16, `050`–`055` were applied to live. They built the new tables in a schema `v3`, beside `public`, which a nightly sync keeps equal to `public`. On 2026-10-19, `056` reordered the `v3` mito and draft views. The pipeline branches are committed but not deployed. Plan: `docs/assembly_relations_plan.md`. Runbook: `docs/assembly_relations_runbook_r0_r5.md`.
 
 **R.6 gate, added 2026-10-28 (Finding 17).** Three things must happen before the merge:
 - **Build the draft host columns into `v3`.** `host_haploid_size` and `partition_confidence` were dropped on stale code and have a live writer.
@@ -1653,6 +1684,7 @@ All four are done. The follow-ons each item left behind are listed with their pa
 10. Strip dead `status_overwrite` logic from `summary` and rebuild or materialise it — less acute after `030`, but 2.0 s is still structural.
 11. ~~**Before R.6: put the draft host and depth columns in `v3`, and branch `ENA-draft-genomes`**~~ **Done:** `067` (2026-10-28) added the columns to `v3`; `ENA-draft-genomes` `phase-r-v3` was rehearsed and deployed with R.6 (`072`, 2026-11-02). See `docs/r6_gate_a1_record.md`, `docs/r6_gate_a3_a5_record.md`, `docs/r6_merge_record.md`.
 12. ~~**Fix the draft ENA `COVERAGE`**~~ **Done:** `busco_read_depth` is uploaded and step 03 sends it (then `scdepth`), never `total_bases / genomesize`, and stops when neither exists. The 613 drafts were re-measured by the depth-only mode (A.4) and the 260925 backfill: 826 drafts carry a measured depth. Drafts before 250606 remain unmeasured (`docs/r6_gate_a3_a5_record.md`).
+13. **Give `mito_assembly_run` and `ref_assembly_run` a writer** (found 2026-11-04, `078`). The R and RG window syncs derived them, and nothing replaced the syncs at `072`/`073`, so new assemblies get no run links (2 mito so far). Either the push scripts link runs as `draft_genome_stats.py` does, or a trigger or function derives them from `(og_id, seq_date, tech)`. Before or with R.8.
 
 ### Medium priority
 
@@ -1660,9 +1692,9 @@ All four are done. The follow-ons each item left behind are listed with their pa
 2. Consolidate the species tables — **`species` and `species_ncbi_assembly` only.** `master_species` and `master_species_genome` are a colleague's separate work and are out of scope; coordinate rather than change them (Finding 2, Phase E).
 3. Consolidate the two NCBI assembly tables.
 4. Normalise `sample.ilrna_status`, then the other status fields.
-5. Add missing PKs and the `rna_qc_kinnex` / `rna_library_kinx` FKs.
+5. Add missing PKs and the `rna_qc_kinnex` / `rna_library_kinx` FKs. **Partly done:** `rna_qc_kinnex` has its key and FKs (`061`). On 2026-11-04 only `ncbi_genome_assemblies` (which has a UNIQUE) and the two empty `ena_*_archive` tables lack a PK.
 6. Refactor `goat_species_v1` after adding API smoke tests.
-7. Extract migration headers into the data dictionary.
+7. Extract migration headers into the data dictionary. Still open: the rewritten `docs/data_dictionary.md` (2026-11-04) points at them instead.
 8. ~~Store the mito `completeness_profile` and assembly QC verdict (Finding 17.4), and the remaining draft summary values: `genomescope_fit`, `busco_regions` and `partition_note` (Finding 17.3).~~ **Done:** `067` and `068` (2026-10-28); writers deployed; 289 completeness profiles and the NOVA_260925_LA verdicts backfilled (`docs/r6_gate_b1_record.md`).
 9. Store the ref-genome decontamination counts. Consider making HiFi coverage per assembly through `v4.ref_assembly_run`. Link Hi-C runs to assemblies there too: none of the 186 `hicN` assemblies has one (Finding 17.5).
 10. ~~Fetch every pipeline clone before a writer audit, and add that step to the change checklist (Finding 17.6).~~ **Done 2026-10-28:** `docs/database_change_checklist.md`, "For Pipeline Writer and Reader Audits".
@@ -1674,7 +1706,7 @@ All four are done. The follow-ons each item left behind are listed with their pa
 3. Drop the two empty ENA archive tables.
 4. ~~Split `draft_genomes`.~~ **Promoted 2026-10-15 to Phase R** (`docs/assembly_relations_plan.md`), together with the mitogenome split and the connectivity review.
 5. Unified library model / `v2` cutover.
-6. Full database comments.
+6. ~~Full database comments.~~ **Done 2026-11-04** (`078`, `079`; Phase G). Left: the comments marked "Meaning undecided: §11 Q<n>", once each question is answered.
 
 ## 11. Open Questions
 
@@ -1818,24 +1850,24 @@ Unchanged in principle, re-ordered in practice: the August rebuild already did m
 
 ## 13. Proposed Success Criteria
 
-Unchanged, with four additions. Status as of 2026-10-05 — three met, five partly met.
+Unchanged, with four additions. Status re-measured 2026-11-04 (revision 3.40). The documentation rows are measured on live after `078` and `079` (applied 05:11 UTC).
 
 | Criterion | Status |
 |---|---|
-| The schema can be recreated from source-controlled migrations | **No**, and now measured rather than estimated. 22 of 64 objects have a migration (was 12 of 61, and 12 of 70 before that). Of the other 42: 8 are being deleted (Phase F), 17 are closed by the Phase V cutover, 12 are folded into Phases C and E, 2 are a colleague's, and 3 are the unclaimed `og_workflow_*` tables. A rebuild attempt on a scratch database stops at `003`, on `relation "mitogenome_data" does not exist`. |
-| Every active table has an owner and documented purpose | No. |
-| Every active column is documented or intentionally self-evident | No. |
+| The schema can be recreated from source-controlled migrations | **Partly** (2026-11-04). `bin/check_drift.py --coverage` traces 120 of 132 live objects to a migration. Of the other 12: 4 are `076`'s renamed LCA tables, which the text scan cannot follow; 2 are OceanGenom_Web's `master_species*` and 2 its `og_priority_log` and `v_sample_master_species` (in neither); 4 are `species`, `ncbi_genome_assemblies`, `species_ncbi_assembly` and `raw_data` (Phase E, backlog). The scan read `v3.x` as an object named `v3` until the 2026-11-04 fix, which is why it said 27. Earlier: **No**, and now measured rather than estimated. 22 of 64 objects have a migration (was 12 of 61, and 12 of 70 before that). Of the other 42: 8 are being deleted (Phase F), 17 are closed by the Phase V cutover, 12 are folded into Phases C and E, 2 are a colleague's, and 3 are the unclaimed `og_workflow_*` tables. A rebuild attempt on a scratch database stops at `003`, on `relation "mitogenome_data" does not exist`. |
+| Every active table has an owner and documented purpose | **Met for everything this project owns** (2026-11-04, `078`/`079`). Every table and view in `public` has a comment saying what it is and who writes it, except OceanGenom_Web's `master_species` and `master_species_genome`. `docs/data_dictionary.md` gives the writer per table. |
+| Every active column is documented or intentionally self-evident | **Met for base tables; partly for views** (2026-11-04). 949 of 988 base-table columns have a comment; the other 39 are OceanGenom_Web's five tables. All 13 contract and reporting views are fully commented (174 view columns). The 879 uncommented view columns are compatibility and browse views, which repeat base-table columns. Was 122 of 988 and 3 of 1,053 before `078`. |
 | There is one canonical species source | No. |
 | Sample species links are valid and constrained | No. |
 | Core child tables have indexed FK columns | **Met** — migration `030`, all 24 columns. |
-| Major `og_id`-based tables either have FKs or documented reasons not to | No, but unblocked by `030`. |
+| Major `og_id`-based tables either have FKs or documented reasons not to | **Met** (2026-11-04, revision 3.39): every `og_id` table that is not an archive has an FK to `sample`. |
 | Workflow statuses use canonical values | No. |
 | Heavy views have acceptable query plans | **Partly.** `summary` 7.6 s → 2.0 s; `goat_species_v1` unchanged. |
 | Deprecated tables/columns are clearly marked and eventually removed | **Partly.** 2026-10-15: the eight SS260818 snapshots dropped (`047`), and the twenty superseded pre-`v2` objects archived in `pre_v2_archive`, to be dropped in V.7 (`048`). Nine removed on 2026-10-05 (`data_package_*`, `project_delivery_contact`, `lca_old`), each archived or documented first. The snapshots and the empty-column work remain; `design_description` is newly flagged (open question 15). |
 | There is exactly one migration system, and the live inventory matches the baseline | **Partly, and for a new reason.** There is now exactly one migration system, declared in `docs/migration_system_decision.md`, and drift is checked daily rather than on demand. But the inventory no longer matches: three `og_workflow_*` tables arrived by direct DDL and have deliberately not been accepted into the baseline (open question 16). The first half is met; the second is red on purpose. |
 | No reporting view reads a frozen snapshot unless its name says so | **Met** — migration `027`. |
 | `summary` returns in under one second | **No** — 2.0 s, down from 7.6 s. Phase D is what closes the gap. |
-| Database credentials are not readable by other users on the host, and pipelines do not connect as superuser | **Partly.** Credentials are in one `600` file and out of the live scripts. Everything still connects as `postgres`, and the password has not been rotated. |
+| Database credentials are not readable by other users on the host, and pipelines do not connect as superuser | **Partly.** Credentials are in one `600` file and out of the live scripts. Everything still connects as `postgres`. Rotating the password is deferred to 2028 (owner decision, 2026-11-04). |
 
 ## Appendix A: Key Evidence Summary
 
@@ -2005,5 +2037,6 @@ Capture the eight `data_package_*` tables in a migration and the data dictionary
 | 3.37 | 2026-11-04 | **Mito upload failures are now visible without stopping a run.** The assembly and annotation upload scripts exit 1 on a database error, and the QC-validator and ENA-validation upload modules no longer force exit 0; failed uploads are retried once, ignored, listed in `sql_uploaded_data/FAILED_UPLOADS.tsv` and at the end of the run, and re-run by `-resume`. Proven on Setonix with a harness against an unreachable database. Found: Setonix's default environment moved to `pawseyenv/2026.11`, where the pinned `nextflow` and `singularity` modules no longer load; launchers need `pawseyenv/2025.08`. Record: `docs/next_steps_plan.md`. |
 | 3.38 | 2026-11-04 | **Migration `077` applied to live:** `hifi_read_qc.run_id` and `hic_read_qc.run_id` have validated FKs to `sequencing_run` (strict, owner decision), and `refresh_sequencing_run()` keeps runs that read QC uses. A read-QC push for a run the workbook does not list yet is refused and reported (both writers exit 1). Also: the draft and mito launchers and `pawsey_profile.config` now load `pawseyenv/2025.08`, because Setonix's default environment moved to `2026.11` (draft `master` `d4bcb35`, mito `inverts-dev` `00aca11`). Record: `docs/next_steps_plan.md`. |
 | 3.39 | 2026-11-04 | **Backlog Highest 7 and Phase C.1 closed:** the zero-orphan FKs to `sample` were delivered by Phases R and RG. A read-only check of live finds 0 orphans in every `og_id` table and 13 FKs to `public.sample`, all added after the `v2` cutover, so none binds to `pre_v2_archive`. `ena_related_assemblies` (empty) is covered through its FK to `ena_specimen_accessions`, so no table is left uncovered. |
+| 3.40 | 2026-11-04 | **Documentation: `078` and `079` applied to live at 05:11 UTC, after a rehearsal on a restore of live; the data dictionary and §7 rewritten.** `078` comments every column of the 46 Phase R/RG tables and corrects their stale table comments. `079` comments every other base-table column in `public`, every table and view that had no comment, and every column of the 13 contract and reporting views. Coverage: 113 → 130 of 132 tables and views, 125 → 1,123 of 2,041 columns. Writers were read at their fetched default branches (`docs/r_rg_docs_record.md` lists the commits). The mito pipeline's is `inverts-dev`, not `master`. Findings: nothing has written `mito_assembly_run` or `ref_assembly_run` since the merges (new backlog Highest 13); the LCA `confidence_score` is a BLAST e-value, `taxon_rank_db` a taxonomy source, and `mito_blast_hit.subject_coverage` is `qcovhsp`; `v_genome_size_comparison` reads the empty `species_ncbi_assembly`. `bin/check_drift.py --coverage` now accepts any schema prefix (V.7 item 2): migration-covered 27 → 120 of 132. Phase G items 2-4 closed; §13 documentation rows re-measured. |
 
 The previous revision is preserved at `/tmp/database_review.prev.md` at the time of writing; the authoritative history is in git.
