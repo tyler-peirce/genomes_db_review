@@ -363,7 +363,7 @@ CREATE OR REPLACE VIEW public.goat_species_v1 AS
               WHERE samp.nominal_species_id = s.species)) THEN 'in_assembly'::text
             WHEN (EXISTS ( SELECT 1
                FROM summary sm
-              WHERE sm.nominal_species_id = s.species AND (sm.pacbio_status = ANY (ARRAY['Library Prep - PacBio SMRTbell'::text, 'QC - Femto'::text, 'Sequenced'::text, 'Sequenced, SRE'::text, 'Sequence - PacBio'::text, 'Shearing'::text, 'SRE'::text, 'SRE - ULI'::text, 'ULI'::text])))) THEN 'in_lab'::text
+              WHERE sm.nominal_species_id = s.species AND string_to_array(sm.pacbio_status, ', '::text) && ARRAY['Library Prep - PacBio SMRTbell'::text, 'QC - Femto'::text, 'Sequenced'::text, 'Sequenced, SRE'::text, 'Sequence - PacBio'::text, 'Shearing'::text, 'SRE'::text, 'SRE - ULI'::text, 'ULI'::text])) THEN 'in_lab'::text
             ELSE NULL::text
         END AS sequencing_status,
     NULL::text AS genome_publication,
@@ -950,75 +950,156 @@ CREATE OR REPLACE VIEW public.sample_view AS
 
 -- View: public.summary
 CREATE OR REPLACE VIEW public.summary AS
+ WITH dna AS (
+         SELECT t.og_id,
+            d.dna_id,
+            d.status,
+            d.status_overwrite,
+            d.ext_num
+           FROM dna_extraction d
+             JOIN tissue t ON t.tissue_id = d.tissue_id
+        ), rna AS (
+         SELECT t.og_id,
+            r.rna_id,
+            r.status,
+            r.status_overwrite,
+            r.ext_num
+           FROM rna_extraction r
+             JOIN tissue t ON t.tissue_id = r.tissue_id
+        ), stage AS (
+         SELECT 'dna'::text AS tech,
+            dna.og_id,
+            dna.status,
+            dna.status_overwrite,
+            dna.ext_num AS num
+           FROM dna
+        UNION ALL
+         SELECT 'rna'::text,
+            rna.og_id,
+            rna.status,
+            rna.status_overwrite,
+            rna.ext_num
+           FROM rna
+        UNION ALL
+         SELECT 'ilmn'::text,
+            d.og_id,
+            i.ilmn_status,
+            i.status_overwrite,
+            i.ilmn_num
+           FROM illumina_library i
+             JOIN dna d ON d.dna_id = i.dna_id
+        UNION ALL
+         SELECT 'pacb'::text,
+            d.og_id,
+            p.pacb_status,
+            p.status_overwrite,
+            p.pacb_num
+           FROM pacbio_library p
+             JOIN dna d ON d.dna_id = p.dna_id
+        UNION ALL
+         SELECT 'ont'::text,
+            d.og_id,
+            o.ont_status,
+            o.status_overwrite,
+            o.ont_num
+           FROM ont_library o
+             JOIN dna d ON d.dna_id = o.dna_id
+        UNION ALL
+         SELECT 'hic'::text,
+            t.og_id,
+            h.hic_status,
+            h.status_overwrite,
+            h.hic_num
+           FROM hic_library h
+             JOIN hic_lysate y ON y.lysate_id = h.lysate_id
+             JOIN tissue t ON t.tissue_id = y.tissue_id
+        UNION ALL
+         SELECT 'rilm'::text,
+            r.og_id,
+            x.rna_status,
+            x.status_overwrite,
+            x.rna_num
+           FROM rna_library_ilmn x
+             JOIN rna r ON r.rna_id = x.rna_id
+        UNION ALL
+         SELECT 'rkin'::text,
+            r.og_id,
+            k.rna_status,
+            k.status_overwrite,
+            k.rna_num
+           FROM rna_library_kinx k
+             JOIN rna r ON r.rna_id = k.rna_id
+        ), ranked AS (
+         SELECT stage.tech,
+            stage.og_id,
+            COALESCE(stage.status, 'Awaiting Status'::text) AS status,
+            rank() OVER (PARTITION BY stage.tech, stage.og_id ORDER BY stage.status_overwrite DESC NULLS LAST, stage.num DESC) AS rk
+           FROM stage
+        ), stage_og AS (
+         SELECT ranked.og_id,
+            count(*) FILTER (WHERE ranked.tech = 'dna'::text AND ranked.status = 'Extracted'::text) AS extracted,
+            count(*) FILTER (WHERE ranked.tech = 'rna'::text) AS rna_n,
+            count(*) FILTER (WHERE ranked.tech = 'ilmn'::text) AS ilmn_n,
+            count(*) FILTER (WHERE ranked.tech = 'pacb'::text) AS pacb_n,
+            count(*) FILTER (WHERE ranked.tech = 'ont'::text) AS ont_n,
+            count(*) FILTER (WHERE ranked.tech = 'hic'::text) AS hic_n,
+            count(*) FILTER (WHERE ranked.tech = 'rilm'::text) AS rilm_n,
+            count(*) FILTER (WHERE ranked.tech = 'rkin'::text) AS rkin_n,
+            string_agg(DISTINCT ranked.status, ', '::text ORDER BY ranked.status) FILTER (WHERE ranked.rk = 1 AND ranked.tech = 'dna'::text) AS dna_status,
+            string_agg(DISTINCT ranked.status, ', '::text ORDER BY ranked.status) FILTER (WHERE ranked.rk = 1 AND ranked.tech = 'rna'::text) AS rna_status,
+            string_agg(DISTINCT ranked.status, ', '::text ORDER BY ranked.status) FILTER (WHERE ranked.rk = 1 AND ranked.tech = 'ilmn'::text) AS ilmn_status,
+            string_agg(DISTINCT ranked.status, ', '::text ORDER BY ranked.status) FILTER (WHERE ranked.rk = 1 AND ranked.tech = 'pacb'::text) AS pacb_status,
+            string_agg(DISTINCT ranked.status, ', '::text ORDER BY ranked.status) FILTER (WHERE ranked.rk = 1 AND ranked.tech = 'ont'::text) AS ont_status,
+            string_agg(DISTINCT ranked.status, ', '::text ORDER BY ranked.status) FILTER (WHERE ranked.rk = 1 AND ranked.tech = 'hic'::text) AS hic_status,
+            string_agg(DISTINCT ranked.status, ', '::text ORDER BY ranked.status) FILTER (WHERE ranked.rk = 1 AND ranked.tech = 'rilm'::text) AS rilm_status,
+            string_agg(DISTINCT ranked.status, ', '::text ORDER BY ranked.status) FILTER (WHERE ranked.rk = 1 AND ranked.tech = 'rkin'::text) AS rkin_status
+           FROM ranked
+          GROUP BY ranked.og_id
+        ), tissues AS (
+         SELECT tissue.og_id,
+            count(*) AS n
+           FROM tissue
+          GROUP BY tissue.og_id
+        ), lca_og AS (
+         SELECT lca_validation.og_id,
+            string_agg(DISTINCT lca_validation.validated_species_name, ', '::text ORDER BY lca_validation.validated_species_name) FILTER (WHERE lca_validation.tech = 'ilmn'::text) AS ilmn,
+            string_agg(DISTINCT lca_validation.validated_species_name, ', '::text ORDER BY lca_validation.validated_species_name) FILTER (WHERE lca_validation.tech = 'hifi'::text) AS hifi,
+            string_agg(DISTINCT lca_validation.validated_species_name, ', '::text ORDER BY lca_validation.validated_species_name) FILTER (WHERE lca_validation.tech = 'hic'::text) AS hic
+           FROM lca_validation
+          WHERE lca_validation.validated_species_name IS NOT NULL AND lca_validation.validated_species_name <> ''::text
+          GROUP BY lca_validation.og_id
+        )
  SELECT s.og_num,
     s.og_id,
     s.project_id,
     s.workflow,
     s.priority,
-    ( SELECT count(*) AS count
-           FROM tissue t
-          WHERE t.og_id = s.og_id) AS tissues,
-    ( SELECT count(*) AS count
-           FROM dna_extraction d
-             JOIN tissue t ON t.tissue_id = d.tissue_id
-          WHERE t.og_id = s.og_id AND d.status = 'Extracted'::text) AS extracted,
-    COALESCE(dna.status, 'Awaiting Status'::text) AS dna_extraction_status,
-    COALESCE(ilmn.status, 'Awaiting Status'::text) AS illumina_status,
-    COALESCE(pacb.status, 'Awaiting Status'::text) AS pacbio_status,
-    COALESCE(hic.status, 'Awaiting Status'::text) AS hic_status,
-    COALESCE(ont.status, 'Awaiting Status'::text) AS nanopore_status,
-    COALESCE(rna.status, 'Awaiting Status'::text) AS rna_extraction_status,
-    COALESCE(rilm.status, 'Awaiting Status'::text) AS rna_ilmn_status,
-    COALESCE(rkin.status, 'Awaiting Status'::text) AS rna_kinnex_status,
+    COALESCE(tissues.n, 0::bigint) AS tissues,
+    COALESCE(g.extracted, 0::bigint) AS extracted,
+    COALESCE(g.dna_status, 'Awaiting Status'::text) AS dna_extraction_status,
+    COALESCE(g.ilmn_status, 'Awaiting Status'::text) AS illumina_status,
+    COALESCE(g.pacb_status, 'Awaiting Status'::text) AS pacbio_status,
+    COALESCE(g.hic_status, 'Awaiting Status'::text) AS hic_status,
+    COALESCE(g.ont_status, 'Awaiting Status'::text) AS nanopore_status,
+    COALESCE(g.rna_status, 'Awaiting Status'::text) AS rna_extraction_status,
+    COALESCE(g.rilm_status, 'Awaiting Status'::text) AS rna_ilmn_status,
+    COALESCE(g.rkin_status, 'Awaiting Status'::text) AS rna_kinnex_status,
     s.ilmn AS illumina_planned,
     s.hifi AS hifi_planned,
     s.hic AS hic_planned,
     s.nano AS nanopore_planned,
     s.rna AS rna_planned,
     s.ilrna AS rna_ilmn_planned,
-    ( SELECT count(*) AS count
-           FROM illumina_library i
-             JOIN dna_extraction d ON d.dna_id = i.dna_id
-             JOIN tissue t ON t.tissue_id = d.tissue_id
-          WHERE t.og_id = s.og_id) AS illumina_actual,
-    ( SELECT count(*) AS count
-           FROM pacbio_library p
-             JOIN dna_extraction d ON d.dna_id = p.dna_id
-             JOIN tissue t ON t.tissue_id = d.tissue_id
-          WHERE t.og_id = s.og_id) AS hifi_actual,
-    ( SELECT count(*) AS count
-           FROM hic_library h
-             JOIN hic_lysate y ON y.lysate_id = h.lysate_id
-             JOIN tissue t ON t.tissue_id = y.tissue_id
-          WHERE t.og_id = s.og_id) AS hic_actual,
-    ( SELECT count(*) AS count
-           FROM ont_library o
-             JOIN dna_extraction d ON d.dna_id = o.dna_id
-             JOIN tissue t ON t.tissue_id = d.tissue_id
-          WHERE t.og_id = s.og_id) AS nanopore_actual,
-    ( SELECT count(*) AS count
-           FROM rna_extraction r
-             JOIN tissue t ON t.tissue_id = r.tissue_id
-          WHERE t.og_id = s.og_id) AS rna_actual,
-    ( SELECT count(*) AS count
-           FROM rna_library_ilmn x
-             JOIN rna_extraction r ON r.rna_id = x.rna_id
-             JOIN tissue t ON t.tissue_id = r.tissue_id
-          WHERE t.og_id = s.og_id) AS rna_ilmn_actual,
-    ( SELECT count(*) AS count
-           FROM rna_library_kinx k
-             JOIN rna_extraction r ON r.rna_id = k.rna_id
-             JOIN tissue t ON t.tissue_id = r.tissue_id
-          WHERE t.og_id = s.og_id) AS rna_kinnex_actual,
-    ( SELECT string_agg(DISTINCT lv.validated_species_name, ', '::text ORDER BY lv.validated_species_name) AS string_agg
-           FROM lca_validation lv
-          WHERE lv.og_id = s.og_id AND lv.tech = 'ilmn'::text AND lv.validated_species_name IS NOT NULL AND lv.validated_species_name <> ''::text) AS ilmn_validated_species_name,
-    ( SELECT string_agg(DISTINCT lv.validated_species_name, ', '::text ORDER BY lv.validated_species_name) AS string_agg
-           FROM lca_validation lv
-          WHERE lv.og_id = s.og_id AND lv.tech = 'hifi'::text AND lv.validated_species_name IS NOT NULL AND lv.validated_species_name <> ''::text) AS hifi_validated_species_name,
-    ( SELECT string_agg(DISTINCT lv.validated_species_name, ', '::text ORDER BY lv.validated_species_name) AS string_agg
-           FROM lca_validation lv
-          WHERE lv.og_id = s.og_id AND lv.tech = 'hic'::text AND lv.validated_species_name IS NOT NULL AND lv.validated_species_name <> ''::text) AS hic_validated_species_name,
+    COALESCE(g.ilmn_n, 0::bigint) AS illumina_actual,
+    COALESCE(g.pacb_n, 0::bigint) AS hifi_actual,
+    COALESCE(g.hic_n, 0::bigint) AS hic_actual,
+    COALESCE(g.ont_n, 0::bigint) AS nanopore_actual,
+    COALESCE(g.rna_n, 0::bigint) AS rna_actual,
+    COALESCE(g.rilm_n, 0::bigint) AS rna_ilmn_actual,
+    COALESCE(g.rkin_n, 0::bigint) AS rna_kinnex_actual,
+    lca_og.ilmn AS ilmn_validated_species_name,
+    lca_og.hifi AS hifi_validated_species_name,
+    lca_og.hic AS hic_validated_species_name,
     s.field_id,
     s.nominal_species_id,
     s.common_name,
@@ -1026,60 +1107,9 @@ CREATE OR REPLACE VIEW public.summary AS
     s.contact,
     s.comments
    FROM sample s
-     LEFT JOIN LATERAL ( SELECT d.status
-           FROM dna_extraction d
-             JOIN tissue t ON t.tissue_id = d.tissue_id
-          WHERE t.og_id = s.og_id
-          ORDER BY d.status_overwrite DESC NULLS LAST, d.ext_num DESC
-         LIMIT 1) dna ON true
-     LEFT JOIN LATERAL ( SELECT i.ilmn_status AS status
-           FROM illumina_library i
-             JOIN dna_extraction d ON d.dna_id = i.dna_id
-             JOIN tissue t ON t.tissue_id = d.tissue_id
-          WHERE t.og_id = s.og_id
-          ORDER BY i.status_overwrite DESC NULLS LAST, i.ilmn_num DESC
-         LIMIT 1) ilmn ON true
-     LEFT JOIN LATERAL ( SELECT p.pacb_status AS status
-           FROM pacbio_library p
-             JOIN dna_extraction d ON d.dna_id = p.dna_id
-             JOIN tissue t ON t.tissue_id = d.tissue_id
-          WHERE t.og_id = s.og_id
-          ORDER BY p.status_overwrite DESC NULLS LAST, p.pacb_num DESC
-         LIMIT 1) pacb ON true
-     LEFT JOIN LATERAL ( SELECT h.hic_status AS status
-           FROM hic_library h
-             JOIN hic_lysate y ON y.lysate_id = h.lysate_id
-             JOIN tissue t ON t.tissue_id = y.tissue_id
-          WHERE t.og_id = s.og_id
-          ORDER BY h.status_overwrite DESC NULLS LAST, h.hic_num DESC
-         LIMIT 1) hic ON true
-     LEFT JOIN LATERAL ( SELECT o.ont_status AS status
-           FROM ont_library o
-             JOIN dna_extraction d ON d.dna_id = o.dna_id
-             JOIN tissue t ON t.tissue_id = d.tissue_id
-          WHERE t.og_id = s.og_id
-          ORDER BY o.status_overwrite DESC NULLS LAST, o.ont_num DESC
-         LIMIT 1) ont ON true
-     LEFT JOIN LATERAL ( SELECT r.status
-           FROM rna_extraction r
-             JOIN tissue t ON t.tissue_id = r.tissue_id
-          WHERE t.og_id = s.og_id
-          ORDER BY r.status_overwrite DESC NULLS LAST, r.ext_num DESC
-         LIMIT 1) rna ON true
-     LEFT JOIN LATERAL ( SELECT x.rna_status AS status
-           FROM rna_library_ilmn x
-             JOIN rna_extraction r ON r.rna_id = x.rna_id
-             JOIN tissue t ON t.tissue_id = r.tissue_id
-          WHERE t.og_id = s.og_id
-          ORDER BY x.status_overwrite DESC NULLS LAST, x.rna_num DESC
-         LIMIT 1) rilm ON true
-     LEFT JOIN LATERAL ( SELECT k.rna_status AS status
-           FROM rna_library_kinx k
-             JOIN rna_extraction r ON r.rna_id = k.rna_id
-             JOIN tissue t ON t.tissue_id = r.tissue_id
-          WHERE t.og_id = s.og_id
-          ORDER BY k.status_overwrite DESC NULLS LAST, k.rna_num DESC
-         LIMIT 1) rkin ON true;;
+     LEFT JOIN tissues ON tissues.og_id = s.og_id
+     LEFT JOIN stage_og g ON g.og_id = s.og_id
+     LEFT JOIN lca_og ON lca_og.og_id = s.og_id;;
 
 -- View: public.v_dna_extraction_browse
 CREATE OR REPLACE VIEW public.v_dna_extraction_browse AS
