@@ -122,7 +122,7 @@ mito_assembly ─┬─ mito_assembly_depth (0..1)    mito_assembly_qc (0..1)
 | `mito_assembly` | 2,521 | An assembly, `(og_id, tech, seq_date, code)` | `push_mtdna_assm_results.py` |
 | `mito_assembly_depth` | 2,516 | The remap depth verdict | `push_mtdna_assm_results.py` (from `mito_depth.py`) |
 | `mito_assembly_qc` | 196 | The assembly QC verdict | `push_assembly_qc.py` |
-| `mito_assembly_run` | 2,560 | A sequencing row an assembly was built from | **None since `072`** (see caveats) |
+| `mito_assembly_run` | 2,562 | A sequencing row an assembly was built from | Derived by triggers (`080`) |
 | `mito_annotation` | 2,146 | One annotator run on an assembly | `push_emma_annotation_results.py` |
 | `mito_annotation_gene` | 77,549 | One gene's length in one annotation | `push_emma_annotation_results.py` |
 | `mito_gene` | 39 | A gene name | Fixed; add a gene with `rebuild_mito_gene_views()` |
@@ -159,7 +159,7 @@ ref_submission ─┬─ ref_submission_haplotype
 |---|---:|---|---|
 | `ref_assembly` | 468 | An assembly attempt, `(og_id, seq_date, version)` | ref repo and post-curation, via `scripts/lib/refdb.py` |
 | `ref_assembly_part` | 2,024 | One sequence set at one stage | `refdb.py`, on the first result for it |
-| `ref_assembly_run` | 434 | A sequencing row an assembly was built from | **None since `073`** (see caveats) |
+| `ref_assembly_run` | 434 | A sequencing row an assembly was built from | Derived by triggers (`080`); hand links for the readiness view |
 | `ref_stage` | 4 | Stage 0-3: contigs, scaffolded, decontaminated, curated | Fixed |
 | `ref_gfastats` | 1,294 | gfastats; **the** N50 | `04a/04b_*push_gfa*` (ref repo), `04a_push_gfa_results_to_sqldb.py` (post-curation) |
 | `ref_busco` | 781 | BUSCO | `03a_push_busco_results_to_sqldb.py` |
@@ -231,8 +231,10 @@ Things a reader will otherwise get wrong. Each is also in the column comment.
 - **Genome size needs its verdict.** Check `draft_genomescope.genome_size_reliable` and
   `genome_size_flags` before quoting `genomesize`. `ref_genomescope.genomesize` is exactly 1 Gb
   where the model failed.
-- **Run links stopped at the merges.** Nothing has written `mito_assembly_run` since `072` or
-  `ref_assembly_run` since `073`. Assemblies made since then have no run links.
+- **Run links are derived in the database** (`080`). `refresh_assembly_runs()` links an assembly to the
+  OG's runs of its `seq_date`, from triggers on `mito_assembly`, `ref_assembly`, `sequencing` and
+  `library`. Mito links include failed runs; ref links do not. A tissue or extraction moved upstream
+  of `library` is not caught: run `SELECT refresh_assembly_runs(ARRAY(SELECT og_id FROM sample))`.
 - **`v_genome_size_comparison`'s NCBI columns are always NULL**, because it reads the empty
   `species_ncbi_assembly`.
 - **DepthSizer is retired.** `draft_depthsizer` is frozen at its 701 rows.

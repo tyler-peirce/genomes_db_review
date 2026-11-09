@@ -115,5 +115,5 @@ were. `schema/object_inventory.tsv` is unchanged: comments are not objects.
 
 ## Still to do
 
-- Backlog Highest 13: a writer for the two run-link tables.
+- ~~Backlog Highest 13: a writer for the two run-link tables.~~ Done 2026-11-09, `080`.
 - Copy the migration headers into the data dictionary (backlog Medium 7).

@@ -1206,8 +1206,8 @@ LCA, BLAST, validation and ENA rows are keyed on `annotation_id`. The re-annotat
 that triggered Phase R cannot recur.
 
 Still wrong:
-- **`mito_assembly_run` has had no writer since `072`.** The window sync derived it, and nothing
-  replaced the sync. Two assemblies created since the merge have no run links.
+- ~~**`mito_assembly_run` has had no writer since `072`.**~~ **Fixed 2026-11-09 (`080`):** triggers
+  derive the links again, and the two assemblies created since the merge have theirs.
 - The LCA column names mislead: `confidence_score` is a BLAST e-value, `taxon_rank_db` is a
   taxonomy source, and `mito_blast_hit.subject_coverage` is `qcovhsp`. `017`'s comment on
   `taxon_rank_db` was wrong; `078` corrects all three in the comments.
@@ -1637,9 +1637,8 @@ What remains:
   permanent copy. Backfill or accept the loss of the 261 draft values held only there first
   (Finding 17.1).
 - **RG.7:** the same for `pre_v4_archive`.
-- **Run links (found 2026-11-04, `078`):** nothing has written `mito_assembly_run` since `072`,
-  or `ref_assembly_run` since `073`. The window syncs derived them, and nothing replaced the
-  syncs. This is a writer change, before or with R.8.
+- ~~**Run links (found 2026-11-04, `078`)**~~ **Done 2026-11-09 (`080`):** `mito_assembly_run` and
+  `ref_assembly_run` are kept current by triggers, with the window syncs' rules.
 - **The draft upload modules:** check them for swallowed errors, as was done for the mito writers.
 
 The history follows.
@@ -1684,7 +1683,7 @@ All four are done. The follow-ons each item left behind are listed with their pa
 10. Strip dead `status_overwrite` logic from `summary` and rebuild or materialise it — less acute after `030`, but 2.0 s is still structural.
 11. ~~**Before R.6: put the draft host and depth columns in `v3`, and branch `ENA-draft-genomes`**~~ **Done:** `067` (2026-10-28) added the columns to `v3`; `ENA-draft-genomes` `phase-r-v3` was rehearsed and deployed with R.6 (`072`, 2026-11-02). See `docs/r6_gate_a1_record.md`, `docs/r6_gate_a3_a5_record.md`, `docs/r6_merge_record.md`.
 12. ~~**Fix the draft ENA `COVERAGE`**~~ **Done:** `busco_read_depth` is uploaded and step 03 sends it (then `scdepth`), never `total_bases / genomesize`, and stops when neither exists. The 613 drafts were re-measured by the depth-only mode (A.4) and the 260925 backfill: 826 drafts carry a measured depth. Drafts before 250606 remain unmeasured (`docs/r6_gate_a3_a5_record.md`).
-13. **Give `mito_assembly_run` and `ref_assembly_run` a writer** (found 2026-11-04, `078`). The R and RG window syncs derived them, and nothing replaced the syncs at `072`/`073`, so new assemblies get no run links (2 mito so far). Either the push scripts link runs as `draft_genome_stats.py` does, or a trigger or function derives them from `(og_id, seq_date, tech)`. Before or with R.8.
+13. ~~**Give `mito_assembly_run` and `ref_assembly_run` a writer**~~ **Done 2026-11-09, `080`:** `refresh_assembly_runs()` applies the window syncs' rules, from triggers on `mito_assembly`, `ref_assembly`, `sequencing` and `library`, so a run entered in the workbook after its assembly is still linked. The 2 mito assemblies of 2026-11-02 are linked; no ref assembly had been created. Mito links keep failed runs, ref links do not (owner decision: a mitogenome is assembled from one run, a reference genome pools runs).
 
 ### Medium priority
 
@@ -2038,5 +2037,6 @@ Capture the eight `data_package_*` tables in a migration and the data dictionary
 | 3.38 | 2026-11-04 | **Migration `077` applied to live:** `hifi_read_qc.run_id` and `hic_read_qc.run_id` have validated FKs to `sequencing_run` (strict, owner decision), and `refresh_sequencing_run()` keeps runs that read QC uses. A read-QC push for a run the workbook does not list yet is refused and reported (both writers exit 1). Also: the draft and mito launchers and `pawsey_profile.config` now load `pawseyenv/2025.08`, because Setonix's default environment moved to `2026.11` (draft `master` `d4bcb35`, mito `inverts-dev` `00aca11`). Record: `docs/next_steps_plan.md`. |
 | 3.39 | 2026-11-04 | **Backlog Highest 7 and Phase C.1 closed:** the zero-orphan FKs to `sample` were delivered by Phases R and RG. A read-only check of live finds 0 orphans in every `og_id` table and 13 FKs to `public.sample`, all added after the `v2` cutover, so none binds to `pre_v2_archive`. `ena_related_assemblies` (empty) is covered through its FK to `ena_specimen_accessions`, so no table is left uncovered. |
 | 3.40 | 2026-11-04 | **Documentation: `078` and `079` applied to live at 05:11 UTC, after a rehearsal on a restore of live; the data dictionary and §7 rewritten.** `078` comments every column of the 46 Phase R/RG tables and corrects their stale table comments. `079` comments every other base-table column in `public`, every table and view that had no comment, and every column of the 13 contract and reporting views. Coverage: 113 → 130 of 132 tables and views, 125 → 1,123 of 2,041 columns. Writers were read at their fetched default branches (`docs/r_rg_docs_record.md` lists the commits). The mito pipeline's is `inverts-dev`, not `master`. Findings: nothing has written `mito_assembly_run` or `ref_assembly_run` since the merges (new backlog Highest 13); the LCA `confidence_score` is a BLAST e-value, `taxon_rank_db` a taxonomy source, and `mito_blast_hit.subject_coverage` is `qcovhsp`; `v_genome_size_comparison` reads the empty `species_ncbi_assembly`. `bin/check_drift.py --coverage` now accepts any schema prefix (V.7 item 2): migration-covered 27 → 120 of 132. Phase G items 2-4 closed; §13 documentation rows re-measured. |
+| 3.41 | 2026-11-09 | **Migration `080` applied to live** at 01:25 UTC, after a rehearsal on a restore of live (five in-migration probes; the mito, EMMA and ref writers' exact upserts link new assemblies and re-pushes add nothing; a nightly-shaped rewrite of every `sequencing` and `library` row changes no link, 0.1–0.3 s; a hand-chosen ref link survives a real change to its row and goes when the row fails; revert schema-identical; replay schema-identical). `mito_assembly_run` and `ref_assembly_run` have a writer again (backlog Highest 13): `refresh_assembly_runs()` with the rules of `v3.sync_mito()` (`055`) and `v4.sync_ref()` (`069`), called by triggers on `mito_assembly`, `ref_assembly`, `sequencing` and `library`. Mito links the rule no longer gives are removed; a ref link only when its row can no longer have one, so links chosen for the 61 `v_ref_assembly_run_readiness` assemblies stay. Backfill: 2 mito links (OG2375 ilmn `260514`, OG853 hifi `250717`), 0 ref, none removed; 2,562 mito and 434 ref links. Owner: mito links keep failed runs (OG819, OG852 and OG853 `250704`). Not covered: a tissue or extraction moving upstream of `library`; re-run the function for all OGs after such a fix. Post-checks: ledger 81 files, all hashes match; drift only the colleague's objects. Baseline updated with `080`'s delta only. Pre-change dump: `~/oceanomics_genomes_pre_080_261109b.dump`. Revert: `sql/revert/080_assembly_run_links_revert.sql`. |
 
 The previous revision is preserved at `/tmp/database_review.prev.md` at the time of writing; the authoritative history is in git.
