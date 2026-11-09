@@ -364,6 +364,38 @@ CREATE FUNCTION public.lca_validation_report_view_upd() RETURNS trigger
 
 
 --
+-- Name: library_assembly_runs(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.library_assembly_runs() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+DECLARE
+  tubes text[];
+BEGIN
+  tubes := ARRAY(SELECT n.library_tube_id
+                   FROM new_rows n JOIN old_rows o USING (library_tube_id)
+                  WHERE (n.library_type, n.dna_id, n.rna_id, n.lysate_id)
+                        IS DISTINCT FROM (o.library_type, o.dna_id, o.rna_id, o.lysate_id));
+  IF cardinality(tubes) > 0 THEN
+    PERFORM refresh_assembly_runs(
+      ARRAY(SELECT DISTINCT og_id FROM v_library_browse WHERE library_tube_id = ANY (tubes)),
+      ARRAY(SELECT sequencing_id FROM sequencing WHERE library_tube_id = ANY (tubes)));
+  END IF;
+  RETURN NULL;
+END
+$$;
+
+
+--
+-- Name: FUNCTION library_assembly_runs(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.library_assembly_runs() IS 'Statement-level: re-derives assembly run links for the sequencing rows of libraries whose type or parent a statement changed. 080.';
+
+
+--
 -- Name: mito_annotation_id(text, text, text, text, text, boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -398,6 +430,31 @@ $$;
 --
 
 COMMENT ON FUNCTION public.mito_annotation_id(p_og_id text, p_tech text, p_seq_date text, p_code text, p_annotation text, p_strict boolean) IS 'annotation_id for (og_id, tech, seq_date, code, annotation). Strict (default) raises when none or several match; non-strict returns NULL. Used by the mito pipeline writers of mito_lca, mito_lca_raw, mito_lca_validation and mito_blast_hit. 076, Phase R.7b.';
+
+
+--
+-- Name: mito_assembly_runs_link(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mito_assembly_runs_link() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+BEGIN
+  IF TG_OP = 'INSERT'
+     OR (NEW.og_id, NEW.tech, NEW.seq_date) IS DISTINCT FROM (OLD.og_id, OLD.tech, OLD.seq_date) THEN
+    PERFORM refresh_assembly_runs(ARRAY[NEW.og_id]);
+  END IF;
+  RETURN NULL;
+END
+$$;
+
+
+--
+-- Name: FUNCTION mito_assembly_runs_link(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.mito_assembly_runs_link() IS 'Links a new or re-keyed mito assembly to its runs (refresh_assembly_runs). 080.';
 
 
 --
@@ -452,6 +509,30 @@ $_$;
 --
 
 COMMENT ON FUNCTION public.mito_child_annotation_id() IS 'Fills or checks annotation_id on the LCA and ENA child tables from (og_id, tech, seq_date, code, annotation), and refuses a row that names no single annotation. 074, Phase R.7.';
+
+
+--
+-- Name: mito_run_matches(text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mito_run_matches(p_tech text, p_technology text, p_library_type text, p_instrument text) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    AS $$
+  -- 055: DNA libraries only; ilmn leaves out iSEQ QC runs.
+  SELECT coalesce(CASE p_tech
+    WHEN 'ilmn' THEN p_technology = 'Illumina' AND p_library_type = 'illumina'
+                     AND p_instrument IS DISTINCT FROM 'iSEQ'
+    WHEN 'hic'  THEN p_technology = 'Hi-C' AND p_library_type = 'hic'
+    WHEN 'hifi' THEN p_technology LIKE 'PacBio%' AND p_library_type = 'pacbio'
+  END, false)
+$$;
+
+
+--
+-- Name: FUNCTION mito_run_matches(p_tech text, p_technology text, p_library_type text, p_instrument text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.mito_run_matches(p_tech text, p_technology text, p_library_type text, p_instrument text) IS 'Whether a sequencing row (technology, library_type, instrument) can be a run of a mito assembly of this tech. The rule of v3.sync_mito() as 055 left it. 080.';
 
 
 --
@@ -565,6 +646,32 @@ $$;
 
 
 --
+-- Name: ref_assembly_runs_link(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ref_assembly_runs_link() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+BEGIN
+  -- The ref writers' upsert sets og_id = EXCLUDED.og_id on every push; that changes nothing.
+  IF TG_OP = 'INSERT'
+     OR (NEW.og_id, NEW.seq_date) IS DISTINCT FROM (OLD.og_id, OLD.seq_date) THEN
+    PERFORM refresh_assembly_runs(ARRAY[NEW.og_id]);
+  END IF;
+  RETURN NULL;
+END
+$$;
+
+
+--
+-- Name: FUNCTION ref_assembly_runs_link(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ref_assembly_runs_link() IS 'Links a new or re-keyed reference assembly to its runs (refresh_assembly_runs). 080.';
+
+
+--
 -- Name: ref_read_set_external_exclusive(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -650,6 +757,65 @@ BEGIN
   RETURN NEW;
 END
 $$;
+
+
+--
+-- Name: refresh_assembly_runs(text[], text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.refresh_assembly_runs(p_og_ids text[], p_sequencing_ids text[] DEFAULT '{}'::text[]) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+BEGIN
+  -- Mito: every link is derived, so drop one the rule no longer gives.
+  DELETE FROM mito_assembly_run r
+   USING mito_assembly a
+   WHERE a.assembly_id = r.assembly_id
+     AND (a.og_id = ANY (p_og_ids) OR r.sequencing_id = ANY (p_sequencing_ids))
+     AND NOT EXISTS (SELECT 1 FROM v_sequencing_browse s
+                      WHERE s.sequencing_id = r.sequencing_id
+                        AND s.og_id = a.og_id AND s.seq_date = a.seq_date
+                        AND mito_run_matches(a.tech, s.technology, s.library_type, s.instrument));
+
+  INSERT INTO mito_assembly_run (assembly_id, sequencing_id)
+  SELECT DISTINCT a.assembly_id, s.sequencing_id
+    FROM mito_assembly a
+    JOIN v_sequencing_browse s ON s.og_id = a.og_id AND s.seq_date = a.seq_date
+   WHERE a.og_id = ANY (p_og_ids)
+     AND mito_run_matches(a.tech, s.technology, s.library_type, s.instrument)
+  ON CONFLICT DO NOTHING;
+
+  -- Ref: a link may have been chosen by hand, so drop only one its row can no longer have
+  -- (what ref_assembly_run_genomic_only refuses, or another OG's row).
+  DELETE FROM ref_assembly_run r
+   USING ref_assembly a
+   WHERE a.assembly_id = r.assembly_id
+     AND (a.og_id = ANY (p_og_ids) OR r.sequencing_id = ANY (p_sequencing_ids))
+     AND NOT EXISTS (SELECT 1 FROM v_sequencing_browse s
+                      WHERE s.sequencing_id = r.sequencing_id AND s.og_id = a.og_id
+                        AND s.technology IN ('PacBio HIFI', 'PacBio', 'ONT', 'Hi-C')
+                        AND s.library_type IN ('pacbio', 'ont', 'hic')
+                        AND s.status IS DISTINCT FROM 'Failed');
+
+  -- 069: a failed run produced no reads to build from.
+  INSERT INTO ref_assembly_run (assembly_id, sequencing_id)
+  SELECT DISTINCT a.assembly_id, s.sequencing_id
+    FROM ref_assembly a
+    JOIN v_sequencing_browse s ON s.og_id = a.og_id AND s.seq_date = a.seq_date
+   WHERE a.og_id = ANY (p_og_ids)
+     AND s.technology IN ('PacBio HIFI', 'PacBio', 'ONT') AND s.library_type IN ('pacbio', 'ont')
+     AND s.status IS DISTINCT FROM 'Failed'
+  ON CONFLICT DO NOTHING;
+END
+$$;
+
+
+--
+-- Name: FUNCTION refresh_assembly_runs(p_og_ids text[], p_sequencing_ids text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.refresh_assembly_runs(p_og_ids text[], p_sequencing_ids text[]) IS 'Re-derive mito_assembly_run and ref_assembly_run for the assemblies of the OGs given and the links of the sequencing rows given: the run-link rules of v3.sync_mito() (055) and v4.sync_ref() (069). Mito links the rule no longer gives are removed; a ref link only when its row can no longer have one, so links chosen by hand stay. Called by triggers on mito_assembly, ref_assembly, sequencing and library. 080.';
 
 
 --
@@ -788,6 +954,45 @@ $_$;
 --
 
 COMMENT ON FUNCTION public.resolve_sra_upload_runs(p_og_id text, p_data_type text, p_filenames text) IS 'The sequencing rows an SRA upload''s file names point to (064''s forward rule; HICL1 = HICL, 065; failed runs skipped, 069). Used by ENA-ref-genomes step 09. search_path public since RG.6 (073).';
+
+
+--
+-- Name: sequencing_assembly_runs(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequencing_assembly_runs() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+DECLARE
+  ids text[];
+BEGIN
+  -- As in sequencing_run_refresh(), a branch naming a transition table this trigger does not have
+  -- is never planned.
+  IF TG_OP = 'INSERT' THEN
+    ids := ARRAY(SELECT sequencing_id FROM new_rows);
+  ELSE
+    ids := ARRAY(SELECT n.sequencing_id
+                   FROM new_rows n JOIN old_rows o USING (sequencing_id)
+                  WHERE (n.library_tube_id, n.status, n.technology, n.instrument, n.run_id)
+                        IS DISTINCT FROM (o.library_tube_id, o.status, o.technology, o.instrument, o.run_id));
+  END IF;
+  IF cardinality(ids) > 0 THEN
+    PERFORM refresh_assembly_runs(
+      ARRAY(SELECT DISTINCT b.og_id FROM sequencing q JOIN v_library_browse b USING (library_tube_id)
+             WHERE q.sequencing_id = ANY (ids)),
+      ids);
+  END IF;
+  RETURN NULL;
+END
+$$;
+
+
+--
+-- Name: FUNCTION sequencing_assembly_runs(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequencing_assembly_runs() IS 'Statement-level: re-derives assembly run links for the sequencing rows a statement inserted, or changed in library, status, technology, instrument or run. 080.';
 
 
 --
@@ -9184,7 +9389,7 @@ CREATE TABLE public.mito_assembly_run (
 -- Name: TABLE mito_assembly_run; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.mito_assembly_run IS 'The sequencing rows (a library on a run) an assembly was built from, derived from (og_id, seq_date) and tech; ilmn excludes iSEQ QC runs. Derived by the Phase R window sync and loaded at the 072 merge. No writer has added rows since, so assemblies created after 2026-11-02 have none (078).';
+COMMENT ON TABLE public.mito_assembly_run IS 'The sequencing rows (a library on a run) an assembly was built from, derived from (og_id, seq_date) and tech; ilmn excludes iSEQ QC runs. Kept current by refresh_assembly_runs() from triggers on mito_assembly, sequencing and library (080); a link the rule no longer gives is removed.';
 
 
 --
@@ -10033,7 +10238,7 @@ CREATE TABLE public.ref_assembly_run (
 -- Name: TABLE ref_assembly_run; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.ref_assembly_run IS 'The sequencing rows an assembly was built from: PacBio/ONT DNA, and Hi-C once writers record it (trigger). Derived by the RG window sync and loaded at the 073 merge. No writer has added rows since (078).';
+COMMENT ON TABLE public.ref_assembly_run IS 'The sequencing rows an assembly was built from: PacBio/ONT DNA, and Hi-C once writers record it (trigger). Links to the OG''s non-failed PacBio/ONT rows of the assembly''s seq_date are kept current by refresh_assembly_runs() from triggers on ref_assembly, sequencing and library (080). A link chosen by hand stays until its row can no longer have one.';
 
 
 --
@@ -12596,7 +12801,7 @@ CREATE VIEW public.v_ref_assembly_run_readiness AS
 -- Name: VIEW v_ref_assembly_run_readiness; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.v_ref_assembly_run_readiness IS 'Assemblies with no run link, and the OG''s PacBio/ONT DNA rows to choose from. Their seq_date matches no run date (RG.0 §1.5). No writer links new assemblies since the RG.6 merge (078), so every new assembly appears here.';
+COMMENT ON VIEW public.v_ref_assembly_run_readiness IS 'Assemblies with no run link, and the OG''s PacBio/ONT DNA rows to choose from. Their seq_date matches no run date (RG.0 §1.5), so refresh_assembly_runs() (080) cannot derive one: link them by hand, or fix the date.';
 
 
 --
@@ -14861,6 +15066,20 @@ CREATE TRIGGER ena_validation_attempts_annotation_id BEFORE INSERT OR UPDATE OF 
 
 
 --
+-- Name: library library_assembly_runs_upd; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER library_assembly_runs_upd AFTER UPDATE ON public.library REFERENCING OLD TABLE AS old_rows NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION public.library_assembly_runs();
+
+
+--
+-- Name: mito_assembly mito_assembly_runs_link; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER mito_assembly_runs_link AFTER INSERT OR UPDATE OF og_id, tech, seq_date ON public.mito_assembly FOR EACH ROW EXECUTE FUNCTION public.mito_assembly_runs_link();
+
+
+--
 -- Name: mito_lca mito_lca_content_hash; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -14879,6 +15098,13 @@ CREATE TRIGGER mito_lca_raw_content_hash BEFORE INSERT OR UPDATE ON public.mito_
 --
 
 CREATE TRIGGER ref_assembly_run_genomic_only BEFORE INSERT OR UPDATE ON public.ref_assembly_run FOR EACH ROW EXECUTE FUNCTION public.ref_assembly_run_genomic_only();
+
+
+--
+-- Name: ref_assembly ref_assembly_runs_link; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER ref_assembly_runs_link AFTER INSERT OR UPDATE OF og_id, seq_date ON public.ref_assembly FOR EACH ROW EXECUTE FUNCTION public.ref_assembly_runs_link();
 
 
 --
@@ -14914,6 +15140,20 @@ CREATE TRIGGER ref_submission_assembly_to_haplotypes AFTER UPDATE OF assembly_id
 --
 
 CREATE TRIGGER ref_submission_haplotype_assembly BEFORE INSERT OR UPDATE ON public.ref_submission_haplotype FOR EACH ROW EXECUTE FUNCTION public.ref_submission_haplotype_assembly();
+
+
+--
+-- Name: sequencing sequencing_assembly_runs_ins; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER sequencing_assembly_runs_ins AFTER INSERT ON public.sequencing REFERENCING NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION public.sequencing_assembly_runs();
+
+
+--
+-- Name: sequencing sequencing_assembly_runs_upd; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER sequencing_assembly_runs_upd AFTER UPDATE ON public.sequencing REFERENCING OLD TABLE AS old_rows NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION public.sequencing_assembly_runs();
 
 
 --
