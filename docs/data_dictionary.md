@@ -70,6 +70,7 @@ sample ─┬─ tissue ─┬─ dna_extraction ─┬─ illumina_library ─�
 | `sequencing_run` | 213 | A run | Triggers on `sequencing` (`075`) | FK target for `sequencing`, `raw_data`, `rna_qc_kinnex`, `hifi_read_qc`, `hic_read_qc` |
 | `design_description` | 2 | An Illumina prep protocol | Fixed | FK from `sequencing.design_no` (`063`) |
 | `prep_automation` | 2 | Manual or automated prep | Fixed | Lookup |
+| `lab_status` | 65 | An allowed Status value on one lab sheet | By hand (`INSERT`) | FK target for the nine sheets' status columns, through their `status_sheet` column (`082`) |
 | `raw_data` | 8,010 | One FASTQ file | No current writer found | No new rows since July (§11 Q13) |
 | `rna_qc_kinnex` | 96 | Kinnex read QC, library × run | No current writer found | Keys: `061` |
 | `hifi_read_qc` | 279 | HiFi yield, library × run | ref repo `0b_push_hifi_yield_results_to_sqldb.py` | `sequencing_id` NULL where no single row matches |
@@ -241,7 +242,9 @@ Things a reader will otherwise get wrong. Each is also in the column comment.
 - **261 draft values exist only in `pre_v3_archive.draft_genomes`**: the `lambda_depth`-era
   host and partition values for the 260909 and 260925 batches. They are lost at R.8 unless
   backfilled first (`database_review.md` Finding 17.1).
-- **Lab status columns are free text.** `summary` reports the latest extraction or library per
+- **Lab status columns are checked against `lab_status`** (`082`). A value the lab enters that
+  is not in its sheet's list loads as NULL, with a `lookup` record in `import_quarantine` holding
+  the raw value. Add the value to `lab_status` and the next import fills it in. `summary` reports the latest extraction or library per
   technology: `status_overwrite` first, then the highest attempt number. Rows tied for latest
   (for example attempt 1 on two tissues) all show, comma-joined (`081`).
 
