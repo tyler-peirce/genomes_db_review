@@ -28,6 +28,7 @@ table	hic_read_qc
 table	hifi_read_qc
 table	illumina_library
 table	import_quarantine
+table	lab_status
 table	library
 table	master_species
 table	master_species_genome

@@ -1623,7 +1623,8 @@ CREATE TABLE public.dna_extraction (
     dna_notes text,
     status_overwrite boolean,
     extract_plate text,
-    extract_plate_well text
+    extract_plate_well text,
+    status_sheet text GENERATED ALWAYS AS ('dna_extraction'::text) STORED
 );
 
 
@@ -1831,6 +1832,13 @@ COMMENT ON COLUMN public.dna_extraction.extract_plate_well IS 'Spreadsheet heade
 
 
 --
+-- Name: COLUMN dna_extraction.status_sheet; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.dna_extraction.status_sheet IS 'Always ''dna_extraction'': names this table in lab_status, for the FK on status (082).';
+
+
+--
 -- Name: hic_library; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1855,7 +1863,8 @@ CREATE TABLE public.hic_library (
     nodup_cis_read_pairs_1kb real,
     expected_distinct_30m_reads bigint,
     hic_comments text,
-    status_overwrite boolean
+    status_overwrite boolean,
+    status_sheet text GENERATED ALWAYS AS ('hic_library'::text) STORED
 );
 
 
@@ -2014,6 +2023,13 @@ COMMENT ON COLUMN public.hic_library.status_overwrite IS 'Lab flag marking which
 
 
 --
+-- Name: COLUMN hic_library.status_sheet; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_library.status_sheet IS 'Always ''hic_library'': names this table in lab_status, for the FK on hic_status (082).';
+
+
+--
 -- Name: hic_lysate; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2032,7 +2048,8 @@ CREATE TABLE public.hic_lysate (
     prox_ligation_conc real,
     prox_ligation_yield real GENERATED ALWAYS AS ((prox_ligation_conc * (40)::double precision)) STORED,
     lysate_comments text,
-    status_overwrite boolean
+    status_overwrite boolean,
+    status_sheet text GENERATED ALWAYS AS ('hic_lysate'::text) STORED
 );
 
 
@@ -2149,6 +2166,13 @@ COMMENT ON COLUMN public.hic_lysate.status_overwrite IS 'Lab report flag. 4.HiCL
 
 
 --
+-- Name: COLUMN hic_lysate.status_sheet; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.hic_lysate.status_sheet IS 'Always ''hic_lysate'': names this table in lab_status, for the FK on lysate_status (082).';
+
+
+--
 -- Name: illumina_library; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2168,7 +2192,8 @@ CREATE TABLE public.illumina_library (
     index_idx text,
     library_qubit_conc real,
     il_comments text,
-    status_overwrite boolean
+    status_overwrite boolean,
+    status_sheet text GENERATED ALWAYS AS ('illumina_library'::text) STORED
 );
 
 
@@ -2289,6 +2314,13 @@ COMMENT ON COLUMN public.illumina_library.il_comments IS '"Comments".';
 --
 
 COMMENT ON COLUMN public.illumina_library.status_overwrite IS 'Lab flag marking which library to report. "Overwrite Status"; Y stored as true. Read by summary (backlog item 10).';
+
+
+--
+-- Name: COLUMN illumina_library.status_sheet; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.illumina_library.status_sheet IS 'Always ''illumina_library'': names this table in lab_status, for the FK on ilmn_status (082).';
 
 
 --
@@ -2825,7 +2857,8 @@ CREATE TABLE public.ont_library (
     library_id text,
     est_loading_size integer,
     ont_comments text,
-    status_overwrite boolean
+    status_overwrite boolean,
+    status_sheet text GENERATED ALWAYS AS ('ont_library'::text) STORED
 );
 
 
@@ -2914,6 +2947,13 @@ COMMENT ON COLUMN public.ont_library.status_overwrite IS 'Lab report flag. "Stat
 
 
 --
+-- Name: COLUMN ont_library.status_sheet; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ont_library.status_sheet IS 'Always ''ont_library'': names this table in lab_status, for the FK on ont_status (082).';
+
+
+--
 -- Name: pacbio_library; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2938,7 +2978,8 @@ CREATE TABLE public.pacbio_library (
     seq_av_size real,
     library_conc real,
     comment text,
-    status_overwrite boolean
+    status_overwrite boolean,
+    status_sheet text GENERATED ALWAYS AS ('pacbio_library'::text) STORED
 );
 
 
@@ -3097,6 +3138,13 @@ COMMENT ON COLUMN public.pacbio_library.status_overwrite IS 'Lab flag marking wh
 
 
 --
+-- Name: COLUMN pacbio_library.status_sheet; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pacbio_library.status_sheet IS 'Always ''pacbio_library'': names this table in lab_status, for the FK on pacb_status (082).';
+
+
+--
 -- Name: rna_extraction; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3127,7 +3175,8 @@ CREATE TABLE public.rna_extraction (
     rna_level text,
     rna_box text,
     rna_notes text,
-    status_overwrite boolean
+    status_overwrite boolean,
+    status_sheet text GENERATED ALWAYS AS ('rna_extraction'::text) STORED
 );
 
 
@@ -3328,6 +3377,13 @@ COMMENT ON COLUMN public.rna_extraction.status_overwrite IS 'Lab flag marking wh
 
 
 --
+-- Name: COLUMN rna_extraction.status_sheet; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_extraction.status_sheet IS 'Always ''rna_extraction'': names this table in lab_status, for the FK on status (082).';
+
+
+--
 -- Name: rna_library_ilmn; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3350,7 +3406,8 @@ CREATE TABLE public.rna_library_ilmn (
     status_overwrite boolean,
     final_plate_name text,
     final_plate_well text,
-    well_position text
+    well_position text,
+    status_sheet text GENERATED ALWAYS AS ('rna_library_ilmn'::text) STORED
 );
 
 
@@ -3495,6 +3552,13 @@ COMMENT ON COLUMN public.rna_library_ilmn.well_position IS 'Spreadsheet header "
 
 
 --
+-- Name: COLUMN rna_library_ilmn.status_sheet; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_ilmn.status_sheet IS 'Always ''rna_library_ilmn'': names this table in lab_status, for the FK on rna_status (082).';
+
+
+--
 -- Name: rna_library_kinx; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3518,7 +3582,8 @@ CREATE TABLE public.rna_library_kinx (
     plate_location text,
     sequencing_sample_id text,
     comments text,
-    status_overwrite boolean
+    status_overwrite boolean,
+    status_sheet text GENERATED ALWAYS AS ('rna_library_kinx'::text) STORED
 );
 
 
@@ -3667,6 +3732,13 @@ COMMENT ON COLUMN public.rna_library_kinx.comments IS '"Comments".';
 --
 
 COMMENT ON COLUMN public.rna_library_kinx.status_overwrite IS 'Lab report flag. "Overwrite Status" exists on 4.RNAkinnex but is empty, so this is empty on every row.';
+
+
+--
+-- Name: COLUMN rna_library_kinx.status_sheet; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.rna_library_kinx.status_sheet IS 'Always ''rna_library_kinx'': names this table in lab_status, for the FK on rna_status (082).';
 
 
 --
@@ -8675,6 +8747,46 @@ ALTER TABLE public.import_quarantine ALTER COLUMN quarantine_id ADD GENERATED AL
     NO MAXVALUE
     CACHE 1
 );
+
+
+--
+-- Name: lab_status; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.lab_status (
+    sheet text NOT NULL,
+    status text NOT NULL,
+    note text,
+    CONSTRAINT lab_status_sheet_check CHECK ((sheet = ANY (ARRAY['dna_extraction'::text, 'rna_extraction'::text, 'hic_lysate'::text, 'hic_library'::text, 'illumina_library'::text, 'pacbio_library'::text, 'ont_library'::text, 'rna_library_ilmn'::text, 'rna_library_kinx'::text])))
+);
+
+
+--
+-- Name: TABLE lab_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.lab_status IS 'The allowed values of each lab sheet''s Status column, one row per (sheet, status). Each sheet''s status column has an FK here through its status_sheet column (082). Add a row to allow a new stage; the importer (import_v2.py) matches case-blind and maps the variants in name_convert_v2.STATUS_VARIANTS.';
+
+
+--
+-- Name: COLUMN lab_status.sheet; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lab_status.sheet IS 'The table whose status column this value is allowed in.';
+
+
+--
+-- Name: COLUMN lab_status.status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lab_status.status IS 'The value, as stored.';
+
+
+--
+-- Name: COLUMN lab_status.note; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lab_status.note IS 'Optional: what the stage means, for the lab to fill in.';
 
 
 --
@@ -14017,6 +14129,14 @@ ALTER TABLE ONLY public.import_quarantine
 
 
 --
+-- Name: lab_status lab_status_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lab_status
+    ADD CONSTRAINT lab_status_pkey PRIMARY KEY (sheet, status);
+
+
+--
 -- Name: library library_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15229,6 +15349,14 @@ CREATE TRIGGER trg_lca_validation_report_view_upd INSTEAD OF UPDATE ON public.lc
 
 
 --
+-- Name: dna_extraction dna_extraction_status_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.dna_extraction
+    ADD CONSTRAINT dna_extraction_status_fkey FOREIGN KEY (status_sheet, status) REFERENCES public.lab_status(sheet, status);
+
+
+--
 -- Name: dna_extraction dna_extraction_tissue_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15389,6 +15517,22 @@ ALTER TABLE ONLY public.hic_library
 
 
 --
+-- Name: hic_library hic_library_status_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hic_library
+    ADD CONSTRAINT hic_library_status_fkey FOREIGN KEY (status_sheet, hic_status) REFERENCES public.lab_status(sheet, status);
+
+
+--
+-- Name: hic_lysate hic_lysate_status_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.hic_lysate
+    ADD CONSTRAINT hic_lysate_status_fkey FOREIGN KEY (status_sheet, lysate_status) REFERENCES public.lab_status(sheet, status);
+
+
+--
 -- Name: hic_lysate hic_lysate_tissue_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15466,6 +15610,14 @@ ALTER TABLE ONLY public.illumina_library
 
 ALTER TABLE ONLY public.illumina_library
     ADD CONSTRAINT illumina_library_registry_fkey FOREIGN KEY (illumina_library_tube_id, dna_id) REFERENCES public.library(library_tube_id, dna_id);
+
+
+--
+-- Name: illumina_library illumina_library_status_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.illumina_library
+    ADD CONSTRAINT illumina_library_status_fkey FOREIGN KEY (status_sheet, ilmn_status) REFERENCES public.lab_status(sheet, status);
 
 
 --
@@ -15629,6 +15781,14 @@ ALTER TABLE ONLY public.ont_library
 
 
 --
+-- Name: ont_library ont_library_status_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ont_library
+    ADD CONSTRAINT ont_library_status_fkey FOREIGN KEY (status_sheet, ont_status) REFERENCES public.lab_status(sheet, status);
+
+
+--
 -- Name: pacbio_library pacbio_library_dna_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15650,6 +15810,14 @@ ALTER TABLE ONLY public.pacbio_library
 
 ALTER TABLE ONLY public.pacbio_library
     ADD CONSTRAINT pacbio_library_registry_fkey FOREIGN KEY (pacbio_library_tube_id, dna_id) REFERENCES public.library(library_tube_id, dna_id);
+
+
+--
+-- Name: pacbio_library pacbio_library_status_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pacbio_library
+    ADD CONSTRAINT pacbio_library_status_fkey FOREIGN KEY (status_sheet, pacb_status) REFERENCES public.lab_status(sheet, status);
 
 
 --
@@ -15877,6 +16045,14 @@ ALTER TABLE ONLY public.ref_submission
 
 
 --
+-- Name: rna_extraction rna_extraction_status_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rna_extraction
+    ADD CONSTRAINT rna_extraction_status_fkey FOREIGN KEY (status_sheet, status) REFERENCES public.lab_status(sheet, status);
+
+
+--
 -- Name: rna_extraction rna_extraction_tissue_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15901,6 +16077,14 @@ ALTER TABLE ONLY public.rna_library_ilmn
 
 
 --
+-- Name: rna_library_ilmn rna_library_ilmn_status_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rna_library_ilmn
+    ADD CONSTRAINT rna_library_ilmn_status_fkey FOREIGN KEY (status_sheet, rna_status) REFERENCES public.lab_status(sheet, status);
+
+
+--
 -- Name: rna_library_kinx rna_library_kinx_registry_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15914,6 +16098,14 @@ ALTER TABLE ONLY public.rna_library_kinx
 
 ALTER TABLE ONLY public.rna_library_kinx
     ADD CONSTRAINT rna_library_kinx_rna_id_fkey FOREIGN KEY (rna_id) REFERENCES public.rna_extraction(rna_id);
+
+
+--
+-- Name: rna_library_kinx rna_library_kinx_status_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rna_library_kinx
+    ADD CONSTRAINT rna_library_kinx_status_fkey FOREIGN KEY (status_sheet, rna_status) REFERENCES public.lab_status(sheet, status);
 
 
 --

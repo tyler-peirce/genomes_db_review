@@ -50,6 +50,7 @@ CREATE UNIQUE INDEX illumina_library_pkey ON public.illumina_library USING btree
 CREATE INDEX import_quarantine_open_idx ON public.import_quarantine USING btree (source_table, last_seen DESC) WHERE (resolved_at IS NULL);
 CREATE UNIQUE INDEX import_quarantine_open_key ON public.import_quarantine USING btree (source_table, COALESCE(source_row_key, ''::text), violation_type) WHERE (resolved_at IS NULL);
 CREATE UNIQUE INDEX import_quarantine_pkey ON public.import_quarantine USING btree (quarantine_id);
+CREATE UNIQUE INDEX lab_status_pkey ON public.lab_status USING btree (sheet, status);
 CREATE INDEX library_dna_id_idx ON public.library USING btree (dna_id);
 CREATE INDEX library_lysate_id_idx ON public.library USING btree (lysate_id);
 CREATE UNIQUE INDEX library_pkey ON public.library USING btree (library_tube_id);
