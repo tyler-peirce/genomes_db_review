@@ -241,8 +241,9 @@ Things a reader will otherwise get wrong. Each is also in the column comment.
 - **261 draft values exist only in `pre_v3_archive.draft_genomes`**: the `lambda_depth`-era
   host and partition values for the 260909 and 260925 batches. They are lost at R.8 unless
   backfilled first (`database_review.md` Finding 17.1).
-- **Lab status columns are free text.** `summary` reports the one extraction or library per
-  specimen that has `status_overwrite`, otherwise the highest attempt number.
+- **Lab status columns are free text.** `summary` reports the latest extraction or library per
+  technology: `status_overwrite` first, then the highest attempt number. Rows tied for latest
+  (for example attempt 1 on two tissues) all show, comma-joined (`081`).
 
 ## Open decisions
 
