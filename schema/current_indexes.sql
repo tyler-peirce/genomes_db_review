@@ -106,6 +106,7 @@ CREATE UNIQUE INDEX ref_assembly_run_pkey ON public.ref_assembly_run USING btree
 CREATE INDEX ref_assembly_run_sequencing_id_idx ON public.ref_assembly_run USING btree (sequencing_id);
 CREATE UNIQUE INDEX ref_busco_pkey ON public.ref_busco USING btree (part_id);
 CREATE UNIQUE INDEX ref_chromosome_stats_pkey ON public.ref_chromosome_stats USING btree (part_id);
+CREATE UNIQUE INDEX ref_decontamination_pkey ON public.ref_decontamination USING btree (part_id);
 CREATE UNIQUE INDEX ref_genomescope_pkey ON public.ref_genomescope USING btree (read_set_id);
 CREATE UNIQUE INDEX ref_gfastats_pkey ON public.ref_gfastats USING btree (part_id);
 CREATE UNIQUE INDEX ref_hifi_adapter_filter_pkey ON public.ref_hifi_adapter_filter USING btree (read_set_id);

@@ -10598,6 +10598,151 @@ COMMENT ON COLUMN public.ref_chromosome_stats.loaded_at IS 'When the row was las
 
 
 --
+-- Name: ref_decontamination; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ref_decontamination (
+    part_id bigint NOT NULL,
+    input_seqs integer,
+    input_bp bigint,
+    fcs_exclude_seqs integer,
+    fcs_exclude_bp bigint,
+    fcs_trim_seqs integer,
+    fcs_trim_bp bigint,
+    fcs_fix_seqs integer,
+    fcs_review_seqs integer,
+    tiara_mito_seqs integer,
+    tiara_mito_bp bigint,
+    tiara_plastid_seqs integer,
+    tiara_plastid_bp bigint,
+    tiara_prokaryote_seqs integer,
+    tiara_prokaryote_bp bigint,
+    loaded_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ref_decontamination_has_value CHECK ((num_nonnulls(input_seqs, input_bp, fcs_exclude_seqs, fcs_exclude_bp, fcs_trim_seqs, fcs_trim_bp, fcs_fix_seqs, fcs_review_seqs, tiara_mito_seqs, tiara_mito_bp, tiara_plastid_seqs, tiara_plastid_bp, tiara_prokaryote_seqs, tiara_prokaryote_bp) > 0)),
+    CONSTRAINT ref_decontamination_non_negative CHECK (((COALESCE(LEAST(input_seqs, fcs_exclude_seqs, fcs_trim_seqs, fcs_fix_seqs, fcs_review_seqs, tiara_mito_seqs, tiara_plastid_seqs, tiara_prokaryote_seqs), 0) >= 0) AND (COALESCE(LEAST(input_bp, fcs_exclude_bp, fcs_trim_bp, tiara_mito_bp, tiara_plastid_bp, tiara_prokaryote_bp), (0)::bigint) >= 0)))
+);
+
+
+--
+-- Name: TABLE ref_decontamination; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ref_decontamination IS 'What decontamination removed from one haplotype (part at stage 2, hap1/hap2): FCS-GX actions and Tiara removals, with the YaHS input they were given. Written by the ref-genomes pipeline''s 06_decontam_compile.py and 06a_push_decontam_results_to_sqldb.py (083).';
+
+
+--
+-- Name: COLUMN ref_decontamination.part_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_decontamination.part_id IS 'The decontaminated part (stage 2, hap1 or hap2).';
+
+
+--
+-- Name: COLUMN ref_decontamination.input_seqs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_decontamination.input_seqs IS 'Scaffolds in the YaHS haplotype given to FCS-GX.';
+
+
+--
+-- Name: COLUMN ref_decontamination.input_bp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_decontamination.input_bp IS 'Total length of those scaffolds, bp.';
+
+
+--
+-- Name: COLUMN ref_decontamination.fcs_exclude_seqs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_decontamination.fcs_exclude_seqs IS 'FCS-GX EXCLUDE: whole sequences removed as contamination.';
+
+
+--
+-- Name: COLUMN ref_decontamination.fcs_exclude_bp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_decontamination.fcs_exclude_bp IS 'bp of the EXCLUDE rows (end - start + 1).';
+
+
+--
+-- Name: COLUMN ref_decontamination.fcs_trim_seqs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_decontamination.fcs_trim_seqs IS 'FCS-GX TRIM: sequences with a contaminated end trimmed off (distinct sequences).';
+
+
+--
+-- Name: COLUMN ref_decontamination.fcs_trim_bp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_decontamination.fcs_trim_bp IS 'bp trimmed (end - start + 1 of the TRIM rows).';
+
+
+--
+-- Name: COLUMN ref_decontamination.fcs_fix_seqs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_decontamination.fcs_fix_seqs IS 'FCS-GX FIX: sequences with an internal contaminated span (distinct sequences); counted, not removed by cleangenome.';
+
+
+--
+-- Name: COLUMN ref_decontamination.fcs_review_seqs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_decontamination.fcs_review_seqs IS 'FCS-GX REVIEW: sequences flagged for a look; not removed.';
+
+
+--
+-- Name: COLUMN ref_decontamination.tiara_mito_seqs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_decontamination.tiara_mito_seqs IS 'Contigs Tiara classed mitochondrion and removed. These are mitogenome copies, not contamination.';
+
+
+--
+-- Name: COLUMN ref_decontamination.tiara_mito_bp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_decontamination.tiara_mito_bp IS 'Their total length, bp, from the YaHS scaffolds.';
+
+
+--
+-- Name: COLUMN ref_decontamination.tiara_plastid_seqs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_decontamination.tiara_plastid_seqs IS 'Contigs Tiara classed plastid and removed.';
+
+
+--
+-- Name: COLUMN ref_decontamination.tiara_plastid_bp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_decontamination.tiara_plastid_bp IS 'Their total length, bp.';
+
+
+--
+-- Name: COLUMN ref_decontamination.tiara_prokaryote_seqs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_decontamination.tiara_prokaryote_seqs IS 'Contigs Tiara classed prokarya, bacteria or archaea and removed.';
+
+
+--
+-- Name: COLUMN ref_decontamination.tiara_prokaryote_bp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_decontamination.tiara_prokaryote_bp IS 'Their total length, bp.';
+
+
+--
+-- Name: COLUMN ref_decontamination.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_decontamination.loaded_at IS 'When this row was last written.';
+
+
+--
 -- Name: ref_gfastats; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -14440,6 +14585,14 @@ ALTER TABLE ONLY public.ref_chromosome_stats
 
 
 --
+-- Name: ref_decontamination ref_decontamination_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ref_decontamination
+    ADD CONSTRAINT ref_decontamination_pkey PRIMARY KEY (part_id);
+
+
+--
 -- Name: ref_genomescope ref_genomescope_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15890,6 +16043,14 @@ ALTER TABLE ONLY public.ref_busco
 
 ALTER TABLE ONLY public.ref_chromosome_stats
     ADD CONSTRAINT ref_chromosome_stats_part_id_fkey FOREIGN KEY (part_id) REFERENCES public.ref_assembly_part(part_id) ON DELETE CASCADE;
+
+
+--
+-- Name: ref_decontamination ref_decontamination_part_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ref_decontamination
+    ADD CONSTRAINT ref_decontamination_part_id_fkey FOREIGN KEY (part_id) REFERENCES public.ref_assembly_part(part_id) ON DELETE CASCADE;
 
 
 --

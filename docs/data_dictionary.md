@@ -149,7 +149,8 @@ ref_read_set ─┬─ ref_read_set_run ── sequencing      ref_stage
 ref_assembly ─┬─ ref_assembly_run ── sequencing           │
               └─ ref_assembly_part (stage × haplotype) ───┘
                    └─ ref_gfastats, ref_busco, ref_merqury_qv, ref_merqury_completeness,
-                      ref_omnic, ref_seqkit_stats, ref_chromosome_stats   (one per tool)
+                      ref_omnic, ref_seqkit_stats, ref_chromosome_stats,
+                      ref_decontamination   (one per tool)
 
 ref_submission ─┬─ ref_submission_haplotype
                 └─ ref_sra_upload ─┬─ ref_sra_upload_run ── sequencing
@@ -168,6 +169,7 @@ ref_submission ─┬─ ref_submission_haplotype
 | `ref_omnic` | 576 | Hi-C mapping QC (pairtools stats) | `05a_push_omnic_results_to_sqldb.py` |
 | `ref_seqkit_stats` | 300 | seqkit stats of the curated FASTA | post-curation `05a_push_stats_compiled_results_to_sql.py` |
 | `ref_chromosome_stats` | 300 | Chromosome assignment after curation | post-curation `06b_push_percentage_stats_to_sqldb.py` |
+| `ref_decontamination` | 306 | What FCS-GX and Tiara removed from one stage-2 haplotype, with the YaHS input (`083`) | `06_decontam_compile.py` + `06a_push_decontam_results_to_sqldb.py` |
 | `ref_read_set` | 249 | A HiFi read set one run of the pipeline used | `refdb.py` |
 | `ref_read_set_run` / `ref_read_set_external` | 266 / 1 | Its PacBio rows, or why it has none | `refdb.py` / by hand (`071`) |
 | `ref_genomescope` / `ref_hifi_adapter_filter` | 249 / 143 | Read-set k-mer profile / adapter filter | `01a_*`, `0a_*` push scripts |

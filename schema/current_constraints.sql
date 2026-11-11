@@ -201,6 +201,10 @@ ALTER TABLE public.ref_busco ADD CONSTRAINT ref_busco_pkey PRIMARY KEY (part_id)
 ALTER TABLE public.ref_chromosome_stats ADD CONSTRAINT ref_chromosome_stats_has_value CHECK (num_nonnulls(num_chromosomes, pct_assigned, pct_no_super, num_seq_no_super, max_len_no_super) > 0);
 ALTER TABLE public.ref_chromosome_stats ADD CONSTRAINT ref_chromosome_stats_part_id_fkey FOREIGN KEY (part_id) REFERENCES ref_assembly_part(part_id) ON DELETE CASCADE;
 ALTER TABLE public.ref_chromosome_stats ADD CONSTRAINT ref_chromosome_stats_pkey PRIMARY KEY (part_id);
+ALTER TABLE public.ref_decontamination ADD CONSTRAINT ref_decontamination_has_value CHECK (num_nonnulls(input_seqs, input_bp, fcs_exclude_seqs, fcs_exclude_bp, fcs_trim_seqs, fcs_trim_bp, fcs_fix_seqs, fcs_review_seqs, tiara_mito_seqs, tiara_mito_bp, tiara_plastid_seqs, tiara_plastid_bp, tiara_prokaryote_seqs, tiara_prokaryote_bp) > 0);
+ALTER TABLE public.ref_decontamination ADD CONSTRAINT ref_decontamination_non_negative CHECK (COALESCE(LEAST(input_seqs, fcs_exclude_seqs, fcs_trim_seqs, fcs_fix_seqs, fcs_review_seqs, tiara_mito_seqs, tiara_plastid_seqs, tiara_prokaryote_seqs), 0) >= 0 AND COALESCE(LEAST(input_bp, fcs_exclude_bp, fcs_trim_bp, tiara_mito_bp, tiara_plastid_bp, tiara_prokaryote_bp), 0::bigint) >= 0);
+ALTER TABLE public.ref_decontamination ADD CONSTRAINT ref_decontamination_part_id_fkey FOREIGN KEY (part_id) REFERENCES ref_assembly_part(part_id) ON DELETE CASCADE;
+ALTER TABLE public.ref_decontamination ADD CONSTRAINT ref_decontamination_pkey PRIMARY KEY (part_id);
 ALTER TABLE public.ref_genomescope ADD CONSTRAINT ref_genomescope_has_value CHECK (num_nonnulls(homozygosity, heterozygosity, genomesize, repeatsize, uniquesize, modelfit, errorrate) > 0);
 ALTER TABLE public.ref_genomescope ADD CONSTRAINT ref_genomescope_pkey PRIMARY KEY (read_set_id);
 ALTER TABLE public.ref_genomescope ADD CONSTRAINT ref_genomescope_read_set_id_fkey FOREIGN KEY (read_set_id) REFERENCES ref_read_set(read_set_id) ON DELETE CASCADE;
