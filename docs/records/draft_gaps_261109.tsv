@@ -1,0 +1,3204 @@
+og_id	seq_date	family	state	missing_inputs
+OG1	230814	gfastats	rerun	
+OG1	230814	depth	superseded_scdepth	
+OG1	230814	verdict	rerun_missing_input	kmer_depth
+OG2	240716	gfastats	rerun	
+OG2	240716	depth	superseded_scdepth	
+OG2	240716	verdict	rerun_missing_input	kmer_depth
+OG2	250514	busco	backfill	
+OG2	250514	merqury	backfill	
+OG2	250514	gfastats	rerun	
+OG2	250514	depth	rerun_missing_input	bam
+OG2	250514	verdict	rerun_missing_input	kmer_depth
+OG3	230620	genomescope	reassemble	
+OG3	230620	tiara	reassemble	fna|s3_fna
+OG3	230620	contamination	reassemble	fna|s3_fna
+OG3	230620	busco	reassemble	fna|s3_fna
+OG3	230620	merqury	reassemble	fna|s3_fna
+OG3	230620	gfastats	reassemble	fna|s3_fna
+OG3	230620	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG3	230620	verdict	reassemble	genomescope_model,kmer_depth
+OG3	230814	gfastats	rerun	
+OG3	230814	depth	superseded_scdepth	
+OG3	230814	verdict	rerun_missing_input	kmer_depth
+OG4	230814	gfastats	rerun	
+OG4	230814	depth	superseded_scdepth	
+OG4	230814	verdict	rerun_missing_input	kmer_depth
+OG5	230620	gfastats	rerun	
+OG5	230620	depth	superseded_scdepth	
+OG5	230620	verdict	rerun_missing_input	kmer_depth
+OG6	230814	gfastats	rerun	
+OG6	230814	depth	superseded_scdepth	
+OG6	230814	verdict	rerun_missing_input	kmer_depth
+OG7	231024	gfastats	rerun	
+OG7	231024	depth	superseded_scdepth	
+OG7	231024	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG8	230302	gfastats	rerun	
+OG8	230302	depth	superseded_scdepth	
+OG8	230302	verdict	rerun_missing_input	kmer_depth
+OG9	230814	gfastats	rerun	
+OG9	230814	depth	superseded_scdepth	
+OG9	230814	verdict	rerun_missing_input	kmer_depth
+OG10	230302	gfastats	rerun	
+OG10	230302	depth	superseded_scdepth	
+OG10	230302	verdict	rerun_missing_input	kmer_depth
+OG11	230814	gfastats	rerun	
+OG11	230814	depth	superseded_scdepth	
+OG11	230814	verdict	rerun_missing_input	kmer_depth
+OG12	230620	genomescope	reassemble	
+OG12	230620	tiara	reassemble	fna|s3_fna
+OG12	230620	contamination	reassemble	fna|s3_fna
+OG12	230620	busco	reassemble	fna|s3_fna
+OG12	230620	merqury	reassemble	fna|s3_fna
+OG12	230620	gfastats	reassemble	fna|s3_fna
+OG12	230620	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG12	230620	verdict	reassemble	genomescope_model,kmer_depth
+OG12	230814	gfastats	rerun	
+OG12	230814	depth	superseded_scdepth	
+OG12	230814	verdict	rerun_missing_input	kmer_depth
+OG13	230302	gfastats	rerun	
+OG13	230302	depth	superseded_scdepth	
+OG13	230302	verdict	rerun_missing_input	kmer_depth
+OG14	230302	gfastats	rerun	
+OG14	230302	depth	superseded_scdepth	
+OG14	230302	verdict	rerun_missing_input	kmer_depth
+OG15	230620	genomescope	reassemble	
+OG15	230620	tiara	reassemble	fna|s3_fna
+OG15	230620	contamination	reassemble	fna|s3_fna
+OG15	230620	busco	reassemble	fna|s3_fna
+OG15	230620	merqury	reassemble	fna|s3_fna
+OG15	230620	gfastats	reassemble	fna|s3_fna
+OG15	230620	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG15	230620	verdict	reassemble	genomescope_model,kmer_depth
+OG15	230814	gfastats	rerun	
+OG15	230814	depth	superseded_scdepth	
+OG15	230814	verdict	rerun_missing_input	kmer_depth
+OG16	230814	gfastats	rerun	
+OG16	230814	depth	superseded_scdepth	
+OG16	230814	verdict	rerun_missing_input	kmer_depth
+OG17	231024	gfastats	rerun	
+OG17	231024	depth	superseded_scdepth	
+OG17	231024	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG18	230814	gfastats	rerun	
+OG18	230814	depth	superseded_scdepth	
+OG18	230814	verdict	rerun_missing_input	kmer_depth
+OG19	230814	gfastats	rerun	
+OG19	230814	depth	superseded_scdepth	
+OG19	230814	verdict	rerun_missing_input	kmer_depth
+OG20	230814	gfastats	rerun	
+OG20	230814	depth	superseded_scdepth	
+OG20	230814	verdict	rerun_missing_input	kmer_depth
+OG21	230814	gfastats	rerun	
+OG21	230814	depth	superseded_scdepth	
+OG21	230814	verdict	rerun_missing_input	kmer_depth
+OG22	230814	gfastats	rerun	
+OG22	230814	depth	superseded_scdepth	
+OG22	230814	verdict	rerun_missing_input	kmer_depth
+OG23	230814	gfastats	rerun	
+OG23	230814	depth	superseded_scdepth	
+OG23	230814	verdict	rerun_missing_input	kmer_depth
+OG24	230814	gfastats	rerun	
+OG24	230814	depth	superseded_scdepth	
+OG24	230814	verdict	rerun_missing_input	kmer_depth
+OG25	230814	gfastats	rerun	
+OG25	230814	depth	superseded_scdepth	
+OG25	230814	verdict	rerun_missing_input	kmer_depth
+OG26	240813	gfastats	rerun	
+OG26	240813	depth	superseded_scdepth	
+OG26	240813	verdict	rerun_missing_input	kmer_depth
+OG27	230620	gfastats	rerun	
+OG27	230620	depth	superseded_scdepth	
+OG27	230620	verdict	rerun_missing_input	kmer_depth
+OG28	231024	gfastats	rerun	
+OG28	231024	depth	superseded_scdepth	
+OG28	231024	verdict	rerun_missing_input	kmer_depth
+OG29	240813	gfastats	rerun	
+OG29	240813	depth	superseded_scdepth	
+OG29	240813	verdict	rerun_missing_input	kmer_depth
+OG30	230814	gfastats	rerun	
+OG30	230814	depth	superseded_scdepth	
+OG30	230814	verdict	rerun_missing_input	kmer_depth
+OG31	240716	gfastats	rerun	
+OG31	240716	depth	superseded_scdepth	
+OG31	240716	verdict	rerun_missing_input	kmer_depth
+OG32	240716	gfastats	rerun	
+OG32	240716	depth	superseded_scdepth	
+OG32	240716	verdict	rerun_missing_input	kmer_depth
+OG33	240716	gfastats	rerun	
+OG33	240716	depth	superseded_scdepth	
+OG33	240716	verdict	rerun_missing_input	kmer_depth
+OG34	230620	gfastats	rerun	
+OG34	230620	depth	superseded_scdepth	
+OG34	230620	verdict	rerun_missing_input	kmer_depth
+OG35	230620	gfastats	rerun	
+OG35	230620	depth	superseded_scdepth	
+OG35	230620	verdict	rerun_missing_input	kmer_depth
+OG36	230620	gfastats	rerun	
+OG36	230620	depth	superseded_scdepth	
+OG36	230620	verdict	rerun_missing_input	kmer_depth
+OG37	240716	gfastats	rerun	
+OG37	240716	depth	superseded_scdepth	
+OG37	240716	verdict	rerun_missing_input	kmer_depth
+OG38	231024	gfastats	rerun	
+OG38	231024	depth	superseded_scdepth	
+OG38	231024	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG39	231024	gfastats	rerun	
+OG39	231024	depth	superseded_scdepth	
+OG39	231024	verdict	rerun_missing_input	kmer_depth
+OG40	231024	gfastats	rerun	
+OG40	231024	depth	superseded_scdepth	
+OG40	231024	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG44	231024	gfastats	rerun	
+OG44	231024	depth	superseded_scdepth	
+OG44	231024	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG45	250514	busco	backfill	
+OG45	250514	merqury	backfill	
+OG45	250514	gfastats	rerun	
+OG45	250514	depth	rerun	
+OG45	250514	verdict	rerun_missing_input	kmer_depth
+OG48	250331	gfastats	rerun	
+OG48	250331	depth	superseded_scdepth	
+OG48	250331	verdict	rerun_missing_input	kmer_depth
+OG49	230814	gfastats	rerun	
+OG49	230814	depth	superseded_scdepth	
+OG49	230814	verdict	rerun_missing_input	kmer_depth
+OG50	230814	gfastats	rerun	
+OG50	230814	depth	superseded_scdepth	
+OG50	230814	verdict	rerun_missing_input	kmer_depth
+OG51	240313	gfastats	rerun	
+OG51	240313	depth	superseded_scdepth	
+OG51	240313	verdict	rerun_missing_input	kmer_depth
+OG52	231024	gfastats	rerun	
+OG52	231024	depth	superseded_scdepth	
+OG52	231024	verdict	rerun_missing_input	kmer_depth
+OG53	231024	gfastats	rerun	
+OG53	231024	depth	superseded_scdepth	
+OG53	231024	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG55	250331	gfastats	rerun	
+OG55	250331	depth	superseded_scdepth	
+OG55	250331	verdict	rerun_missing_input	kmer_depth
+OG56	231024	gfastats	rerun	
+OG56	231024	depth	superseded_scdepth	
+OG56	231024	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG57	231024	gfastats	rerun	
+OG57	231024	depth	superseded_scdepth	
+OG57	231024	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG59	240716	gfastats	rerun	
+OG59	240716	depth	superseded_scdepth	
+OG59	240716	verdict	rerun_missing_input	kmer_depth
+OG61	250331	gfastats	rerun	
+OG61	250331	depth	superseded_scdepth	
+OG61	250331	verdict	rerun_missing_input	kmer_depth
+OG63	240716	gfastats	rerun	
+OG63	240716	depth	superseded_scdepth	
+OG63	240716	verdict	rerun_missing_input	kmer_depth
+OG64	250331	gfastats	rerun	
+OG64	250331	depth	superseded_scdepth	
+OG64	250331	verdict	rerun_missing_input	kmer_depth
+OG66	240716	gfastats	rerun	
+OG66	240716	depth	superseded_scdepth	
+OG66	240716	verdict	rerun_missing_input	kmer_depth
+OG66	250514	busco	backfill	
+OG66	250514	merqury	backfill	
+OG66	250514	gfastats	rerun	
+OG66	250514	depth	rerun_missing_input	bam
+OG66	250514	verdict	rerun_missing_input	kmer_depth
+OG68	230814	gfastats	rerun	
+OG68	230814	depth	superseded_scdepth	
+OG68	230814	verdict	rerun_missing_input	kmer_depth
+OG69	250514	busco	backfill	
+OG69	250514	merqury	backfill	
+OG69	250514	gfastats	rerun	
+OG69	250514	depth	rerun	
+OG69	250514	verdict	rerun_missing_input	kmer_depth
+OG71	240813	gfastats	rerun	
+OG71	240813	depth	superseded_scdepth	
+OG71	240813	verdict	rerun_missing_input	kmer_depth
+OG73	250331	gfastats	rerun	
+OG73	250331	depth	superseded_scdepth	
+OG73	250331	verdict	rerun_missing_input	kmer_depth
+OG74	240813	gfastats	rerun	
+OG74	240813	depth	superseded_scdepth	
+OG74	240813	verdict	rerun_missing_input	kmer_depth
+OG76	230814	gfastats	rerun	
+OG76	230814	depth	superseded_scdepth	
+OG76	230814	verdict	rerun_missing_input	kmer_depth
+OG79	250331	gfastats	rerun	
+OG79	250331	depth	superseded_scdepth	
+OG79	250331	verdict	rerun_missing_input	kmer_depth
+OG80	240716	gfastats	rerun	
+OG80	240716	depth	superseded_scdepth	
+OG80	240716	verdict	rerun_missing_input	kmer_depth
+OG80	250514	busco	backfill	
+OG80	250514	merqury	backfill	
+OG80	250514	gfastats	rerun	
+OG80	250514	depth	rerun_missing_input	bam
+OG80	250514	verdict	rerun_missing_input	kmer_depth
+OG82	240313	gfastats	rerun	
+OG82	240313	depth	superseded_scdepth	
+OG82	240313	verdict	rerun_missing_input	kmer_depth
+OG83	240716	gfastats	rerun	
+OG83	240716	depth	superseded_scdepth	
+OG83	240716	verdict	rerun_missing_input	kmer_depth
+OG83	250514	busco	backfill	
+OG83	250514	merqury	backfill	
+OG83	250514	gfastats	rerun	
+OG83	250514	depth	rerun_missing_input	bam
+OG83	250514	verdict	rerun_missing_input	kmer_depth
+OG85	240313	gfastats	rerun	
+OG85	240313	depth	superseded_scdepth	
+OG85	240313	verdict	rerun_missing_input	kmer_depth
+OG86	240716	gfastats	rerun	
+OG86	240716	depth	superseded_scdepth	
+OG86	240716	verdict	rerun_missing_input	kmer_depth
+OG87	231024	gfastats	rerun	
+OG87	231024	depth	superseded_scdepth	
+OG87	231024	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG88	230814	gfastats	rerun	
+OG88	230814	depth	superseded_scdepth	
+OG88	230814	verdict	rerun_missing_input	kmer_depth
+OG89	240716	gfastats	rerun	
+OG89	240716	depth	superseded_scdepth	
+OG89	240716	verdict	rerun_missing_input	kmer_depth
+OG91	240313	gfastats	rerun	
+OG91	240313	depth	superseded_scdepth	
+OG91	240313	verdict	rerun_missing_input	kmer_depth
+OG92	250514	busco	backfill	
+OG92	250514	merqury	backfill	
+OG92	250514	gfastats	rerun	
+OG92	250514	depth	rerun	
+OG92	250514	verdict	rerun_missing_input	kmer_depth
+OG93	250514	busco	backfill	
+OG93	250514	merqury	backfill	
+OG93	250514	gfastats	rerun	
+OG93	250514	depth	rerun	
+OG93	250514	verdict	rerun_missing_input	kmer_depth
+OG95	230620	gfastats	rerun	
+OG95	230620	depth	superseded_scdepth	
+OG95	230620	verdict	rerun_missing_input	kmer_depth
+OG97	250331	gfastats	rerun	
+OG97	250331	depth	superseded_scdepth	
+OG97	250331	verdict	rerun_missing_input	kmer_depth
+OG99	231024	gfastats	rerun	
+OG99	231024	depth	superseded_scdepth	
+OG99	231024	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG100	231024	gfastats	rerun	
+OG100	231024	depth	superseded_scdepth	
+OG100	231024	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG101	231024	gfastats	rerun	
+OG101	231024	depth	superseded_scdepth	
+OG101	231024	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG102	250514	busco	backfill	
+OG102	250514	merqury	backfill	
+OG102	250514	gfastats	rerun	
+OG102	250514	depth	rerun	
+OG102	250514	verdict	rerun_missing_input	kmer_depth
+OG103	240313	gfastats	rerun	
+OG103	240313	depth	superseded_scdepth	
+OG103	240313	verdict	rerun_missing_input	kmer_depth
+OG105	231024	gfastats	rerun	
+OG105	231024	depth	superseded_scdepth	
+OG105	231024	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG107	231024	gfastats	rerun	
+OG107	231024	depth	superseded_scdepth	
+OG107	231024	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG108	231024	gfastats	rerun	
+OG108	231024	depth	superseded_scdepth	
+OG108	231024	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG110	240716	gfastats	rerun	
+OG110	240716	depth	superseded_scdepth	
+OG110	240716	verdict	rerun_missing_input	kmer_depth
+OG111	231024	gfastats	rerun	
+OG111	231024	depth	superseded_scdepth	
+OG111	231024	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG112	250331	gfastats	rerun	
+OG112	250331	depth	superseded_scdepth	
+OG112	250331	verdict	rerun_missing_input	kmer_depth
+OG113	231024	gfastats	rerun	
+OG113	231024	depth	superseded_scdepth	
+OG113	231024	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG114	231024	gfastats	rerun	
+OG114	231024	depth	superseded_scdepth	
+OG114	231024	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG115	231024	gfastats	rerun	
+OG115	231024	depth	superseded_scdepth	
+OG115	231024	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG116	240313	gfastats	rerun	
+OG116	240313	depth	superseded_scdepth	
+OG116	240313	verdict	rerun_missing_input	kmer_depth
+OG117	240313	gfastats	rerun	
+OG117	240313	depth	superseded_scdepth	
+OG117	240313	verdict	rerun_missing_input	kmer_depth
+OG118	240313	gfastats	rerun	
+OG118	240313	depth	superseded_scdepth	
+OG118	240313	verdict	rerun_missing_input	kmer_depth
+OG119	240313	gfastats	rerun	
+OG119	240313	depth	superseded_scdepth	
+OG119	240313	verdict	rerun_missing_input	kmer_depth
+OG120	230620	gfastats	rerun	
+OG120	230620	depth	superseded_scdepth	
+OG120	230620	verdict	rerun_missing_input	kmer_depth
+OG121	230620	gfastats	rerun	
+OG121	230620	depth	superseded_scdepth	
+OG121	230620	verdict	rerun_missing_input	kmer_depth
+OG122	230620	gfastats	rerun	
+OG122	230620	depth	superseded_scdepth	
+OG122	230620	verdict	rerun_missing_input	kmer_depth
+OG123	230620	gfastats	rerun	
+OG123	230620	depth	superseded_scdepth	
+OG123	230620	verdict	rerun_missing_input	kmer_depth
+OG124	230620	gfastats	rerun	
+OG124	230620	depth	superseded_scdepth	
+OG124	230620	verdict	rerun_missing_input	kmer_depth
+OG125	230620	gfastats	rerun	
+OG125	230620	depth	superseded_scdepth	
+OG125	230620	verdict	rerun_missing_input	kmer_depth
+OG126	230620	gfastats	rerun	
+OG126	230620	depth	superseded_scdepth	
+OG126	230620	verdict	rerun_missing_input	kmer_depth
+OG127	230620	gfastats	rerun	
+OG127	230620	depth	superseded_scdepth	
+OG127	230620	verdict	rerun_missing_input	kmer_depth
+OG128	230620	gfastats	rerun	
+OG128	230620	depth	superseded_scdepth	
+OG128	230620	verdict	rerun_missing_input	kmer_depth
+OG129	230620	gfastats	rerun	
+OG129	230620	depth	superseded_scdepth	
+OG129	230620	verdict	rerun_missing_input	kmer_depth
+OG130	230620	gfastats	rerun	
+OG130	230620	depth	superseded_scdepth	
+OG130	230620	verdict	rerun_missing_input	kmer_depth
+OG131	230620	gfastats	rerun	
+OG131	230620	depth	superseded_scdepth	
+OG131	230620	verdict	rerun_missing_input	kmer_depth
+OG132	250514	busco	backfill	
+OG132	250514	merqury	backfill	
+OG132	250514	gfastats	rerun	
+OG132	250514	depth	rerun	
+OG132	250514	verdict	rerun_missing_input	kmer_depth
+OG133	250514	busco	backfill	
+OG133	250514	merqury	backfill	
+OG133	250514	gfastats	rerun	
+OG133	250514	depth	rerun	
+OG133	250514	verdict	rerun_missing_input	kmer_depth
+OG134	250514	busco	backfill	
+OG134	250514	merqury	backfill	
+OG134	250514	gfastats	rerun	
+OG134	250514	depth	rerun	
+OG134	250514	verdict	rerun_missing_input	kmer_depth
+OG135	250514	busco	backfill	
+OG135	250514	merqury	backfill	
+OG135	250514	gfastats	rerun	
+OG135	250514	depth	rerun	
+OG135	250514	verdict	rerun_missing_input	kmer_depth
+OG136	250514	busco	backfill	
+OG136	250514	merqury	backfill	
+OG136	250514	gfastats	rerun	
+OG136	250514	depth	rerun	
+OG136	250514	verdict	rerun_missing_input	kmer_depth
+OG138	250514	busco	backfill	
+OG138	250514	merqury	backfill	
+OG138	250514	gfastats	rerun	
+OG138	250514	depth	rerun	
+OG138	250514	verdict	rerun_missing_input	kmer_depth
+OG139	250514	busco	backfill	
+OG139	250514	merqury	backfill	
+OG139	250514	gfastats	rerun	
+OG139	250514	depth	rerun	
+OG139	250514	verdict	rerun_missing_input	kmer_depth
+OG140	250514	busco	backfill	
+OG140	250514	merqury	backfill	
+OG140	250514	gfastats	rerun	
+OG140	250514	depth	rerun	
+OG140	250514	verdict	rerun_missing_input	kmer_depth
+OG141	250514	busco	backfill	
+OG141	250514	merqury	backfill	
+OG141	250514	gfastats	rerun	
+OG141	250514	depth	rerun	
+OG141	250514	verdict	rerun_missing_input	kmer_depth
+OG142	250514	busco	backfill	
+OG142	250514	merqury	backfill	
+OG142	250514	gfastats	rerun	
+OG142	250514	depth	rerun	
+OG142	250514	verdict	rerun_missing_input	kmer_depth
+OG143	250514	busco	backfill	
+OG143	250514	merqury	backfill	
+OG143	250514	gfastats	rerun	
+OG143	250514	depth	rerun	
+OG143	250514	verdict	rerun_missing_input	kmer_depth
+OG144	250515	gfastats	rerun	
+OG144	250515	depth	superseded_scdepth	
+OG144	250515	verdict	rerun_missing_input	kmer_depth
+OG145	250515	gfastats	rerun	
+OG145	250515	depth	superseded_scdepth	
+OG145	250515	verdict	rerun_missing_input	kmer_depth
+OG146	250515	gfastats	rerun	
+OG146	250515	depth	superseded_scdepth	
+OG146	250515	verdict	rerun_missing_input	kmer_depth
+OG147	250515	gfastats	rerun	
+OG147	250515	depth	superseded_scdepth	
+OG147	250515	verdict	rerun_missing_input	kmer_depth
+OG148	250515	gfastats	rerun	
+OG148	250515	depth	superseded_scdepth	
+OG148	250515	verdict	rerun_missing_input	kmer_depth
+OG149	250515	gfastats	rerun	
+OG149	250515	depth	superseded_scdepth	
+OG149	250515	verdict	rerun_missing_input	kmer_depth
+OG150	250515	gfastats	rerun	
+OG150	250515	depth	superseded_scdepth	
+OG150	250515	verdict	rerun_missing_input	kmer_depth
+OG151	250515	gfastats	rerun	
+OG151	250515	depth	superseded_scdepth	
+OG151	250515	verdict	rerun_missing_input	kmer_depth
+OG152	250515	gfastats	rerun	
+OG152	250515	depth	superseded_scdepth	
+OG152	250515	verdict	rerun_missing_input	kmer_depth
+OG153	250515	gfastats	rerun	
+OG153	250515	depth	superseded_scdepth	
+OG153	250515	verdict	rerun_missing_input	kmer_depth
+OG154	250515	gfastats	rerun	
+OG154	250515	depth	superseded_scdepth	
+OG154	250515	verdict	rerun_missing_input	kmer_depth
+OG155	250515	gfastats	rerun	
+OG155	250515	depth	superseded_scdepth	
+OG155	250515	verdict	rerun_missing_input	kmer_depth
+OG156	250515	gfastats	rerun	
+OG156	250515	depth	superseded_scdepth	
+OG156	250515	verdict	rerun_missing_input	kmer_depth
+OG157	250515	gfastats	rerun	
+OG157	250515	depth	superseded_scdepth	
+OG157	250515	verdict	rerun_missing_input	kmer_depth
+OG158	250515	gfastats	rerun	
+OG158	250515	depth	superseded_scdepth	
+OG158	250515	verdict	rerun_missing_input	kmer_depth
+OG159	250515	gfastats	rerun	
+OG159	250515	depth	superseded_scdepth	
+OG159	250515	verdict	rerun_missing_input	kmer_depth
+OG160	250520	gfastats	rerun	
+OG160	250520	depth	superseded_scdepth	
+OG160	250520	verdict	rerun_missing_input	kmer_depth
+OG161	250520	gfastats	rerun	
+OG161	250520	depth	superseded_scdepth	
+OG161	250520	verdict	rerun_missing_input	kmer_depth
+OG162	250520	gfastats	rerun	
+OG162	250520	depth	superseded_scdepth	
+OG162	250520	verdict	rerun_missing_input	kmer_depth
+OG164	250520	gfastats	rerun	
+OG164	250520	depth	superseded_scdepth	
+OG164	250520	verdict	rerun_missing_input	kmer_depth
+OG165	250520	gfastats	rerun	
+OG165	250520	depth	superseded_scdepth	
+OG165	250520	verdict	rerun_missing_input	kmer_depth
+OG166	250520	gfastats	rerun	
+OG166	250520	depth	superseded_scdepth	
+OG166	250520	verdict	rerun_missing_input	kmer_depth
+OG170	250520	gfastats	rerun	
+OG170	250520	depth	superseded_scdepth	
+OG170	250520	verdict	rerun_missing_input	kmer_depth
+OG171	250520	gfastats	rerun	
+OG171	250520	depth	superseded_scdepth	
+OG171	250520	verdict	rerun_missing_input	kmer_depth
+OG173	250520	gfastats	rerun	
+OG173	250520	depth	superseded_scdepth	
+OG173	250520	verdict	rerun_missing_input	kmer_depth
+OG174	250520	gfastats	rerun	
+OG174	250520	depth	superseded_scdepth	
+OG174	250520	verdict	rerun_missing_input	kmer_depth
+OG175	250520	gfastats	rerun	
+OG175	250520	depth	superseded_scdepth	
+OG175	250520	verdict	rerun_missing_input	kmer_depth
+OG177	250520	gfastats	rerun	
+OG177	250520	depth	superseded_scdepth	
+OG177	250520	verdict	rerun_missing_input	kmer_depth
+OG178	250520	gfastats	rerun	
+OG178	250520	depth	superseded_scdepth	
+OG178	250520	verdict	rerun_missing_input	kmer_depth
+OG179	230814	gfastats	rerun	
+OG179	230814	depth	superseded_scdepth	
+OG179	230814	verdict	rerun_missing_input	kmer_depth
+OG180	230814	gfastats	rerun	
+OG180	230814	depth	superseded_scdepth	
+OG180	230814	verdict	rerun_missing_input	kmer_depth
+OG181	230814	gfastats	rerun	
+OG181	230814	depth	superseded_scdepth	
+OG181	230814	verdict	rerun_missing_input	kmer_depth
+OG182	230814	gfastats	rerun	
+OG182	230814	depth	superseded_scdepth	
+OG182	230814	verdict	rerun_missing_input	kmer_depth
+OG183	230814	gfastats	rerun	
+OG183	230814	depth	superseded_scdepth	
+OG183	230814	verdict	rerun_missing_input	kmer_depth
+OG184	230814	gfastats	rerun	
+OG184	230814	depth	superseded_scdepth	
+OG184	230814	verdict	rerun_missing_input	kmer_depth
+OG185	230814	gfastats	rerun	
+OG185	230814	depth	superseded_scdepth	
+OG185	230814	verdict	rerun_missing_input	kmer_depth
+OG186	230814	gfastats	rerun	
+OG186	230814	depth	superseded_scdepth	
+OG186	230814	verdict	rerun_missing_input	kmer_depth
+OG187	230814	gfastats	rerun	
+OG187	230814	depth	superseded_scdepth	
+OG187	230814	verdict	rerun_missing_input	kmer_depth
+OG188	230814	gfastats	rerun	
+OG188	230814	depth	superseded_scdepth	
+OG188	230814	verdict	rerun_missing_input	kmer_depth
+OG189	240716	gfastats	rerun	
+OG189	240716	depth	superseded_scdepth	
+OG189	240716	verdict	rerun_missing_input	kmer_depth
+OG190	230814	gfastats	rerun	
+OG190	230814	depth	superseded_scdepth	
+OG190	230814	verdict	rerun_missing_input	kmer_depth
+OG191	230814	gfastats	rerun	
+OG191	230814	depth	superseded_scdepth	
+OG191	230814	verdict	rerun_missing_input	kmer_depth
+OG192	240716	gfastats	rerun	
+OG192	240716	depth	superseded_scdepth	
+OG192	240716	verdict	rerun_missing_input	kmer_depth
+OG193	240313	gfastats	rerun	
+OG193	240313	depth	superseded_scdepth	
+OG193	240313	verdict	rerun_missing_input	kmer_depth
+OG194	240716	gfastats	rerun	
+OG194	240716	depth	superseded_scdepth	
+OG194	240716	verdict	rerun_missing_input	kmer_depth
+OG206	230607	genomescope	reassemble	
+OG206	230607	tiara	reassemble	fna|s3_fna
+OG206	230607	contamination	reassemble	fna|s3_fna
+OG206	230607	busco	reassemble	fna|s3_fna
+OG206	230607	merqury	reassemble	fna|s3_fna
+OG206	230607	gfastats	reassemble	fna|s3_fna
+OG206	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG206	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG207	230607	genomescope	reassemble	
+OG207	230607	tiara	reassemble	fna|s3_fna
+OG207	230607	contamination	reassemble	fna|s3_fna
+OG207	230607	busco	reassemble	fna|s3_fna
+OG207	230607	merqury	reassemble	fna|s3_fna
+OG207	230607	gfastats	reassemble	fna|s3_fna
+OG207	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG207	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG208	230607	genomescope	reassemble	
+OG208	230607	tiara	reassemble	fna|s3_fna
+OG208	230607	contamination	reassemble	fna|s3_fna
+OG208	230607	busco	reassemble	fna|s3_fna
+OG208	230607	merqury	reassemble	fna|s3_fna
+OG208	230607	gfastats	reassemble	fna|s3_fna
+OG208	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG208	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG209	230607	genomescope	reassemble	
+OG209	230607	tiara	reassemble	fna|s3_fna
+OG209	230607	contamination	reassemble	fna|s3_fna
+OG209	230607	busco	reassemble	fna|s3_fna
+OG209	230607	merqury	reassemble	fna|s3_fna
+OG209	230607	gfastats	reassemble	fna|s3_fna
+OG209	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG209	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG210	230607	genomescope	reassemble	
+OG210	230607	tiara	reassemble	fna|s3_fna
+OG210	230607	contamination	reassemble	fna|s3_fna
+OG210	230607	busco	reassemble	fna|s3_fna
+OG210	230607	merqury	reassemble	fna|s3_fna
+OG210	230607	gfastats	reassemble	fna|s3_fna
+OG210	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG210	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG211	230607	genomescope	reassemble	
+OG211	230607	tiara	reassemble	fna|s3_fna
+OG211	230607	contamination	reassemble	fna|s3_fna
+OG211	230607	busco	reassemble	fna|s3_fna
+OG211	230607	merqury	reassemble	fna|s3_fna
+OG211	230607	gfastats	reassemble	fna|s3_fna
+OG211	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG211	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG212	230607	genomescope	reassemble	
+OG212	230607	tiara	reassemble	fna|s3_fna
+OG212	230607	contamination	reassemble	fna|s3_fna
+OG212	230607	busco	reassemble	fna|s3_fna
+OG212	230607	merqury	reassemble	fna|s3_fna
+OG212	230607	gfastats	reassemble	fna|s3_fna
+OG212	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG212	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG213	230607	genomescope	reassemble	
+OG213	230607	tiara	reassemble	fna|s3_fna
+OG213	230607	contamination	reassemble	fna|s3_fna
+OG213	230607	busco	reassemble	fna|s3_fna
+OG213	230607	merqury	reassemble	fna|s3_fna
+OG213	230607	gfastats	reassemble	fna|s3_fna
+OG213	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG213	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG214	230607	genomescope	reassemble	
+OG214	230607	tiara	reassemble	fna|s3_fna
+OG214	230607	contamination	reassemble	fna|s3_fna
+OG214	230607	busco	reassemble	fna|s3_fna
+OG214	230607	merqury	reassemble	fna|s3_fna
+OG214	230607	gfastats	reassemble	fna|s3_fna
+OG214	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG214	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG215	230607	genomescope	reassemble	
+OG215	230607	tiara	reassemble	fna|s3_fna
+OG215	230607	contamination	reassemble	fna|s3_fna
+OG215	230607	busco	reassemble	fna|s3_fna
+OG215	230607	merqury	reassemble	fna|s3_fna
+OG215	230607	gfastats	reassemble	fna|s3_fna
+OG215	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG215	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG216	230607	genomescope	reassemble	
+OG216	230607	tiara	reassemble	fna|s3_fna
+OG216	230607	contamination	reassemble	fna|s3_fna
+OG216	230607	busco	reassemble	fna|s3_fna
+OG216	230607	merqury	reassemble	fna|s3_fna
+OG216	230607	gfastats	reassemble	fna|s3_fna
+OG216	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG216	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG217	230607	genomescope	reassemble	
+OG217	230607	tiara	reassemble	fna|s3_fna
+OG217	230607	contamination	reassemble	fna|s3_fna
+OG217	230607	busco	reassemble	fna|s3_fna
+OG217	230607	merqury	reassemble	fna|s3_fna
+OG217	230607	gfastats	reassemble	fna|s3_fna
+OG217	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG217	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG218	230607	genomescope	reassemble	
+OG218	230607	tiara	reassemble	fna|s3_fna
+OG218	230607	contamination	reassemble	fna|s3_fna
+OG218	230607	busco	reassemble	fna|s3_fna
+OG218	230607	merqury	reassemble	fna|s3_fna
+OG218	230607	gfastats	reassemble	fna|s3_fna
+OG218	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG218	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG219	230607	genomescope	reassemble	
+OG219	230607	tiara	reassemble	fna|s3_fna
+OG219	230607	contamination	reassemble	fna|s3_fna
+OG219	230607	busco	reassemble	fna|s3_fna
+OG219	230607	merqury	reassemble	fna|s3_fna
+OG219	230607	gfastats	reassemble	fna|s3_fna
+OG219	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG219	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG220	230607	genomescope	reassemble	
+OG220	230607	tiara	reassemble	fna|s3_fna
+OG220	230607	contamination	reassemble	fna|s3_fna
+OG220	230607	busco	reassemble	fna|s3_fna
+OG220	230607	merqury	reassemble	fna|s3_fna
+OG220	230607	gfastats	reassemble	fna|s3_fna
+OG220	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG220	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG221	230607	genomescope	reassemble	
+OG221	230607	tiara	reassemble	fna|s3_fna
+OG221	230607	contamination	reassemble	fna|s3_fna
+OG221	230607	busco	reassemble	fna|s3_fna
+OG221	230607	merqury	reassemble	fna|s3_fna
+OG221	230607	gfastats	reassemble	fna|s3_fna
+OG221	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG221	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG222	230607	genomescope	reassemble	
+OG222	230607	tiara	reassemble	fna|s3_fna
+OG222	230607	contamination	reassemble	fna|s3_fna
+OG222	230607	busco	reassemble	fna|s3_fna
+OG222	230607	merqury	reassemble	fna|s3_fna
+OG222	230607	gfastats	reassemble	fna|s3_fna
+OG222	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG222	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG223	230607	genomescope	reassemble	
+OG223	230607	tiara	reassemble	fna|s3_fna
+OG223	230607	contamination	reassemble	fna|s3_fna
+OG223	230607	busco	reassemble	fna|s3_fna
+OG223	230607	merqury	reassemble	fna|s3_fna
+OG223	230607	gfastats	reassemble	fna|s3_fna
+OG223	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG223	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG224	230607	genomescope	reassemble	
+OG224	230607	tiara	reassemble	fna|s3_fna
+OG224	230607	contamination	reassemble	fna|s3_fna
+OG224	230607	busco	reassemble	fna|s3_fna
+OG224	230607	merqury	reassemble	fna|s3_fna
+OG224	230607	gfastats	reassemble	fna|s3_fna
+OG224	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG224	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG225	230607	genomescope	reassemble	
+OG225	230607	tiara	reassemble	fna|s3_fna
+OG225	230607	contamination	reassemble	fna|s3_fna
+OG225	230607	busco	reassemble	fna|s3_fna
+OG225	230607	merqury	reassemble	fna|s3_fna
+OG225	230607	gfastats	reassemble	fna|s3_fna
+OG225	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG225	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG226	230607	genomescope	reassemble	
+OG226	230607	tiara	reassemble	fna|s3_fna
+OG226	230607	contamination	reassemble	fna|s3_fna
+OG226	230607	busco	reassemble	fna|s3_fna
+OG226	230607	merqury	reassemble	fna|s3_fna
+OG226	230607	gfastats	reassemble	fna|s3_fna
+OG226	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG226	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG227	240716	gfastats	rerun	
+OG227	240716	depth	superseded_scdepth	
+OG227	240716	verdict	rerun_missing_input	kmer_depth
+OG228	230324	gfastats	rerun	
+OG228	230324	depth	superseded_scdepth	
+OG228	230324	verdict	rerun_missing_input	kmer_depth
+OG229	230324	gfastats	rerun	
+OG229	230324	depth	superseded_scdepth	
+OG229	230324	verdict	rerun_missing_input	kmer_depth
+OG230	230607	gfastats	rerun	
+OG230	230607	depth	superseded_scdepth	
+OG230	230607	verdict	rerun_missing_input	kmer_depth
+OG231	230324	gfastats	rerun	
+OG231	230324	depth	superseded_scdepth	
+OG231	230324	verdict	rerun_missing_input	kmer_depth
+OG232	230324	gfastats	rerun	
+OG232	230324	depth	superseded_scdepth	
+OG232	230324	verdict	rerun_missing_input	kmer_depth
+OG233	230324	gfastats	rerun	
+OG233	230324	depth	superseded_scdepth	
+OG233	230324	verdict	rerun_missing_input	kmer_depth
+OG234	230324	gfastats	rerun	
+OG234	230324	depth	superseded_scdepth	
+OG234	230324	verdict	rerun_missing_input	kmer_depth
+OG235	230324	gfastats	rerun	
+OG235	230324	depth	superseded_scdepth	
+OG235	230324	verdict	rerun_missing_input	kmer_depth
+OG236	230324	gfastats	rerun	
+OG236	230324	depth	superseded_scdepth	
+OG236	230324	verdict	rerun_missing_input	kmer_depth
+OG237	230324	gfastats	rerun	
+OG237	230324	depth	superseded_scdepth	
+OG237	230324	verdict	rerun_missing_input	kmer_depth
+OG238	230324	gfastats	rerun	
+OG238	230324	depth	superseded_scdepth	
+OG238	230324	verdict	rerun_missing_input	kmer_depth
+OG239	230324	gfastats	rerun	
+OG239	230324	depth	superseded_scdepth	
+OG239	230324	verdict	rerun_missing_input	kmer_depth
+OG240	230324	gfastats	rerun	
+OG240	230324	depth	superseded_scdepth	
+OG240	230324	verdict	rerun_missing_input	kmer_depth
+OG241	230324	gfastats	rerun	
+OG241	230324	depth	superseded_scdepth	
+OG241	230324	verdict	rerun_missing_input	kmer_depth
+OG242	230324	gfastats	rerun	
+OG242	230324	depth	superseded_scdepth	
+OG242	230324	verdict	rerun_missing_input	kmer_depth
+OG243	230324	gfastats	rerun	
+OG243	230324	depth	superseded_scdepth	
+OG243	230324	verdict	rerun_missing_input	kmer_depth
+OG244	230324	gfastats	rerun	
+OG244	230324	depth	superseded_scdepth	
+OG244	230324	verdict	rerun_missing_input	kmer_depth
+OG245	230607	gfastats	rerun	
+OG245	230607	depth	superseded_scdepth	
+OG245	230607	verdict	rerun_missing_input	kmer_depth
+OG246	230324	gfastats	rerun	
+OG246	230324	depth	superseded_scdepth	
+OG246	230324	verdict	rerun_missing_input	kmer_depth
+OG247	230324	gfastats	rerun	
+OG247	230324	depth	superseded_scdepth	
+OG247	230324	verdict	rerun_missing_input	kmer_depth
+OG248	230324	gfastats	rerun	
+OG248	230324	depth	superseded_scdepth	
+OG248	230324	verdict	rerun_missing_input	kmer_depth
+OG249	230324	gfastats	rerun	
+OG249	230324	depth	superseded_scdepth	
+OG249	230324	verdict	rerun_missing_input	kmer_depth
+OG250	230324	gfastats	rerun	
+OG250	230324	depth	superseded_scdepth	
+OG250	230324	verdict	rerun_missing_input	kmer_depth
+OG251	230324	gfastats	rerun	
+OG251	230324	depth	superseded_scdepth	
+OG251	230324	verdict	rerun_missing_input	kmer_depth
+OG252	230324	gfastats	rerun	
+OG252	230324	depth	superseded_scdepth	
+OG252	230324	verdict	rerun_missing_input	kmer_depth
+OG253	230324	gfastats	rerun	
+OG253	230324	depth	superseded_scdepth	
+OG253	230324	verdict	rerun_missing_input	kmer_depth
+OG254	230324	gfastats	rerun	
+OG254	230324	depth	superseded_scdepth	
+OG254	230324	verdict	rerun_missing_input	kmer_depth
+OG255	230324	gfastats	rerun	
+OG255	230324	depth	superseded_scdepth	
+OG255	230324	verdict	rerun_missing_input	kmer_depth
+OG256	230324	gfastats	rerun	
+OG256	230324	depth	superseded_scdepth	
+OG256	230324	verdict	rerun_missing_input	kmer_depth
+OG257	230324	gfastats	rerun	
+OG257	230324	depth	superseded_scdepth	
+OG257	230324	verdict	rerun_missing_input	kmer_depth
+OG258	230324	gfastats	rerun	
+OG258	230324	depth	superseded_scdepth	
+OG258	230324	verdict	rerun_missing_input	kmer_depth
+OG259	230419	gfastats	rerun	
+OG259	230419	depth	superseded_scdepth	
+OG259	230419	verdict	rerun_missing_input	kmer_depth
+OG260	230419	gfastats	rerun	
+OG260	230419	depth	superseded_scdepth	
+OG260	230419	verdict	rerun_missing_input	kmer_depth
+OG261	230419	gfastats	rerun	
+OG261	230419	depth	superseded_scdepth	
+OG261	230419	verdict	rerun_missing_input	kmer_depth
+OG262	230419	gfastats	rerun	
+OG262	230419	depth	superseded_scdepth	
+OG262	230419	verdict	rerun_missing_input	kmer_depth
+OG263	230419	gfastats	rerun	
+OG263	230419	depth	superseded_scdepth	
+OG263	230419	verdict	rerun_missing_input	kmer_depth
+OG264	221209	gfastats	rerun	
+OG264	221209	depth	superseded_scdepth	
+OG264	221209	verdict	rerun_missing_input	kmer_depth
+OG265	230419	gfastats	rerun	
+OG265	230419	depth	superseded_scdepth	
+OG265	230419	verdict	rerun_missing_input	kmer_depth
+OG266	230419	gfastats	rerun	
+OG266	230419	depth	superseded_scdepth	
+OG266	230419	verdict	rerun_missing_input	kmer_depth
+OG267	230419	gfastats	rerun	
+OG267	230419	depth	superseded_scdepth	
+OG267	230419	verdict	rerun_missing_input	kmer_depth
+OG268	230419	gfastats	rerun	
+OG268	230419	depth	superseded_scdepth	
+OG268	230419	verdict	rerun_missing_input	kmer_depth
+OG269	221003	gfastats	rerun	
+OG269	221003	depth	superseded_scdepth	
+OG269	221003	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG270	221003	gfastats	rerun	
+OG270	221003	depth	superseded_scdepth	
+OG270	221003	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG271	230419	gfastats	rerun	
+OG271	230419	depth	superseded_scdepth	
+OG271	230419	verdict	rerun_missing_input	kmer_depth
+OG272	230419	gfastats	rerun	
+OG272	230419	depth	superseded_scdepth	
+OG272	230419	verdict	rerun_missing_input	kmer_depth
+OG273	230419	gfastats	rerun	
+OG273	230419	depth	superseded_scdepth	
+OG273	230419	verdict	rerun_missing_input	kmer_depth
+OG274	230419	gfastats	rerun	
+OG274	230419	depth	superseded_scdepth	
+OG274	230419	verdict	rerun_missing_input	kmer_depth
+OG275	230419	gfastats	rerun	
+OG275	230419	depth	superseded_scdepth	
+OG275	230419	verdict	rerun_missing_input	kmer_depth
+OG276	230419	gfastats	rerun	
+OG276	230419	depth	superseded_scdepth	
+OG276	230419	verdict	rerun_missing_input	kmer_depth
+OG277	230419	gfastats	rerun	
+OG277	230419	depth	superseded_scdepth	
+OG277	230419	verdict	rerun_missing_input	kmer_depth
+OG278	230419	gfastats	rerun	
+OG278	230419	depth	superseded_scdepth	
+OG278	230419	verdict	rerun_missing_input	kmer_depth
+OG279	221003	gfastats	rerun	
+OG279	221003	depth	superseded_scdepth	
+OG279	221003	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG280	230419	gfastats	rerun	
+OG280	230419	depth	superseded_scdepth	
+OG280	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG281	230419	gfastats	rerun	
+OG281	230419	depth	superseded_scdepth	
+OG281	230419	verdict	rerun_missing_input	kmer_depth
+OG282	221003	gfastats	rerun	
+OG282	221003	depth	superseded_scdepth	
+OG282	221003	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG283	221003	gfastats	rerun	
+OG283	221003	depth	superseded_scdepth	
+OG283	221003	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG284	221003	gfastats	rerun	
+OG284	221003	depth	superseded_scdepth	
+OG284	221003	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG285	221003	gfastats	rerun	
+OG285	221003	depth	superseded_scdepth	
+OG285	221003	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG286	230419	gfastats	rerun	
+OG286	230419	depth	superseded_scdepth	
+OG286	230419	verdict	rerun_missing_input	kmer_depth
+OG287	230419	gfastats	rerun	
+OG287	230419	depth	superseded_scdepth	
+OG287	230419	verdict	rerun_missing_input	kmer_depth
+OG288	230419	gfastats	rerun	
+OG288	230419	depth	superseded_scdepth	
+OG288	230419	verdict	rerun_missing_input	kmer_depth
+OG289	230419	gfastats	rerun	
+OG289	230419	depth	superseded_scdepth	
+OG289	230419	verdict	rerun_missing_input	kmer_depth
+OG290	230419	gfastats	rerun	
+OG290	230419	depth	superseded_scdepth	
+OG290	230419	verdict	rerun_missing_input	kmer_depth
+OG291	230419	gfastats	rerun	
+OG291	230419	depth	superseded_scdepth	
+OG291	230419	verdict	rerun_missing_input	kmer_depth
+OG292	230419	gfastats	rerun	
+OG292	230419	depth	superseded_scdepth	
+OG292	230419	verdict	rerun_missing_input	kmer_depth
+OG293	230419	gfastats	rerun	
+OG293	230419	depth	superseded_scdepth	
+OG293	230419	verdict	rerun_missing_input	kmer_depth
+OG294	221003	gfastats	rerun	
+OG294	221003	depth	superseded_scdepth	
+OG294	221003	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG295	221003	gfastats	rerun	
+OG295	221003	depth	superseded_scdepth	
+OG295	221003	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG296	221003	gfastats	rerun	
+OG296	221003	depth	superseded_scdepth	
+OG296	221003	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG297	221003	gfastats	rerun	
+OG297	221003	depth	superseded_scdepth	
+OG297	221003	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG298	221003	gfastats	rerun	
+OG298	221003	depth	superseded_scdepth	
+OG298	221003	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG299	230419	gfastats	rerun	
+OG299	230419	depth	superseded_scdepth	
+OG299	230419	verdict	rerun_missing_input	kmer_depth
+OG300	230324	gfastats	rerun	
+OG300	230324	depth	superseded_scdepth	
+OG300	230324	verdict	rerun_missing_input	kmer_depth
+OG301	221115	gfastats	rerun	
+OG301	221115	depth	superseded_scdepth	
+OG301	221115	verdict	rerun_missing_input	kmer_depth
+OG302	221115	gfastats	rerun	
+OG302	221115	depth	superseded_scdepth	
+OG302	221115	verdict	rerun_missing_input	kmer_depth
+OG303	221123	gfastats	rerun	
+OG303	221123	depth	superseded_scdepth	
+OG303	221123	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG304	221123	gfastats	rerun	
+OG304	221123	depth	superseded_scdepth	
+OG304	221123	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG305	221115	gfastats	rerun	
+OG305	221115	depth	superseded_scdepth	
+OG305	221115	verdict	rerun_missing_input	kmer_depth
+OG306	221123	gfastats	rerun	
+OG306	221123	depth	superseded_scdepth	
+OG306	221123	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG307	221115	gfastats	rerun	
+OG307	221115	depth	superseded_scdepth	
+OG307	221115	verdict	rerun_missing_input	kmer_depth
+OG308	221123	gfastats	rerun	
+OG308	221123	depth	superseded_scdepth	
+OG308	221123	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG309	221123	gfastats	rerun	
+OG309	221123	depth	superseded_scdepth	
+OG309	221123	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG310	221123	gfastats	rerun	
+OG310	221123	depth	superseded_scdepth	
+OG310	221123	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG311	221123	gfastats	rerun	
+OG311	221123	depth	superseded_scdepth	
+OG311	221123	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG312	221123	gfastats	rerun	
+OG312	221123	depth	superseded_scdepth	
+OG312	221123	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG313	230419	gfastats	rerun	
+OG313	230419	depth	superseded_scdepth	
+OG313	230419	verdict	rerun_missing_input	kmer_depth
+OG314	230419	gfastats	rerun	
+OG314	230419	depth	superseded_scdepth	
+OG314	230419	verdict	rerun_missing_input	kmer_depth
+OG315	221115	gfastats	rerun	
+OG315	221115	depth	superseded_scdepth	
+OG315	221115	verdict	rerun_missing_input	kmer_depth
+OG316	221115	gfastats	rerun	
+OG316	221115	depth	superseded_scdepth	
+OG316	221115	verdict	rerun_missing_input	kmer_depth
+OG317	230419	gfastats	rerun	
+OG317	230419	depth	superseded_scdepth	
+OG317	230419	verdict	rerun_missing_input	kmer_depth
+OG318	230419	gfastats	rerun	
+OG318	230419	depth	superseded_scdepth	
+OG318	230419	verdict	rerun_missing_input	kmer_depth
+OG319	221115	gfastats	rerun	
+OG319	221115	depth	superseded_scdepth	
+OG319	221115	verdict	rerun_missing_input	kmer_depth
+OG320	230419	gfastats	rerun	
+OG320	230419	depth	superseded_scdepth	
+OG320	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG321	230419	gfastats	rerun	
+OG321	230419	depth	superseded_scdepth	
+OG321	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG322	230419	gfastats	rerun	
+OG322	230419	depth	superseded_scdepth	
+OG322	230419	verdict	rerun_missing_input	kmer_depth
+OG323	221003	gfastats	rerun	
+OG323	221003	depth	superseded_scdepth	
+OG323	221003	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG324	221003	gfastats	rerun	
+OG324	221003	depth	superseded_scdepth	
+OG324	221003	verdict	rerun_missing_input	kmer_depth
+OG325	221003	gfastats	rerun	
+OG325	221003	depth	superseded_scdepth	
+OG325	221003	verdict	rerun_missing_input	kmer_depth
+OG326	221003	gfastats	rerun	
+OG326	221003	depth	superseded_scdepth	
+OG326	221003	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG327	230324	gfastats	rerun	
+OG327	230324	depth	superseded_scdepth	
+OG327	230324	verdict	rerun_missing_input	kmer_depth
+OG328	230324	gfastats	rerun	
+OG328	230324	depth	superseded_scdepth	
+OG328	230324	verdict	rerun_missing_input	kmer_depth
+OG329	230419	gfastats	rerun	
+OG329	230419	depth	superseded_scdepth	
+OG329	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG330	230324	gfastats	rerun	
+OG330	230324	depth	superseded_scdepth	
+OG330	230324	verdict	rerun_missing_input	kmer_depth
+OG331	221115	gfastats	rerun	
+OG331	221115	depth	superseded_scdepth	
+OG331	221115	verdict	rerun_missing_input	kmer_depth
+OG332	230324	gfastats	rerun	
+OG332	230324	depth	superseded_scdepth	
+OG332	230324	verdict	rerun_missing_input	kmer_depth
+OG333	230419	gfastats	rerun	
+OG333	230419	depth	superseded_scdepth	
+OG333	230419	verdict	rerun_missing_input	kmer_depth
+OG334	230324	gfastats	rerun	
+OG334	230324	depth	superseded_scdepth	
+OG334	230324	verdict	rerun_missing_input	kmer_depth
+OG335	230324	gfastats	rerun	
+OG335	230324	depth	superseded_scdepth	
+OG335	230324	verdict	rerun_missing_input	kmer_depth
+OG336	230324	gfastats	rerun	
+OG336	230324	depth	superseded_scdepth	
+OG336	230324	verdict	rerun_missing_input	kmer_depth
+OG337	230324	gfastats	rerun	
+OG337	230324	depth	superseded_scdepth	
+OG337	230324	verdict	rerun_missing_input	kmer_depth
+OG338	230324	gfastats	rerun	
+OG338	230324	depth	superseded_scdepth	
+OG338	230324	verdict	rerun_missing_input	kmer_depth
+OG339	230324	gfastats	rerun	
+OG339	230324	depth	superseded_scdepth	
+OG339	230324	verdict	rerun_missing_input	kmer_depth
+OG340	230324	gfastats	rerun	
+OG340	230324	depth	superseded_scdepth	
+OG340	230324	verdict	rerun_missing_input	kmer_depth
+OG341	230324	gfastats	rerun	
+OG341	230324	depth	superseded_scdepth	
+OG341	230324	verdict	rerun_missing_input	kmer_depth
+OG342	230324	gfastats	rerun	
+OG342	230324	depth	superseded_scdepth	
+OG342	230324	verdict	rerun_missing_input	kmer_depth
+OG343	230324	gfastats	rerun	
+OG343	230324	depth	superseded_scdepth	
+OG343	230324	verdict	rerun_missing_input	kmer_depth
+OG344	230324	gfastats	rerun	
+OG344	230324	depth	superseded_scdepth	
+OG344	230324	verdict	rerun_missing_input	kmer_depth
+OG345	230324	gfastats	rerun	
+OG345	230324	depth	superseded_scdepth	
+OG345	230324	verdict	rerun_missing_input	kmer_depth
+OG346	230324	gfastats	rerun	
+OG346	230324	depth	superseded_scdepth	
+OG346	230324	verdict	rerun_missing_input	kmer_depth
+OG347	230324	gfastats	rerun	
+OG347	230324	depth	superseded_scdepth	
+OG347	230324	verdict	rerun_missing_input	kmer_depth
+OG348	230324	gfastats	rerun	
+OG348	230324	depth	superseded_scdepth	
+OG348	230324	verdict	rerun_missing_input	kmer_depth
+OG349	230324	gfastats	rerun	
+OG349	230324	depth	superseded_scdepth	
+OG349	230324	verdict	rerun_missing_input	kmer_depth
+OG350	230324	gfastats	rerun	
+OG350	230324	depth	superseded_scdepth	
+OG350	230324	verdict	rerun_missing_input	kmer_depth
+OG351	221003	gfastats	rerun	
+OG351	221003	depth	superseded_scdepth	
+OG351	221003	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG352	221003	gfastats	rerun	
+OG352	221003	depth	superseded_scdepth	
+OG352	221003	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG353	221003	gfastats	rerun	
+OG353	221003	depth	superseded_scdepth	
+OG353	221003	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG354	230324	gfastats	rerun	
+OG354	230324	depth	superseded_scdepth	
+OG354	230324	verdict	rerun_missing_input	kmer_depth
+OG355	230324	gfastats	rerun	
+OG355	230324	depth	superseded_scdepth	
+OG355	230324	verdict	rerun_missing_input	kmer_depth
+OG356	230324	gfastats	rerun	
+OG356	230324	depth	superseded_scdepth	
+OG356	230324	verdict	rerun_missing_input	kmer_depth
+OG357	230324	gfastats	rerun	
+OG357	230324	depth	superseded_scdepth	
+OG357	230324	verdict	rerun_missing_input	kmer_depth
+OG358	230324	gfastats	rerun	
+OG358	230324	depth	superseded_scdepth	
+OG358	230324	verdict	rerun_missing_input	kmer_depth
+OG359	230324	gfastats	rerun	
+OG359	230324	depth	superseded_scdepth	
+OG359	230324	verdict	rerun_missing_input	kmer_depth
+OG360	230324	gfastats	rerun	
+OG360	230324	depth	superseded_scdepth	
+OG360	230324	verdict	rerun_missing_input	kmer_depth
+OG361	230324	gfastats	rerun	
+OG361	230324	depth	superseded_scdepth	
+OG361	230324	verdict	rerun_missing_input	kmer_depth
+OG362	230324	gfastats	rerun	
+OG362	230324	depth	superseded_scdepth	
+OG362	230324	verdict	rerun_missing_input	kmer_depth
+OG363	230607	gfastats	rerun	
+OG363	230607	depth	superseded_scdepth	
+OG363	230607	verdict	rerun_missing_input	kmer_depth
+OG364	230324	gfastats	rerun	
+OG364	230324	depth	superseded_scdepth	
+OG364	230324	verdict	rerun_missing_input	kmer_depth
+OG365	230324	gfastats	rerun	
+OG365	230324	depth	superseded_scdepth	
+OG365	230324	verdict	rerun_missing_input	kmer_depth
+OG366	230324	gfastats	rerun	
+OG366	230324	depth	superseded_scdepth	
+OG366	230324	verdict	rerun_missing_input	kmer_depth
+OG367	230324	gfastats	rerun	
+OG367	230324	depth	superseded_scdepth	
+OG367	230324	verdict	rerun_missing_input	kmer_depth
+OG368	230324	gfastats	rerun	
+OG368	230324	depth	superseded_scdepth	
+OG368	230324	verdict	rerun_missing_input	kmer_depth
+OG369	221003	gfastats	rerun	
+OG369	221003	depth	superseded_scdepth	
+OG369	221003	verdict	rerun_missing_input	kmer_depth
+OG370	230324	gfastats	rerun	
+OG370	230324	depth	superseded_scdepth	
+OG370	230324	verdict	rerun_missing_input	kmer_depth
+OG371	230324	gfastats	rerun	
+OG371	230324	depth	superseded_scdepth	
+OG371	230324	verdict	rerun_missing_input	kmer_depth
+OG372	230324	gfastats	rerun	
+OG372	230324	depth	superseded_scdepth	
+OG372	230324	verdict	rerun_missing_input	kmer_depth
+OG373	230324	gfastats	rerun	
+OG373	230324	depth	rerun_missing_input	bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG373	230324	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG374	230419	gfastats	rerun	
+OG374	230419	depth	superseded_scdepth	
+OG374	230419	verdict	rerun_missing_input	kmer_depth
+OG375	230419	gfastats	rerun	
+OG375	230419	depth	superseded_scdepth	
+OG375	230419	verdict	rerun_missing_input	kmer_depth
+OG376	230419	gfastats	rerun	
+OG376	230419	depth	superseded_scdepth	
+OG376	230419	verdict	rerun_missing_input	kmer_depth
+OG377	230419	gfastats	rerun	
+OG377	230419	depth	superseded_scdepth	
+OG377	230419	verdict	rerun_missing_input	kmer_depth
+OG378	230419	gfastats	rerun	
+OG378	230419	depth	superseded_scdepth	
+OG378	230419	verdict	rerun_missing_input	kmer_depth
+OG379	230607	gfastats	rerun	
+OG379	230607	depth	superseded_scdepth	
+OG379	230607	verdict	rerun_missing_input	kmer_depth
+OG380	230419	gfastats	rerun	
+OG380	230419	depth	superseded_scdepth	
+OG380	230419	verdict	rerun_missing_input	kmer_depth
+OG381	230419	gfastats	rerun	
+OG381	230419	depth	superseded_scdepth	
+OG381	230419	verdict	rerun_missing_input	kmer_depth
+OG382	230419	gfastats	rerun	
+OG382	230419	depth	superseded_scdepth	
+OG382	230419	verdict	rerun_missing_input	kmer_depth
+OG383	230419	gfastats	rerun	
+OG383	230419	depth	superseded_scdepth	
+OG383	230419	verdict	rerun_missing_input	kmer_depth
+OG384	230419	gfastats	rerun	
+OG384	230419	depth	superseded_scdepth	
+OG384	230419	verdict	rerun_missing_input	kmer_depth
+OG385	230419	gfastats	rerun	
+OG385	230419	depth	superseded_scdepth	
+OG385	230419	verdict	rerun_missing_input	kmer_depth
+OG386	230419	gfastats	rerun	
+OG386	230419	depth	superseded_scdepth	
+OG386	230419	verdict	rerun_missing_input	kmer_depth
+OG387	230419	gfastats	rerun	
+OG387	230419	depth	superseded_scdepth	
+OG387	230419	verdict	rerun_missing_input	kmer_depth
+OG388	230419	gfastats	rerun	
+OG388	230419	depth	superseded_scdepth	
+OG388	230419	verdict	rerun_missing_input	kmer_depth
+OG389	230419	gfastats	rerun	
+OG389	230419	depth	superseded_scdepth	
+OG389	230419	verdict	rerun_missing_input	kmer_depth
+OG390	230419	gfastats	rerun	
+OG390	230419	depth	superseded_scdepth	
+OG390	230419	verdict	rerun_missing_input	kmer_depth
+OG391	230419	gfastats	rerun	
+OG391	230419	depth	superseded_scdepth	
+OG391	230419	verdict	rerun_missing_input	kmer_depth
+OG392	230324	gfastats	rerun	
+OG392	230324	depth	superseded_scdepth	
+OG392	230324	verdict	rerun_missing_input	kmer_depth
+OG393	230324	gfastats	rerun	
+OG393	230324	depth	superseded_scdepth	
+OG393	230324	verdict	rerun_missing_input	kmer_depth
+OG394	230324	gfastats	rerun	
+OG394	230324	depth	superseded_scdepth	
+OG394	230324	verdict	rerun_missing_input	kmer_depth
+OG395	230324	gfastats	rerun	
+OG395	230324	depth	superseded_scdepth	
+OG395	230324	verdict	rerun_missing_input	kmer_depth
+OG396	230324	gfastats	rerun	
+OG396	230324	depth	superseded_scdepth	
+OG396	230324	verdict	rerun_missing_input	kmer_depth
+OG397	230324	gfastats	rerun	
+OG397	230324	depth	superseded_scdepth	
+OG397	230324	verdict	rerun_missing_input	kmer_depth
+OG398	230324	gfastats	rerun	
+OG398	230324	depth	superseded_scdepth	
+OG398	230324	verdict	rerun_missing_input	kmer_depth
+OG399	230324	gfastats	rerun	
+OG399	230324	depth	rerun_missing_input	bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG399	230324	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG400	230607	gfastats	rerun	
+OG400	230607	depth	superseded_scdepth	
+OG400	230607	verdict	rerun_missing_input	kmer_depth
+OG401	230419	gfastats	rerun	
+OG401	230419	depth	superseded_scdepth	
+OG401	230419	verdict	rerun_missing_input	kmer_depth
+OG402	230419	gfastats	rerun	
+OG402	230419	depth	superseded_scdepth	
+OG402	230419	verdict	rerun_missing_input	kmer_depth
+OG403	230419	gfastats	rerun	
+OG403	230419	depth	superseded_scdepth	
+OG403	230419	verdict	rerun_missing_input	kmer_depth
+OG404	230324	gfastats	rerun	
+OG404	230324	depth	superseded_scdepth	
+OG404	230324	verdict	rerun_missing_input	kmer_depth
+OG405	230419	gfastats	rerun	
+OG405	230419	depth	superseded_scdepth	
+OG405	230419	verdict	rerun_missing_input	kmer_depth
+OG406	230419	gfastats	rerun	
+OG406	230419	depth	superseded_scdepth	
+OG406	230419	verdict	rerun_missing_input	kmer_depth
+OG407	230607	gfastats	rerun	
+OG407	230607	depth	superseded_scdepth	
+OG407	230607	verdict	rerun_missing_input	kmer_depth
+OG408	230419	gfastats	rerun	
+OG408	230419	depth	superseded_scdepth	
+OG408	230419	verdict	rerun_missing_input	kmer_depth
+OG409	230419	gfastats	rerun	
+OG409	230419	depth	superseded_scdepth	
+OG409	230419	verdict	rerun_missing_input	kmer_depth
+OG410	230419	gfastats	rerun	
+OG410	230419	depth	superseded_scdepth	
+OG410	230419	verdict	rerun_missing_input	kmer_depth
+OG411	230419	gfastats	rerun	
+OG411	230419	depth	superseded_scdepth	
+OG411	230419	verdict	rerun_missing_input	kmer_depth
+OG412	230419	gfastats	rerun	
+OG412	230419	depth	superseded_scdepth	
+OG412	230419	verdict	rerun_missing_input	kmer_depth
+OG413	230419	gfastats	rerun	
+OG413	230419	depth	superseded_scdepth	
+OG413	230419	verdict	rerun_missing_input	kmer_depth
+OG414	221209	gfastats	rerun	
+OG414	221209	depth	superseded_scdepth	
+OG414	221209	verdict	rerun_missing_input	kmer_depth
+OG415	230419	gfastats	rerun	
+OG415	230419	depth	superseded_scdepth	
+OG415	230419	verdict	rerun_missing_input	kmer_depth
+OG416	230419	gfastats	rerun	
+OG416	230419	depth	superseded_scdepth	
+OG416	230419	verdict	rerun_missing_input	kmer_depth
+OG417	230419	gfastats	rerun	
+OG417	230419	depth	superseded_scdepth	
+OG417	230419	verdict	rerun_missing_input	kmer_depth
+OG418	230419	gfastats	rerun	
+OG418	230419	depth	superseded_scdepth	
+OG418	230419	verdict	rerun_missing_input	kmer_depth
+OG419	230419	gfastats	rerun	
+OG419	230419	depth	superseded_scdepth	
+OG419	230419	verdict	rerun_missing_input	kmer_depth
+OG420	230324	gfastats	rerun	
+OG420	230324	depth	superseded_scdepth	
+OG420	230324	verdict	rerun_missing_input	kmer_depth
+OG421	230324	gfastats	rerun	
+OG421	230324	depth	rerun_missing_input	bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG421	230324	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG422	221003	gfastats	rerun	
+OG422	221003	depth	superseded_scdepth	
+OG422	221003	verdict	rerun_missing_input	kmer_depth
+OG423	221003	gfastats	rerun	
+OG423	221003	depth	superseded_scdepth	
+OG423	221003	verdict	rerun_missing_input	kmer_depth
+OG424	230323	gfastats	rerun	
+OG424	230323	depth	superseded_scdepth	
+OG424	230323	verdict	rerun_missing_input	kmer_depth
+OG425	230324	gfastats	rerun	
+OG425	230324	depth	superseded_scdepth	
+OG425	230324	verdict	rerun_missing_input	kmer_depth
+OG426	230324	gfastats	rerun	
+OG426	230324	depth	superseded_scdepth	
+OG426	230324	verdict	rerun_missing_input	kmer_depth
+OG427	230324	gfastats	rerun	
+OG427	230324	depth	superseded_scdepth	
+OG427	230324	verdict	rerun_missing_input	kmer_depth
+OG428	230324	gfastats	rerun	
+OG428	230324	depth	superseded_scdepth	
+OG428	230324	verdict	rerun_missing_input	kmer_depth
+OG429	230607	gfastats	rerun	
+OG429	230607	depth	superseded_scdepth	
+OG429	230607	verdict	rerun_missing_input	kmer_depth
+OG430	230607	gfastats	rerun	
+OG430	230607	depth	superseded_scdepth	
+OG430	230607	verdict	rerun_missing_input	kmer_depth
+OG431	230607	gfastats	rerun	
+OG431	230607	depth	superseded_scdepth	
+OG431	230607	verdict	rerun_missing_input	kmer_depth
+OG432	230607	gfastats	rerun	
+OG432	230607	depth	superseded_scdepth	
+OG432	230607	verdict	rerun_missing_input	kmer_depth
+OG433	221003	gfastats	rerun	
+OG433	221003	depth	superseded_scdepth	
+OG433	221003	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG434	221003	gfastats	rerun	
+OG434	221003	depth	superseded_scdepth	
+OG434	221003	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG435	221003	gfastats	rerun	
+OG435	221003	depth	superseded_scdepth	
+OG435	221003	verdict	rerun_missing_input	kmer_depth
+OG436	230607	gfastats	rerun	
+OG436	230607	depth	superseded_scdepth	
+OG436	230607	verdict	rerun_missing_input	kmer_depth
+OG437	230607	gfastats	rerun	
+OG437	230607	depth	superseded_scdepth	
+OG437	230607	verdict	rerun_missing_input	kmer_depth
+OG438	230607	gfastats	rerun	
+OG438	230607	depth	superseded_scdepth	
+OG438	230607	verdict	rerun_missing_input	kmer_depth
+OG439	230607	gfastats	rerun	
+OG439	230607	depth	superseded_scdepth	
+OG439	230607	verdict	rerun_missing_input	kmer_depth
+OG440	230607	gfastats	rerun	
+OG440	230607	depth	superseded_scdepth	
+OG440	230607	verdict	rerun_missing_input	kmer_depth
+OG441	230607	gfastats	rerun	
+OG441	230607	depth	superseded_scdepth	
+OG441	230607	verdict	rerun_missing_input	kmer_depth
+OG442	230607	gfastats	rerun	
+OG442	230607	depth	superseded_scdepth	
+OG442	230607	verdict	rerun_missing_input	kmer_depth
+OG443	230607	gfastats	rerun	
+OG443	230607	depth	superseded_scdepth	
+OG443	230607	verdict	rerun_missing_input	kmer_depth
+OG444	230607	gfastats	rerun	
+OG444	230607	depth	superseded_scdepth	
+OG444	230607	verdict	rerun_missing_input	kmer_depth
+OG445	230607	gfastats	rerun	
+OG445	230607	depth	superseded_scdepth	
+OG445	230607	verdict	rerun_missing_input	kmer_depth
+OG446	230419	gfastats	rerun	
+OG446	230419	depth	superseded_scdepth	
+OG446	230419	verdict	rerun_missing_input	kmer_depth
+OG447	230419	gfastats	rerun	
+OG447	230419	depth	superseded_scdepth	
+OG447	230419	verdict	rerun_missing_input	kmer_depth
+OG448	230419	gfastats	rerun	
+OG448	230419	depth	superseded_scdepth	
+OG448	230419	verdict	rerun_missing_input	kmer_depth
+OG449	230419	gfastats	rerun	
+OG449	230419	depth	superseded_scdepth	
+OG449	230419	verdict	rerun_missing_input	kmer_depth
+OG450	230419	gfastats	rerun	
+OG450	230419	depth	superseded_scdepth	
+OG450	230419	verdict	rerun_missing_input	kmer_depth
+OG451	230419	gfastats	rerun	
+OG451	230419	depth	superseded_scdepth	
+OG451	230419	verdict	rerun_missing_input	kmer_depth
+OG452	221209	gfastats	rerun	
+OG452	221209	depth	superseded_scdepth	
+OG452	221209	verdict	rerun_missing_input	kmer_depth
+OG453	230607	gfastats	rerun	
+OG453	230607	depth	superseded_scdepth	
+OG453	230607	verdict	rerun_missing_input	kmer_depth
+OG454	230419	gfastats	rerun	
+OG454	230419	depth	superseded_scdepth	
+OG454	230419	verdict	rerun_missing_input	kmer_depth
+OG455	230607	gfastats	rerun	
+OG455	230607	depth	superseded_scdepth	
+OG455	230607	verdict	rerun_missing_input	kmer_depth
+OG456	230419	gfastats	rerun	
+OG456	230419	depth	superseded_scdepth	
+OG456	230419	verdict	rerun_missing_input	kmer_depth
+OG457	230419	gfastats	rerun	
+OG457	230419	depth	superseded_scdepth	
+OG457	230419	verdict	rerun_missing_input	kmer_depth
+OG458	230419	gfastats	rerun	
+OG458	230419	depth	superseded_scdepth	
+OG458	230419	verdict	rerun_missing_input	kmer_depth
+OG459	230419	gfastats	rerun	
+OG459	230419	depth	superseded_scdepth	
+OG459	230419	verdict	rerun_missing_input	kmer_depth
+OG460	221209	gfastats	rerun	
+OG460	221209	depth	superseded_scdepth	
+OG460	221209	verdict	rerun_missing_input	kmer_depth
+OG461	230419	gfastats	rerun	
+OG461	230419	depth	superseded_scdepth	
+OG461	230419	verdict	rerun_missing_input	kmer_depth
+OG462	230419	gfastats	rerun	
+OG462	230419	depth	superseded_scdepth	
+OG462	230419	verdict	rerun_missing_input	kmer_depth
+OG463	230419	gfastats	rerun	
+OG463	230419	depth	superseded_scdepth	
+OG463	230419	verdict	rerun_missing_input	kmer_depth
+OG464	230419	gfastats	rerun	
+OG464	230419	depth	superseded_scdepth	
+OG464	230419	verdict	rerun_missing_input	kmer_depth
+OG465	230419	gfastats	rerun	
+OG465	230419	depth	superseded_scdepth	
+OG465	230419	verdict	rerun_missing_input	kmer_depth
+OG466	221209	gfastats	rerun	
+OG466	221209	depth	superseded_scdepth	
+OG466	221209	verdict	rerun_missing_input	kmer_depth
+OG467	230419	gfastats	rerun	
+OG467	230419	depth	superseded_scdepth	
+OG467	230419	verdict	rerun_missing_input	kmer_depth
+OG468	230419	gfastats	rerun	
+OG468	230419	depth	superseded_scdepth	
+OG468	230419	verdict	rerun_missing_input	kmer_depth
+OG469	230419	gfastats	rerun	
+OG469	230419	depth	superseded_scdepth	
+OG469	230419	verdict	rerun_missing_input	kmer_depth
+OG470	230607	gfastats	rerun	
+OG470	230607	depth	superseded_scdepth	
+OG470	230607	verdict	rerun_missing_input	kmer_depth
+OG471	230607	gfastats	rerun	
+OG471	230607	depth	superseded_scdepth	
+OG471	230607	verdict	rerun_missing_input	kmer_depth
+OG472	230607	genomescope	reassemble	
+OG472	230607	tiara	reassemble	fna|s3_fna
+OG472	230607	contamination	reassemble	fna|s3_fna
+OG472	230607	busco	reassemble	fna|s3_fna
+OG472	230607	merqury	reassemble	fna|s3_fna
+OG472	230607	gfastats	reassemble	fna|s3_fna
+OG472	230607	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG472	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG473	230607	gfastats	rerun	
+OG473	230607	depth	superseded_scdepth	
+OG473	230607	verdict	rerun_missing_input	kmer_depth
+OG474	230607	gfastats	rerun	
+OG474	230607	depth	superseded_scdepth	
+OG474	230607	verdict	rerun_missing_input	kmer_depth
+OG475	230607	gfastats	rerun	
+OG475	230607	depth	superseded_scdepth	
+OG475	230607	verdict	rerun_missing_input	kmer_depth
+OG476	230607	gfastats	rerun	
+OG476	230607	depth	superseded_scdepth	
+OG476	230607	verdict	rerun_missing_input	kmer_depth
+OG477	230419	gfastats	rerun	
+OG477	230419	depth	superseded_scdepth	
+OG477	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG478	230419	gfastats	rerun	
+OG478	230419	depth	superseded_scdepth	
+OG478	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG479	230419	gfastats	rerun	
+OG479	230419	depth	superseded_scdepth	
+OG479	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG480	230419	gfastats	rerun	
+OG480	230419	depth	superseded_scdepth	
+OG480	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG481	230419	gfastats	rerun	
+OG481	230419	depth	superseded_scdepth	
+OG481	230419	verdict	rerun_missing_input	kmer_depth
+OG482	230419	gfastats	rerun	
+OG482	230419	depth	superseded_scdepth	
+OG482	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG483	230323	gfastats	rerun	
+OG483	230323	depth	superseded_scdepth	
+OG483	230323	verdict	rerun_missing_input	kmer_depth
+OG484	230419	gfastats	rerun	
+OG484	230419	depth	superseded_scdepth	
+OG484	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG485	230419	gfastats	rerun	
+OG485	230419	depth	superseded_scdepth	
+OG485	230419	verdict	rerun_missing_input	kmer_depth
+OG486	230419	gfastats	rerun	
+OG486	230419	depth	superseded_scdepth	
+OG486	230419	verdict	rerun_missing_input	kmer_depth
+OG487	230419	gfastats	rerun	
+OG487	230419	depth	superseded_scdepth	
+OG487	230419	verdict	rerun_missing_input	kmer_depth
+OG488	230323	gfastats	rerun	
+OG488	230323	depth	superseded_scdepth	
+OG488	230323	verdict	rerun_missing_input	kmer_depth
+OG489	230419	gfastats	rerun	
+OG489	230419	depth	superseded_scdepth	
+OG489	230419	verdict	rerun_missing_input	kmer_depth
+OG490	230419	gfastats	rerun	
+OG490	230419	depth	superseded_scdepth	
+OG490	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG491	230419	gfastats	rerun	
+OG491	230419	depth	superseded_scdepth	
+OG491	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG492	230419	gfastats	rerun	
+OG492	230419	depth	superseded_scdepth	
+OG492	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG493	230419	gfastats	rerun	
+OG493	230419	depth	superseded_scdepth	
+OG493	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG494	230419	gfastats	rerun	
+OG494	230419	depth	superseded_scdepth	
+OG494	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG495	230419	gfastats	rerun	
+OG495	230419	depth	superseded_scdepth	
+OG495	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG496	230419	gfastats	rerun	
+OG496	230419	depth	superseded_scdepth	
+OG496	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG497	230419	gfastats	rerun	
+OG497	230419	depth	superseded_scdepth	
+OG497	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG498	230419	gfastats	rerun	
+OG498	230419	depth	superseded_scdepth	
+OG498	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG499	230419	gfastats	rerun	
+OG499	230419	depth	superseded_scdepth	
+OG499	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG500	230323	gfastats	rerun	
+OG500	230323	depth	superseded_scdepth	
+OG500	230323	verdict	rerun_missing_input	kmer_depth
+OG501	230419	gfastats	rerun	
+OG501	230419	depth	superseded_scdepth	
+OG501	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG502	230419	gfastats	rerun	
+OG502	230419	depth	superseded_scdepth	
+OG502	230419	verdict	rerun_missing_input	kmer_depth
+OG503	230419	gfastats	rerun	
+OG503	230419	depth	superseded_scdepth	
+OG503	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG504	230419	gfastats	rerun	
+OG504	230419	depth	superseded_scdepth	
+OG504	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG505	230419	gfastats	rerun	
+OG505	230419	depth	superseded_scdepth	
+OG505	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG506	230419	gfastats	rerun	
+OG506	230419	depth	superseded_scdepth	
+OG506	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG507	230323	gfastats	rerun	
+OG507	230323	depth	superseded_scdepth	
+OG507	230323	verdict	rerun_missing_input	kmer_depth
+OG508	230323	gfastats	rerun	
+OG508	230323	depth	superseded_scdepth	
+OG508	230323	verdict	rerun_missing_input	kmer_depth
+OG509	230419	gfastats	rerun	
+OG509	230419	depth	superseded_scdepth	
+OG509	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG510	230323	gfastats	rerun	
+OG510	230323	depth	superseded_scdepth	
+OG510	230323	verdict	rerun_missing_input	kmer_depth
+OG511	230419	gfastats	rerun	
+OG511	230419	depth	superseded_scdepth	
+OG511	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG512	230419	gfastats	rerun	
+OG512	230419	depth	superseded_scdepth	
+OG512	230419	verdict	rerun_missing_input	kmer_depth
+OG513	230419	gfastats	rerun	
+OG513	230419	depth	superseded_scdepth	
+OG513	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG514	230419	gfastats	rerun	
+OG514	230419	depth	superseded_scdepth	
+OG514	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG515	230323	gfastats	rerun	
+OG515	230323	depth	superseded_scdepth	
+OG515	230323	verdict	rerun_missing_input	kmer_depth
+OG516	230419	gfastats	rerun	
+OG516	230419	depth	superseded_scdepth	
+OG516	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG517	230419	gfastats	rerun	
+OG517	230419	depth	superseded_scdepth	
+OG517	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG518	230419	gfastats	rerun	
+OG518	230419	depth	superseded_scdepth	
+OG518	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG519	230419	gfastats	rerun	
+OG519	230419	depth	superseded_scdepth	
+OG519	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG520	230419	gfastats	rerun	
+OG520	230419	depth	superseded_scdepth	
+OG520	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG521	230419	gfastats	rerun	
+OG521	230419	depth	superseded_scdepth	
+OG521	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG522	230419	gfastats	rerun	
+OG522	230419	depth	superseded_scdepth	
+OG522	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG523	230419	gfastats	rerun	
+OG523	230419	depth	superseded_scdepth	
+OG523	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG524	230419	gfastats	rerun	
+OG524	230419	depth	superseded_scdepth	
+OG524	230419	verdict	rerun_missing_input	kmer_depth
+OG525	230419	gfastats	rerun	
+OG525	230419	depth	superseded_scdepth	
+OG525	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG526	230419	gfastats	rerun	
+OG526	230419	depth	superseded_scdepth	
+OG526	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG527	230607	gfastats	rerun	
+OG527	230607	depth	superseded_scdepth	
+OG527	230607	verdict	rerun_missing_input	kmer_depth
+OG528	230607	gfastats	rerun	
+OG528	230607	depth	superseded_scdepth	
+OG528	230607	verdict	rerun_missing_input	kmer_depth
+OG529	230419	gfastats	rerun	
+OG529	230419	depth	superseded_scdepth	
+OG529	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG530	230607	gfastats	rerun	
+OG530	230607	depth	superseded_scdepth	
+OG530	230607	verdict	rerun_missing_input	kmer_depth
+OG531	230419	gfastats	rerun	
+OG531	230419	depth	superseded_scdepth	
+OG531	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG532	230607	gfastats	rerun	
+OG532	230607	depth	superseded_scdepth	
+OG532	230607	verdict	rerun_missing_input	kmer_depth
+OG533	230419	gfastats	rerun	
+OG533	230419	depth	superseded_scdepth	
+OG533	230419	verdict	rerun_missing_input	kmer_depth
+OG534	230419	gfastats	rerun	
+OG534	230419	depth	superseded_scdepth	
+OG534	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG535	230419	gfastats	rerun	
+OG535	230419	depth	superseded_scdepth	
+OG535	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG536	230419	gfastats	rerun	
+OG536	230419	depth	superseded_scdepth	
+OG536	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG537	221003	gfastats	rerun	
+OG537	221003	depth	superseded_scdepth	
+OG537	221003	verdict	rerun_missing_input	kmer_depth
+OG538	230419	gfastats	rerun	
+OG538	230419	depth	superseded_scdepth	
+OG538	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG539	230419	gfastats	rerun	
+OG539	230419	depth	superseded_scdepth	
+OG539	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG540	230419	gfastats	rerun	
+OG540	230419	depth	superseded_scdepth	
+OG540	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG541	230419	gfastats	rerun	
+OG541	230419	depth	superseded_scdepth	
+OG541	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG542	230419	gfastats	rerun	
+OG542	230419	depth	superseded_scdepth	
+OG542	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG543	230419	gfastats	rerun	
+OG543	230419	depth	superseded_scdepth	
+OG543	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG544	230419	gfastats	rerun	
+OG544	230419	depth	superseded_scdepth	
+OG544	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG545	230419	gfastats	rerun	
+OG545	230419	depth	superseded_scdepth	
+OG545	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG546	230419	gfastats	rerun	
+OG546	230419	depth	superseded_scdepth	
+OG546	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG547	230419	gfastats	rerun	
+OG547	230419	depth	superseded_scdepth	
+OG547	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG548	230419	gfastats	rerun	
+OG548	230419	depth	superseded_scdepth	
+OG548	230419	verdict	rerun_missing_input	kmer_depth
+OG549	230419	gfastats	rerun	
+OG549	230419	depth	superseded_scdepth	
+OG549	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG550	230419	gfastats	rerun	
+OG550	230419	depth	superseded_scdepth	
+OG550	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG551	230419	gfastats	rerun	
+OG551	230419	depth	superseded_scdepth	
+OG551	230419	verdict	rerun_missing_input	kmer_depth
+OG552	230419	gfastats	rerun	
+OG552	230419	depth	superseded_scdepth	
+OG552	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG553	230419	gfastats	rerun	
+OG553	230419	depth	superseded_scdepth	
+OG553	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG554	230419	gfastats	rerun	
+OG554	230419	depth	superseded_scdepth	
+OG554	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG555	221003	gfastats	rerun	
+OG555	221003	depth	superseded_scdepth	
+OG555	221003	verdict	rerun_missing_input	kmer_depth
+OG556	230419	gfastats	rerun	
+OG556	230419	depth	superseded_scdepth	
+OG556	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG557	230419	gfastats	rerun	
+OG557	230419	depth	superseded_scdepth	
+OG557	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG558	230419	gfastats	rerun	
+OG558	230419	depth	superseded_scdepth	
+OG558	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG559	230419	gfastats	rerun	
+OG559	230419	depth	superseded_scdepth	
+OG559	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG560	230419	gfastats	rerun	
+OG560	230419	depth	superseded_scdepth	
+OG560	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG561	230419	gfastats	rerun	
+OG561	230419	depth	superseded_scdepth	
+OG561	230419	verdict	rerun_missing_input	kmer_depth
+OG562	230419	gfastats	rerun	
+OG562	230419	depth	superseded_scdepth	
+OG562	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG563	230419	gfastats	rerun	
+OG563	230419	depth	superseded_scdepth	
+OG563	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG564	230419	gfastats	rerun	
+OG564	230419	depth	superseded_scdepth	
+OG564	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG565	230419	gfastats	rerun	
+OG565	230419	depth	superseded_scdepth	
+OG565	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG566	230419	gfastats	rerun	
+OG566	230419	depth	superseded_scdepth	
+OG566	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG567	221003	gfastats	rerun	
+OG567	221003	depth	superseded_scdepth	
+OG567	221003	verdict	rerun_missing_input	kmer_depth
+OG568	230419	gfastats	rerun	
+OG568	230419	depth	superseded_scdepth	
+OG568	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG569	230419	gfastats	rerun	
+OG569	230419	depth	superseded_scdepth	
+OG569	230419	verdict	rerun_missing_input	kmer_depth
+OG570	230419	gfastats	rerun	
+OG570	230419	depth	superseded_scdepth	
+OG570	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG571	230419	gfastats	rerun	
+OG571	230419	depth	superseded_scdepth	
+OG571	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG572	230419	gfastats	rerun	
+OG572	230419	depth	superseded_scdepth	
+OG572	230419	verdict	rerun_missing_input	kmer_depth
+OG573	230607	gfastats	rerun	
+OG573	230607	depth	superseded_scdepth	
+OG573	230607	verdict	rerun_missing_input	kmer_depth
+OG574	230419	gfastats	rerun	
+OG574	230419	depth	superseded_scdepth	
+OG574	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG575	230419	gfastats	rerun	
+OG575	230419	depth	superseded_scdepth	
+OG575	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG576	230419	gfastats	rerun	
+OG576	230419	depth	superseded_scdepth	
+OG576	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG577	230419	gfastats	rerun	
+OG577	230419	depth	superseded_scdepth	
+OG577	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG578	230419	gfastats	rerun	
+OG578	230419	depth	superseded_scdepth	
+OG578	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG579	221003	gfastats	rerun	
+OG579	221003	depth	superseded_scdepth	
+OG579	221003	verdict	rerun_missing_input	kmer_depth
+OG580	221003	gfastats	rerun	
+OG580	221003	depth	superseded_scdepth	
+OG580	221003	verdict	rerun_missing_input	kmer_depth
+OG581	230419	gfastats	rerun	
+OG581	230419	depth	superseded_scdepth	
+OG581	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG582	221003	gfastats	rerun	
+OG582	221003	depth	superseded_scdepth	
+OG582	221003	verdict	rerun_missing_input	kmer_depth
+OG583	230419	gfastats	rerun	
+OG583	230419	depth	superseded_scdepth	
+OG583	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG584	230419	gfastats	rerun	
+OG584	230419	depth	superseded_scdepth	
+OG584	230419	verdict	rerun_missing_input	kmer_depth
+OG585	230419	gfastats	rerun	
+OG585	230419	depth	superseded_scdepth	
+OG585	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG586	230419	gfastats	rerun	
+OG586	230419	depth	superseded_scdepth	
+OG586	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG587	230419	gfastats	rerun	
+OG587	230419	depth	superseded_scdepth	
+OG587	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG588	230419	gfastats	rerun	
+OG588	230419	depth	superseded_scdepth	
+OG588	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG589	230419	gfastats	rerun	
+OG589	230419	depth	superseded_scdepth	
+OG589	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG590	230419	gfastats	rerun	
+OG590	230419	depth	superseded_scdepth	
+OG590	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG591	230419	gfastats	rerun	
+OG591	230419	depth	superseded_scdepth	
+OG591	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG592	230419	gfastats	rerun	
+OG592	230419	depth	superseded_scdepth	
+OG592	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG593	230419	gfastats	rerun	
+OG593	230419	depth	superseded_scdepth	
+OG593	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG594	230419	gfastats	rerun	
+OG594	230419	depth	superseded_scdepth	
+OG594	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG595	230419	gfastats	rerun	
+OG595	230419	depth	superseded_scdepth	
+OG595	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG596	230419	gfastats	rerun	
+OG596	230419	depth	superseded_scdepth	
+OG596	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG597	230419	gfastats	rerun	
+OG597	230419	depth	superseded_scdepth	
+OG597	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG598	230419	gfastats	rerun	
+OG598	230419	depth	superseded_scdepth	
+OG598	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG599	230419	gfastats	rerun	
+OG599	230419	depth	superseded_scdepth	
+OG599	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG600	230419	gfastats	rerun	
+OG600	230419	depth	superseded_scdepth	
+OG600	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG601	230419	gfastats	rerun	
+OG601	230419	depth	superseded_scdepth	
+OG601	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG602	230419	gfastats	rerun	
+OG602	230419	depth	superseded_scdepth	
+OG602	230419	verdict	rerun_missing_input	kmer_depth
+OG603	230419	gfastats	rerun	
+OG603	230419	depth	superseded_scdepth	
+OG603	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG604	230419	gfastats	rerun	
+OG604	230419	depth	superseded_scdepth	
+OG604	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG605	230419	gfastats	rerun	
+OG605	230419	depth	superseded_scdepth	
+OG605	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG606	230419	gfastats	rerun	
+OG606	230419	depth	superseded_scdepth	
+OG606	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG607	230419	gfastats	rerun	
+OG607	230419	depth	superseded_scdepth	
+OG607	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG608	230419	gfastats	rerun	
+OG608	230419	depth	superseded_scdepth	
+OG608	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG609	230419	gfastats	rerun	
+OG609	230419	depth	superseded_scdepth	
+OG609	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG610	221003	gfastats	rerun	
+OG610	221003	depth	superseded_scdepth	
+OG610	221003	verdict	rerun_missing_input	kmer_depth
+OG611	230419	gfastats	rerun	
+OG611	230419	depth	superseded_scdepth	
+OG611	230419	verdict	rerun_missing_input	kmer_depth
+OG612	230419	gfastats	rerun	
+OG612	230419	depth	superseded_scdepth	
+OG612	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG613	230419	gfastats	rerun	
+OG613	230419	depth	superseded_scdepth	
+OG613	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG614	230419	gfastats	rerun	
+OG614	230419	depth	superseded_scdepth	
+OG614	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG615	230419	gfastats	rerun	
+OG615	230419	depth	superseded_scdepth	
+OG615	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG616	230419	gfastats	rerun	
+OG616	230419	depth	superseded_scdepth	
+OG616	230419	verdict	rerun_missing_input	kmer_depth
+OG617	230607	gfastats	reassemble	fna|s3_fna
+OG617	230607	depth	superseded_scdepth	
+OG617	230607	verdict	reassemble	genomescope_model,kmer_depth
+OG617	240813	gfastats	rerun	
+OG617	240813	depth	superseded_scdepth	
+OG617	240813	verdict	rerun_missing_input	kmer_depth
+OG618	230607	gfastats	rerun	
+OG618	230607	depth	superseded_scdepth	
+OG618	230607	verdict	rerun_missing_input	kmer_depth
+OG619	230607	gfastats	rerun	
+OG619	230607	depth	superseded_scdepth	
+OG619	230607	verdict	rerun_missing_input	kmer_depth
+OG620	230419	gfastats	rerun	
+OG620	230419	depth	superseded_scdepth	
+OG620	230419	verdict	rerun_missing_input	kmer_depth
+OG621	230419	gfastats	rerun	
+OG621	230419	depth	superseded_scdepth	
+OG621	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG622	230419	gfastats	rerun	
+OG622	230419	depth	superseded_scdepth	
+OG622	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG623	230419	gfastats	rerun	
+OG623	230419	depth	superseded_scdepth	
+OG623	230419	verdict	rerun_missing_input	kmer_depth
+OG624	230419	gfastats	rerun	
+OG624	230419	depth	superseded_scdepth	
+OG624	230419	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG649	250331	gfastats	rerun	
+OG649	250331	depth	superseded_scdepth	
+OG649	250331	verdict	rerun_missing_input	kmer_depth
+OG651	250331	gfastats	rerun	
+OG651	250331	depth	superseded_scdepth	
+OG651	250331	verdict	rerun_missing_input	kmer_depth
+OG653	240313	gfastats	rerun	
+OG653	240313	depth	superseded_scdepth	
+OG653	240313	verdict	rerun_missing_input	kmer_depth
+OG654	250331	gfastats	rerun	
+OG654	250331	depth	superseded_scdepth	
+OG654	250331	verdict	rerun_missing_input	kmer_depth
+OG655	240313	gfastats	rerun	
+OG655	240313	depth	superseded_scdepth	
+OG655	240313	verdict	rerun_missing_input	kmer_depth
+OG656	240313	gfastats	rerun	
+OG656	240313	depth	superseded_scdepth	
+OG656	240313	verdict	rerun_missing_input	kmer_depth
+OG659	250331	gfastats	rerun	
+OG659	250331	depth	superseded_scdepth	
+OG659	250331	verdict	rerun_missing_input	kmer_depth
+OG661	240313	gfastats	rerun	
+OG661	240313	depth	superseded_scdepth	
+OG661	240313	verdict	rerun_missing_input	kmer_depth
+OG662	250331	gfastats	rerun	
+OG662	250331	depth	superseded_scdepth	
+OG662	250331	verdict	rerun_missing_input	kmer_depth
+OG663	240313	gfastats	rerun	
+OG663	240313	depth	superseded_scdepth	
+OG663	240313	verdict	rerun_missing_input	kmer_depth
+OG666	240313	gfastats	rerun	
+OG666	240313	depth	superseded_scdepth	
+OG666	240313	verdict	rerun_missing_input	kmer_depth
+OG667	240716	gfastats	rerun	
+OG667	240716	depth	superseded_scdepth	
+OG667	240716	verdict	rerun_missing_input	kmer_depth
+OG668	240313	gfastats	rerun	
+OG668	240313	depth	superseded_scdepth	
+OG668	240313	verdict	rerun_missing_input	kmer_depth
+OG670	240313	gfastats	rerun	
+OG670	240313	depth	superseded_scdepth	
+OG670	240313	verdict	rerun_missing_input	kmer_depth
+OG671	240313	gfastats	rerun	
+OG671	240313	depth	superseded_scdepth	
+OG671	240313	verdict	rerun_missing_input	kmer_depth
+OG674	240716	gfastats	rerun	
+OG674	240716	depth	superseded_scdepth	
+OG674	240716	verdict	rerun_missing_input	kmer_depth
+OG677	240313	gfastats	rerun	
+OG677	240313	depth	superseded_scdepth	
+OG677	240313	verdict	rerun_missing_input	kmer_depth
+OG678	250331	gfastats	rerun	
+OG678	250331	depth	superseded_scdepth	
+OG678	250331	verdict	rerun_missing_input	kmer_depth
+OG682	240716	gfastats	rerun	
+OG682	240716	depth	superseded_scdepth	
+OG682	240716	verdict	rerun_missing_input	kmer_depth
+OG684	240313	gfastats	rerun	
+OG684	240313	depth	superseded_scdepth	
+OG684	240313	verdict	rerun_missing_input	kmer_depth
+OG685	240313	gfastats	rerun	
+OG685	240313	depth	superseded_scdepth	
+OG685	240313	verdict	rerun_missing_input	kmer_depth
+OG687	240313	gfastats	rerun	
+OG687	240313	depth	superseded_scdepth	
+OG687	240313	verdict	rerun_missing_input	kmer_depth
+OG688	240313	gfastats	rerun	
+OG688	240313	depth	superseded_scdepth	
+OG688	240313	verdict	rerun_missing_input	kmer_depth
+OG689	240313	gfastats	rerun	
+OG689	240313	depth	superseded_scdepth	
+OG689	240313	verdict	rerun_missing_input	kmer_depth
+OG690	240716	gfastats	rerun	
+OG690	240716	depth	superseded_scdepth	
+OG690	240716	verdict	rerun_missing_input	kmer_depth
+OG691	240716	gfastats	rerun	
+OG691	240716	depth	superseded_scdepth	
+OG691	240716	verdict	rerun_missing_input	kmer_depth
+OG692	240716	gfastats	rerun	
+OG692	240716	depth	superseded_scdepth	
+OG692	240716	verdict	rerun_missing_input	kmer_depth
+OG693	240716	gfastats	rerun	
+OG693	240716	depth	superseded_scdepth	
+OG693	240716	verdict	rerun_missing_input	kmer_depth
+OG694	240716	gfastats	rerun	
+OG694	240716	depth	superseded_scdepth	
+OG694	240716	verdict	rerun_missing_input	kmer_depth
+OG695	250331	gfastats	rerun	
+OG695	250331	depth	superseded_scdepth	
+OG695	250331	verdict	rerun_missing_input	kmer_depth
+OG697	240716	gfastats	rerun	
+OG697	240716	depth	superseded_scdepth	
+OG697	240716	verdict	rerun_missing_input	kmer_depth
+OG698	240716	gfastats	rerun	
+OG698	240716	depth	superseded_scdepth	
+OG698	240716	verdict	rerun_missing_input	kmer_depth
+OG700	240716	gfastats	rerun	
+OG700	240716	depth	superseded_scdepth	
+OG700	240716	verdict	rerun_missing_input	kmer_depth
+OG703	240313	gfastats	rerun	
+OG703	240313	depth	superseded_scdepth	
+OG703	240313	verdict	rerun_missing_input	kmer_depth
+OG705	240813	gfastats	rerun	
+OG705	240813	depth	superseded_scdepth	
+OG705	240813	verdict	rerun_missing_input	kmer_depth
+OG709	250331	gfastats	rerun	
+OG709	250331	depth	superseded_scdepth	
+OG709	250331	verdict	rerun_missing_input	kmer_depth
+OG711	250331	gfastats	rerun	
+OG711	250331	depth	superseded_scdepth	
+OG711	250331	verdict	rerun_missing_input	kmer_depth
+OG716	250331	gfastats	rerun	
+OG716	250331	depth	superseded_scdepth	
+OG716	250331	verdict	rerun_missing_input	kmer_depth
+OG719	250331	gfastats	rerun	
+OG719	250331	depth	superseded_scdepth	
+OG719	250331	verdict	rerun_missing_input	kmer_depth
+OG721	250331	gfastats	rerun	
+OG721	250331	depth	superseded_scdepth	
+OG721	250331	verdict	rerun_missing_input	kmer_depth
+OG736	240813	gfastats	rerun	
+OG736	240813	depth	superseded_scdepth	
+OG736	240813	verdict	rerun_missing_input	kmer_depth
+OG746	250331	gfastats	rerun	
+OG746	250331	depth	superseded_scdepth	
+OG746	250331	verdict	rerun_missing_input	kmer_depth
+OG747	250131	gfastats	rerun	
+OG747	250131	depth	superseded_scdepth	
+OG747	250131	verdict	rerun_missing_input	kmer_depth
+OG752	250520	gfastats	rerun	
+OG752	250520	depth	superseded_scdepth	
+OG752	250520	verdict	rerun_missing_input	kmer_depth
+OG753	240813	gfastats	rerun	
+OG753	240813	depth	superseded_scdepth	
+OG753	240813	verdict	rerun_missing_input	kmer_depth
+OG754	240716	gfastats	rerun	
+OG754	240716	depth	superseded_scdepth	
+OG754	240716	verdict	rerun_missing_input	kmer_depth
+OG761	240716	gfastats	rerun	
+OG761	240716	depth	superseded_scdepth	
+OG761	240716	verdict	rerun_missing_input	kmer_depth
+OG764	240716	gfastats	rerun	
+OG764	240716	depth	superseded_scdepth	
+OG764	240716	verdict	rerun_missing_input	kmer_depth
+OG768	240716	gfastats	rerun	
+OG768	240716	depth	superseded_scdepth	
+OG768	240716	verdict	rerun_missing_input	kmer_depth
+OG768	250520	gfastats	rerun	
+OG768	250520	depth	superseded_scdepth	
+OG768	250520	verdict	rerun_missing_input	kmer_depth
+OG771	250520	gfastats	rerun	
+OG771	250520	depth	superseded_scdepth	
+OG771	250520	verdict	rerun_missing_input	kmer_depth
+OG772	250520	gfastats	rerun	
+OG772	250520	depth	superseded_scdepth	
+OG772	250520	verdict	rerun_missing_input	kmer_depth
+OG773	250520	gfastats	rerun	
+OG773	250520	depth	superseded_scdepth	
+OG773	250520	verdict	rerun_missing_input	kmer_depth
+OG780	240716	gfastats	rerun	
+OG780	240716	depth	superseded_scdepth	
+OG780	240716	verdict	rerun_missing_input	kmer_depth
+OG780	250520	gfastats	rerun	
+OG780	250520	depth	superseded_scdepth	
+OG780	250520	verdict	rerun_missing_input	kmer_depth
+OG782	240716	gfastats	rerun	
+OG782	240716	depth	superseded_scdepth	
+OG782	240716	verdict	rerun_missing_input	kmer_depth
+OG782	250520	gfastats	rerun	
+OG782	250520	depth	superseded_scdepth	
+OG782	250520	verdict	rerun_missing_input	kmer_depth
+OG783	240716	gfastats	rerun	
+OG783	240716	depth	superseded_scdepth	
+OG783	240716	verdict	rerun_missing_input	kmer_depth
+OG786	250520	gfastats	rerun	
+OG786	250520	depth	superseded_scdepth	
+OG786	250520	verdict	rerun_missing_input	kmer_depth
+OG789	250520	gfastats	rerun	
+OG789	250520	depth	superseded_scdepth	
+OG789	250520	verdict	rerun_missing_input	kmer_depth
+OG792	240716	gfastats	rerun	
+OG792	240716	depth	superseded_scdepth	
+OG792	240716	verdict	rerun_missing_input	kmer_depth
+OG795	240716	gfastats	rerun	
+OG795	240716	depth	superseded_scdepth	
+OG795	240716	verdict	rerun_missing_input	kmer_depth
+OG796	240716	gfastats	rerun	
+OG796	240716	depth	superseded_scdepth	
+OG796	240716	verdict	rerun_missing_input	kmer_depth
+OG797	240716	gfastats	rerun	
+OG797	240716	depth	superseded_scdepth	
+OG797	240716	verdict	rerun_missing_input	kmer_depth
+OG798	240716	gfastats	rerun	
+OG798	240716	depth	superseded_scdepth	
+OG798	240716	verdict	rerun_missing_input	kmer_depth
+OG802	250520	gfastats	rerun	
+OG802	250520	depth	superseded_scdepth	
+OG802	250520	verdict	rerun_missing_input	kmer_depth
+OG805	250520	gfastats	rerun	
+OG805	250520	depth	superseded_scdepth	
+OG805	250520	verdict	rerun_missing_input	kmer_depth
+OG806	250520	gfastats	rerun	
+OG806	250520	depth	superseded_scdepth	
+OG806	250520	verdict	rerun_missing_input	kmer_depth
+OG807	250520	gfastats	rerun	
+OG807	250520	depth	superseded_scdepth	
+OG807	250520	verdict	rerun_missing_input	kmer_depth
+OG809	240716	gfastats	rerun	
+OG809	240716	depth	superseded_scdepth	
+OG809	240716	verdict	rerun_missing_input	kmer_depth
+OG812	240716	gfastats	rerun	
+OG812	240716	depth	superseded_scdepth	
+OG812	240716	verdict	rerun_missing_input	kmer_depth
+OG814	240716	gfastats	rerun	
+OG814	240716	depth	superseded_scdepth	
+OG814	240716	verdict	rerun_missing_input	kmer_depth
+OG815	250520	gfastats	rerun	
+OG815	250520	depth	superseded_scdepth	
+OG815	250520	verdict	rerun_missing_input	kmer_depth
+OG816	240716	gfastats	rerun	
+OG816	240716	depth	superseded_scdepth	
+OG816	240716	verdict	rerun_missing_input	kmer_depth
+OG817	240716	gfastats	rerun	
+OG817	240716	depth	superseded_scdepth	
+OG817	240716	verdict	rerun_missing_input	kmer_depth
+OG818	250520	gfastats	rerun	
+OG818	250520	depth	superseded_scdepth	
+OG818	250520	verdict	rerun_missing_input	kmer_depth
+OG821	250331	gfastats	rerun	
+OG821	250331	depth	superseded_scdepth	
+OG821	250331	verdict	rerun_missing_input	kmer_depth
+OG822	250520	gfastats	rerun	
+OG822	250520	depth	superseded_scdepth	
+OG822	250520	verdict	rerun_missing_input	kmer_depth
+OG823	240716	gfastats	rerun	
+OG823	240716	depth	superseded_scdepth	
+OG823	240716	verdict	rerun_missing_input	kmer_depth
+OG825	240716	gfastats	rerun	
+OG825	240716	depth	superseded_scdepth	
+OG825	240716	verdict	rerun_missing_input	kmer_depth
+OG826	240813	gfastats	rerun	
+OG826	240813	depth	superseded_scdepth	
+OG826	240813	verdict	rerun_missing_input	kmer_depth
+OG827	240716	gfastats	rerun	
+OG827	240716	depth	superseded_scdepth	
+OG827	240716	verdict	rerun_missing_input	kmer_depth
+OG828	250520	gfastats	rerun	
+OG828	250520	depth	superseded_scdepth	
+OG828	250520	verdict	rerun_missing_input	kmer_depth
+OG829	250331	gfastats	rerun	
+OG829	250331	depth	superseded_scdepth	
+OG829	250331	verdict	rerun_missing_input	kmer_depth
+OG830	250520	gfastats	rerun	
+OG830	250520	depth	superseded_scdepth	
+OG830	250520	verdict	rerun_missing_input	kmer_depth
+OG831	240716	gfastats	rerun	
+OG831	240716	depth	superseded_scdepth	
+OG831	240716	verdict	rerun_missing_input	kmer_depth
+OG832	240813	gfastats	rerun	
+OG832	240813	depth	superseded_scdepth	
+OG832	240813	verdict	rerun_missing_input	kmer_depth
+OG833	240716	gfastats	rerun	
+OG833	240716	depth	superseded_scdepth	
+OG833	240716	verdict	rerun_missing_input	kmer_depth
+OG834	250331	gfastats	rerun	
+OG834	250331	depth	superseded_scdepth	
+OG834	250331	verdict	rerun_missing_input	kmer_depth
+OG839	250520	gfastats	rerun	
+OG839	250520	depth	superseded_scdepth	
+OG839	250520	verdict	rerun_missing_input	kmer_depth
+OG840	250520	gfastats	rerun	
+OG840	250520	depth	superseded_scdepth	
+OG840	250520	verdict	rerun_missing_input	kmer_depth
+OG841	240813	gfastats	rerun	
+OG841	240813	depth	superseded_scdepth	
+OG841	240813	verdict	rerun_missing_input	kmer_depth
+OG842	240813	gfastats	rerun	
+OG842	240813	depth	superseded_scdepth	
+OG842	240813	verdict	rerun_missing_input	kmer_depth
+OG843	240813	gfastats	rerun	
+OG843	240813	depth	superseded_scdepth	
+OG843	240813	verdict	rerun_missing_input	kmer_depth
+OG846	250131	gfastats	rerun	
+OG846	250131	depth	superseded_scdepth	
+OG846	250131	verdict	rerun_missing_input	kmer_depth
+OG850	240716	gfastats	rerun	
+OG850	240716	depth	superseded_scdepth	
+OG850	240716	verdict	rerun_missing_input	kmer_depth
+OG851	240716	gfastats	rerun	
+OG851	240716	depth	superseded_scdepth	
+OG851	240716	verdict	rerun_missing_input	kmer_depth
+OG854	250520	gfastats	rerun	
+OG854	250520	depth	superseded_scdepth	
+OG854	250520	verdict	rerun_missing_input	kmer_depth
+OG855	250331	gfastats	rerun	
+OG855	250331	depth	superseded_scdepth	
+OG855	250331	verdict	rerun_missing_input	kmer_depth
+OG864	251031	genomescope	reassemble	
+OG864	251031	tiara	reassemble	fna|s3_fna
+OG864	251031	contamination	reassemble	fna|s3_fna
+OG864	251031	busco	reassemble	fna|s3_fna
+OG864	251031	merqury	reassemble	fna|s3_fna
+OG864	251031	gfastats	reassemble	fna|s3_fna
+OG864	251031	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model
+OG864	251031	verdict	reassemble	genomescope_model,kmer_depth
+OG870	241108	gfastats	rerun	
+OG870	241108	depth	superseded_scdepth	
+OG870	241108	verdict	rerun_missing_input	kmer_depth
+OG871	241108	gfastats	rerun	
+OG871	241108	depth	superseded_scdepth	
+OG871	241108	verdict	rerun_missing_input	kmer_depth
+OG872	241101	gfastats	rerun	
+OG872	241101	depth	superseded_scdepth	
+OG872	241101	verdict	rerun_missing_input	kmer_depth
+OG873	241108	gfastats	rerun	
+OG873	241108	depth	superseded_scdepth	
+OG873	241108	verdict	rerun_missing_input	kmer_depth
+OG874	241101	gfastats	rerun	
+OG874	241101	depth	superseded_scdepth	
+OG874	241101	verdict	rerun_missing_input	kmer_depth
+OG875	241101	gfastats	rerun	
+OG875	241101	depth	superseded_scdepth	
+OG875	241101	verdict	rerun_missing_input	kmer_depth
+OG876	241108	gfastats	rerun	
+OG876	241108	depth	superseded_scdepth	
+OG876	241108	verdict	rerun_missing_input	kmer_depth
+OG877	241108	gfastats	rerun	
+OG877	241108	depth	superseded_scdepth	
+OG877	241108	verdict	rerun_missing_input	kmer_depth
+OG878	241108	gfastats	rerun	
+OG878	241108	depth	superseded_scdepth	
+OG878	241108	verdict	rerun_missing_input	kmer_depth
+OG879	241108	gfastats	rerun	
+OG879	241108	depth	superseded_scdepth	
+OG879	241108	verdict	rerun_missing_input	kmer_depth
+OG880	241108	gfastats	rerun	
+OG880	241108	depth	superseded_scdepth	
+OG880	241108	verdict	rerun_missing_input	kmer_depth
+OG881	241108	gfastats	rerun	
+OG881	241108	depth	superseded_scdepth	
+OG881	241108	verdict	rerun_missing_input	kmer_depth
+OG882	241108	gfastats	rerun	
+OG882	241108	depth	superseded_scdepth	
+OG882	241108	verdict	rerun_missing_input	kmer_depth
+OG883	241108	gfastats	rerun	
+OG883	241108	depth	superseded_scdepth	
+OG883	241108	verdict	rerun_missing_input	kmer_depth
+OG884	241108	gfastats	rerun	
+OG884	241108	depth	superseded_scdepth	
+OG884	241108	verdict	rerun_missing_input	kmer_depth
+OG885	241108	gfastats	rerun	
+OG885	241108	depth	superseded_scdepth	
+OG885	241108	verdict	rerun_missing_input	kmer_depth
+OG886	241108	gfastats	rerun	
+OG886	241108	depth	superseded_scdepth	
+OG886	241108	verdict	rerun_missing_input	kmer_depth
+OG887	241108	gfastats	rerun	
+OG887	241108	depth	superseded_scdepth	
+OG887	241108	verdict	rerun_missing_input	kmer_depth
+OG888	241108	gfastats	rerun	
+OG888	241108	depth	superseded_scdepth	
+OG888	241108	verdict	rerun_missing_input	kmer_depth
+OG889	241108	gfastats	rerun	
+OG889	241108	depth	superseded_scdepth	
+OG889	241108	verdict	rerun_missing_input	kmer_depth
+OG890	241108	gfastats	rerun	
+OG890	241108	depth	superseded_scdepth	
+OG890	241108	verdict	rerun_missing_input	kmer_depth
+OG891	241108	gfastats	rerun	
+OG891	241108	depth	superseded_scdepth	
+OG891	241108	verdict	rerun_missing_input	kmer_depth
+OG892	241108	gfastats	rerun	
+OG892	241108	depth	superseded_scdepth	
+OG892	241108	verdict	rerun_missing_input	kmer_depth
+OG893	250131	gfastats	rerun	
+OG893	250131	depth	superseded_scdepth	
+OG893	250131	verdict	rerun_missing_input	kmer_depth
+OG894	250131	gfastats	rerun	
+OG894	250131	depth	superseded_scdepth	
+OG894	250131	verdict	rerun_missing_input	kmer_depth
+OG895	250131	gfastats	rerun	
+OG895	250131	depth	superseded_scdepth	
+OG895	250131	verdict	rerun_missing_input	kmer_depth
+OG896	241108	gfastats	rerun	
+OG896	241108	depth	superseded_scdepth	
+OG896	241108	verdict	rerun_missing_input	kmer_depth
+OG897	250131	gfastats	rerun	
+OG897	250131	depth	superseded_scdepth	
+OG897	250131	verdict	rerun_missing_input	kmer_depth
+OG898	250131	gfastats	rerun	
+OG898	250131	depth	superseded_scdepth	
+OG898	250131	verdict	rerun_missing_input	kmer_depth
+OG899	250131	gfastats	rerun	
+OG899	250131	depth	superseded_scdepth	
+OG899	250131	verdict	rerun_missing_input	kmer_depth
+OG900	250131	gfastats	rerun	
+OG900	250131	depth	superseded_scdepth	
+OG900	250131	verdict	rerun_missing_input	kmer_depth
+OG901	241108	gfastats	rerun	
+OG901	241108	depth	superseded_scdepth	
+OG901	241108	verdict	rerun_missing_input	kmer_depth
+OG902	241108	gfastats	rerun	
+OG902	241108	depth	superseded_scdepth	
+OG902	241108	verdict	rerun_missing_input	kmer_depth
+OG903	241108	gfastats	rerun	
+OG903	241108	depth	superseded_scdepth	
+OG903	241108	verdict	rerun_missing_input	kmer_depth
+OG904	250131	gfastats	rerun	
+OG904	250131	depth	superseded_scdepth	
+OG904	250131	verdict	rerun_missing_input	kmer_depth
+OG905	241108	gfastats	rerun	
+OG905	241108	depth	superseded_scdepth	
+OG905	241108	verdict	rerun_missing_input	kmer_depth
+OG1093	250606	merqury	backfill	
+OG1118	250606	merqury	rerun	
+OG1162	250214	genomescope	reassemble	
+OG1162	250214	tiara	reassemble	fna|s3_fna
+OG1162	250214	contamination	reassemble	fna|s3_fna
+OG1162	250214	busco	reassemble	fna|s3_fna
+OG1162	250214	merqury	reassemble	fna|s3_fna
+OG1162	250214	gfastats	reassemble	fna|s3_fna
+OG1162	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1162	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1163	250214	genomescope	reassemble	
+OG1163	250214	tiara	reassemble	fna|s3_fna
+OG1163	250214	contamination	reassemble	fna|s3_fna
+OG1163	250214	busco	reassemble	fna|s3_fna
+OG1163	250214	merqury	reassemble	fna|s3_fna
+OG1163	250214	gfastats	reassemble	fna|s3_fna
+OG1163	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1163	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1164	250214	genomescope	reassemble	
+OG1164	250214	tiara	reassemble	fna|s3_fna
+OG1164	250214	contamination	reassemble	fna|s3_fna
+OG1164	250214	busco	reassemble	fna|s3_fna
+OG1164	250214	merqury	reassemble	fna|s3_fna
+OG1164	250214	gfastats	reassemble	fna|s3_fna
+OG1164	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1164	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1165	250214	genomescope	reassemble	
+OG1165	250214	tiara	reassemble	fna|s3_fna
+OG1165	250214	contamination	reassemble	fna|s3_fna
+OG1165	250214	busco	reassemble	fna|s3_fna
+OG1165	250214	merqury	reassemble	fna|s3_fna
+OG1165	250214	gfastats	reassemble	fna|s3_fna
+OG1165	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1165	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1166	250214	genomescope	reassemble	
+OG1166	250214	tiara	reassemble	fna|s3_fna
+OG1166	250214	contamination	reassemble	fna|s3_fna
+OG1166	250214	busco	reassemble	fna|s3_fna
+OG1166	250214	merqury	reassemble	fna|s3_fna
+OG1166	250214	gfastats	reassemble	fna|s3_fna
+OG1166	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1166	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1167	250214	genomescope	reassemble	
+OG1167	250214	tiara	reassemble	fna|s3_fna
+OG1167	250214	contamination	reassemble	fna|s3_fna
+OG1167	250214	busco	reassemble	fna|s3_fna
+OG1167	250214	merqury	reassemble	fna|s3_fna
+OG1167	250214	gfastats	reassemble	fna|s3_fna
+OG1167	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1167	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1168	250214	genomescope	reassemble	
+OG1168	250214	tiara	reassemble	fna|s3_fna
+OG1168	250214	contamination	reassemble	fna|s3_fna
+OG1168	250214	busco	reassemble	fna|s3_fna
+OG1168	250214	merqury	reassemble	fna|s3_fna
+OG1168	250214	gfastats	reassemble	fna|s3_fna
+OG1168	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1168	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1169	250214	genomescope	reassemble	
+OG1169	250214	tiara	reassemble	fna|s3_fna
+OG1169	250214	contamination	reassemble	fna|s3_fna
+OG1169	250214	busco	reassemble	fna|s3_fna
+OG1169	250214	merqury	reassemble	fna|s3_fna
+OG1169	250214	gfastats	reassemble	fna|s3_fna
+OG1169	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1169	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1170	250214	genomescope	reassemble	
+OG1170	250214	tiara	reassemble	fna|s3_fna
+OG1170	250214	contamination	reassemble	fna|s3_fna
+OG1170	250214	busco	reassemble	fna|s3_fna
+OG1170	250214	merqury	reassemble	fna|s3_fna
+OG1170	250214	gfastats	reassemble	fna|s3_fna
+OG1170	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1170	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1172	250214	genomescope	reassemble	
+OG1172	250214	tiara	reassemble	fna|s3_fna
+OG1172	250214	contamination	reassemble	fna|s3_fna
+OG1172	250214	busco	reassemble	fna|s3_fna
+OG1172	250214	merqury	reassemble	fna|s3_fna
+OG1172	250214	gfastats	reassemble	fna|s3_fna
+OG1172	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1172	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1173	250214	genomescope	reassemble	
+OG1173	250214	tiara	reassemble	fna|s3_fna
+OG1173	250214	contamination	reassemble	fna|s3_fna
+OG1173	250214	busco	reassemble	fna|s3_fna
+OG1173	250214	merqury	reassemble	fna|s3_fna
+OG1173	250214	gfastats	reassemble	fna|s3_fna
+OG1173	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1173	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1174	250214	genomescope	reassemble	
+OG1174	250214	tiara	reassemble	fna|s3_fna
+OG1174	250214	contamination	reassemble	fna|s3_fna
+OG1174	250214	busco	reassemble	fna|s3_fna
+OG1174	250214	merqury	reassemble	fna|s3_fna
+OG1174	250214	gfastats	reassemble	fna|s3_fna
+OG1174	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1174	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1175	250214	genomescope	reassemble	
+OG1175	250214	tiara	reassemble	fna|s3_fna
+OG1175	250214	contamination	reassemble	fna|s3_fna
+OG1175	250214	busco	reassemble	fna|s3_fna
+OG1175	250214	merqury	reassemble	fna|s3_fna
+OG1175	250214	gfastats	reassemble	fna|s3_fna
+OG1175	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1175	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1176	250214	genomescope	reassemble	
+OG1176	250214	tiara	reassemble	fna|s3_fna
+OG1176	250214	contamination	reassemble	fna|s3_fna
+OG1176	250214	busco	reassemble	fna|s3_fna
+OG1176	250214	merqury	reassemble	fna|s3_fna
+OG1176	250214	gfastats	reassemble	fna|s3_fna
+OG1176	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1176	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1177	250214	genomescope	reassemble	
+OG1177	250214	tiara	reassemble	fna|s3_fna
+OG1177	250214	contamination	reassemble	fna|s3_fna
+OG1177	250214	busco	reassemble	fna|s3_fna
+OG1177	250214	merqury	reassemble	fna|s3_fna
+OG1177	250214	gfastats	reassemble	fna|s3_fna
+OG1177	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1177	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1178	250214	genomescope	reassemble	
+OG1178	250214	tiara	reassemble	fna|s3_fna
+OG1178	250214	contamination	reassemble	fna|s3_fna
+OG1178	250214	busco	reassemble	fna|s3_fna
+OG1178	250214	merqury	reassemble	fna|s3_fna
+OG1178	250214	gfastats	reassemble	fna|s3_fna
+OG1178	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1178	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1179	250214	genomescope	reassemble	
+OG1179	250214	tiara	reassemble	fna|s3_fna
+OG1179	250214	contamination	reassemble	fna|s3_fna
+OG1179	250214	busco	reassemble	fna|s3_fna
+OG1179	250214	merqury	reassemble	fna|s3_fna
+OG1179	250214	gfastats	reassemble	fna|s3_fna
+OG1179	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1179	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1182	250214	genomescope	reassemble	
+OG1182	250214	tiara	reassemble	fna|s3_fna
+OG1182	250214	contamination	reassemble	fna|s3_fna
+OG1182	250214	busco	reassemble	fna|s3_fna
+OG1182	250214	merqury	reassemble	fna|s3_fna
+OG1182	250214	gfastats	reassemble	fna|s3_fna
+OG1182	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1182	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1183	250214	genomescope	reassemble	
+OG1183	250214	tiara	reassemble	fna|s3_fna
+OG1183	250214	contamination	reassemble	fna|s3_fna
+OG1183	250214	busco	reassemble	fna|s3_fna
+OG1183	250214	merqury	reassemble	fna|s3_fna
+OG1183	250214	gfastats	reassemble	fna|s3_fna
+OG1183	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1183	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1184	250214	genomescope	reassemble	
+OG1184	250214	tiara	reassemble	fna|s3_fna
+OG1184	250214	contamination	reassemble	fna|s3_fna
+OG1184	250214	busco	reassemble	fna|s3_fna
+OG1184	250214	merqury	reassemble	fna|s3_fna
+OG1184	250214	gfastats	reassemble	fna|s3_fna
+OG1184	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1184	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1185	250214	genomescope	reassemble	
+OG1185	250214	tiara	reassemble	fna|s3_fna
+OG1185	250214	contamination	reassemble	fna|s3_fna
+OG1185	250214	busco	reassemble	fna|s3_fna
+OG1185	250214	merqury	reassemble	fna|s3_fna
+OG1185	250214	gfastats	reassemble	fna|s3_fna
+OG1185	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1185	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1186	250214	genomescope	reassemble	
+OG1186	250214	tiara	reassemble	fna|s3_fna
+OG1186	250214	contamination	reassemble	fna|s3_fna
+OG1186	250214	busco	reassemble	fna|s3_fna
+OG1186	250214	merqury	reassemble	fna|s3_fna
+OG1186	250214	gfastats	reassemble	fna|s3_fna
+OG1186	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1186	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1187	250214	genomescope	reassemble	
+OG1187	250214	tiara	reassemble	fna|s3_fna
+OG1187	250214	contamination	reassemble	fna|s3_fna
+OG1187	250214	busco	reassemble	fna|s3_fna
+OG1187	250214	merqury	reassemble	fna|s3_fna
+OG1187	250214	gfastats	reassemble	fna|s3_fna
+OG1187	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1187	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1188	250214	genomescope	reassemble	
+OG1188	250214	tiara	reassemble	fna|s3_fna
+OG1188	250214	contamination	reassemble	fna|s3_fna
+OG1188	250214	busco	reassemble	fna|s3_fna
+OG1188	250214	merqury	reassemble	fna|s3_fna
+OG1188	250214	gfastats	reassemble	fna|s3_fna
+OG1188	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1188	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1189	250214	genomescope	reassemble	
+OG1189	250214	tiara	reassemble	fna|s3_fna
+OG1189	250214	contamination	reassemble	fna|s3_fna
+OG1189	250214	busco	reassemble	fna|s3_fna
+OG1189	250214	merqury	reassemble	fna|s3_fna
+OG1189	250214	gfastats	reassemble	fna|s3_fna
+OG1189	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1189	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1192	250214	genomescope	reassemble	
+OG1192	250214	tiara	reassemble	fna|s3_fna
+OG1192	250214	contamination	reassemble	fna|s3_fna
+OG1192	250214	busco	reassemble	fna|s3_fna
+OG1192	250214	merqury	reassemble	fna|s3_fna
+OG1192	250214	gfastats	reassemble	fna|s3_fna
+OG1192	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1192	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1193	250214	genomescope	reassemble	
+OG1193	250214	tiara	reassemble	fna|s3_fna
+OG1193	250214	contamination	reassemble	fna|s3_fna
+OG1193	250214	busco	reassemble	fna|s3_fna
+OG1193	250214	merqury	reassemble	fna|s3_fna
+OG1193	250214	gfastats	reassemble	fna|s3_fna
+OG1193	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1193	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1194	250214	genomescope	reassemble	
+OG1194	250214	tiara	reassemble	fna|s3_fna
+OG1194	250214	contamination	reassemble	fna|s3_fna
+OG1194	250214	busco	reassemble	fna|s3_fna
+OG1194	250214	merqury	reassemble	fna|s3_fna
+OG1194	250214	gfastats	reassemble	fna|s3_fna
+OG1194	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1194	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1195	250214	genomescope	reassemble	
+OG1195	250214	tiara	reassemble	fna|s3_fna
+OG1195	250214	contamination	reassemble	fna|s3_fna
+OG1195	250214	busco	reassemble	fna|s3_fna
+OG1195	250214	merqury	reassemble	fna|s3_fna
+OG1195	250214	gfastats	reassemble	fna|s3_fna
+OG1195	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1195	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1196	250214	genomescope	reassemble	
+OG1196	250214	tiara	reassemble	fna|s3_fna
+OG1196	250214	contamination	reassemble	fna|s3_fna
+OG1196	250214	busco	reassemble	fna|s3_fna
+OG1196	250214	merqury	reassemble	fna|s3_fna
+OG1196	250214	gfastats	reassemble	fna|s3_fna
+OG1196	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1196	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1197	250214	genomescope	reassemble	
+OG1197	250214	tiara	reassemble	fna|s3_fna
+OG1197	250214	contamination	reassemble	fna|s3_fna
+OG1197	250214	busco	reassemble	fna|s3_fna
+OG1197	250214	merqury	reassemble	fna|s3_fna
+OG1197	250214	gfastats	reassemble	fna|s3_fna
+OG1197	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1197	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1198	250214	genomescope	reassemble	
+OG1198	250214	tiara	reassemble	fna|s3_fna
+OG1198	250214	contamination	reassemble	fna|s3_fna
+OG1198	250214	busco	reassemble	fna|s3_fna
+OG1198	250214	merqury	reassemble	fna|s3_fna
+OG1198	250214	gfastats	reassemble	fna|s3_fna
+OG1198	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1198	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1199	250214	genomescope	reassemble	
+OG1199	250214	tiara	reassemble	fna|s3_fna
+OG1199	250214	contamination	reassemble	fna|s3_fna
+OG1199	250214	busco	reassemble	fna|s3_fna
+OG1199	250214	merqury	reassemble	fna|s3_fna
+OG1199	250214	gfastats	reassemble	fna|s3_fna
+OG1199	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1199	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1200	250214	genomescope	reassemble	
+OG1200	250214	tiara	reassemble	fna|s3_fna
+OG1200	250214	contamination	reassemble	fna|s3_fna
+OG1200	250214	busco	reassemble	fna|s3_fna
+OG1200	250214	merqury	reassemble	fna|s3_fna
+OG1200	250214	gfastats	reassemble	fna|s3_fna
+OG1200	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1200	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1202	250214	genomescope	reassemble	
+OG1202	250214	tiara	reassemble	fna|s3_fna
+OG1202	250214	contamination	reassemble	fna|s3_fna
+OG1202	250214	busco	reassemble	fna|s3_fna
+OG1202	250214	merqury	reassemble	fna|s3_fna
+OG1202	250214	gfastats	reassemble	fna|s3_fna
+OG1202	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1202	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1203	250214	genomescope	reassemble	
+OG1203	250214	tiara	reassemble	fna|s3_fna
+OG1203	250214	contamination	reassemble	fna|s3_fna
+OG1203	250214	busco	reassemble	fna|s3_fna
+OG1203	250214	merqury	reassemble	fna|s3_fna
+OG1203	250214	gfastats	reassemble	fna|s3_fna
+OG1203	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1203	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1204	250214	genomescope	reassemble	
+OG1204	250214	tiara	reassemble	fna|s3_fna
+OG1204	250214	contamination	reassemble	fna|s3_fna
+OG1204	250214	busco	reassemble	fna|s3_fna
+OG1204	250214	merqury	reassemble	fna|s3_fna
+OG1204	250214	gfastats	reassemble	fna|s3_fna
+OG1204	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1204	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1205	250214	genomescope	reassemble	
+OG1205	250214	tiara	reassemble	fna|s3_fna
+OG1205	250214	contamination	reassemble	fna|s3_fna
+OG1205	250214	busco	reassemble	fna|s3_fna
+OG1205	250214	merqury	reassemble	fna|s3_fna
+OG1205	250214	gfastats	reassemble	fna|s3_fna
+OG1205	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1205	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1206	250214	genomescope	reassemble	
+OG1206	250214	tiara	reassemble	fna|s3_fna
+OG1206	250214	contamination	reassemble	fna|s3_fna
+OG1206	250214	busco	reassemble	fna|s3_fna
+OG1206	250214	merqury	reassemble	fna|s3_fna
+OG1206	250214	gfastats	reassemble	fna|s3_fna
+OG1206	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1206	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1207	250214	genomescope	reassemble	
+OG1207	250214	tiara	reassemble	fna|s3_fna
+OG1207	250214	contamination	reassemble	fna|s3_fna
+OG1207	250214	busco	reassemble	fna|s3_fna
+OG1207	250214	merqury	reassemble	fna|s3_fna
+OG1207	250214	gfastats	reassemble	fna|s3_fna
+OG1207	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1207	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1208	250214	genomescope	reassemble	
+OG1208	250214	tiara	reassemble	fna|s3_fna
+OG1208	250214	contamination	reassemble	fna|s3_fna
+OG1208	250214	busco	reassemble	fna|s3_fna
+OG1208	250214	merqury	reassemble	fna|s3_fna
+OG1208	250214	gfastats	reassemble	fna|s3_fna
+OG1208	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1208	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1209	250214	genomescope	reassemble	
+OG1209	250214	tiara	reassemble	fna|s3_fna
+OG1209	250214	contamination	reassemble	fna|s3_fna
+OG1209	250214	busco	reassemble	fna|s3_fna
+OG1209	250214	merqury	reassemble	fna|s3_fna
+OG1209	250214	gfastats	reassemble	fna|s3_fna
+OG1209	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1209	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1212	250214	genomescope	reassemble	
+OG1212	250214	tiara	reassemble	fna|s3_fna
+OG1212	250214	contamination	reassemble	fna|s3_fna
+OG1212	250214	busco	reassemble	fna|s3_fna
+OG1212	250214	merqury	reassemble	fna|s3_fna
+OG1212	250214	gfastats	reassemble	fna|s3_fna
+OG1212	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1212	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1213	250214	genomescope	reassemble	
+OG1213	250214	tiara	reassemble	fna|s3_fna
+OG1213	250214	contamination	reassemble	fna|s3_fna
+OG1213	250214	busco	reassemble	fna|s3_fna
+OG1213	250214	merqury	reassemble	fna|s3_fna
+OG1213	250214	gfastats	reassemble	fna|s3_fna
+OG1213	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1213	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1214	250214	genomescope	reassemble	
+OG1214	250214	tiara	reassemble	fna|s3_fna
+OG1214	250214	contamination	reassemble	fna|s3_fna
+OG1214	250214	busco	reassemble	fna|s3_fna
+OG1214	250214	merqury	reassemble	fna|s3_fna
+OG1214	250214	gfastats	reassemble	fna|s3_fna
+OG1214	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1214	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1215	250214	genomescope	reassemble	
+OG1215	250214	tiara	reassemble	fna|s3_fna
+OG1215	250214	contamination	reassemble	fna|s3_fna
+OG1215	250214	busco	reassemble	fna|s3_fna
+OG1215	250214	merqury	reassemble	fna|s3_fna
+OG1215	250214	gfastats	reassemble	fna|s3_fna
+OG1215	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1215	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1216	250214	genomescope	reassemble	
+OG1216	250214	tiara	reassemble	fna|s3_fna
+OG1216	250214	contamination	reassemble	fna|s3_fna
+OG1216	250214	busco	reassemble	fna|s3_fna
+OG1216	250214	merqury	reassemble	fna|s3_fna
+OG1216	250214	gfastats	reassemble	fna|s3_fna
+OG1216	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1216	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1217	250214	genomescope	reassemble	
+OG1217	250214	tiara	reassemble	fna|s3_fna
+OG1217	250214	contamination	reassemble	fna|s3_fna
+OG1217	250214	busco	reassemble	fna|s3_fna
+OG1217	250214	merqury	reassemble	fna|s3_fna
+OG1217	250214	gfastats	reassemble	fna|s3_fna
+OG1217	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1217	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1218	250214	genomescope	reassemble	
+OG1218	250214	tiara	reassemble	fna|s3_fna
+OG1218	250214	contamination	reassemble	fna|s3_fna
+OG1218	250214	busco	reassemble	fna|s3_fna
+OG1218	250214	merqury	reassemble	fna|s3_fna
+OG1218	250214	gfastats	reassemble	fna|s3_fna
+OG1218	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1218	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1219	250214	genomescope	reassemble	
+OG1219	250214	tiara	reassemble	fna|s3_fna
+OG1219	250214	contamination	reassemble	fna|s3_fna
+OG1219	250214	busco	reassemble	fna|s3_fna
+OG1219	250214	merqury	reassemble	fna|s3_fna
+OG1219	250214	gfastats	reassemble	fna|s3_fna
+OG1219	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1219	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1222	250214	genomescope	reassemble	
+OG1222	250214	tiara	reassemble	fna|s3_fna
+OG1222	250214	contamination	reassemble	fna|s3_fna
+OG1222	250214	busco	reassemble	fna|s3_fna
+OG1222	250214	merqury	reassemble	fna|s3_fna
+OG1222	250214	gfastats	reassemble	fna|s3_fna
+OG1222	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1222	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1223	250214	genomescope	reassemble	
+OG1223	250214	tiara	reassemble	fna|s3_fna
+OG1223	250214	contamination	reassemble	fna|s3_fna
+OG1223	250214	busco	reassemble	fna|s3_fna
+OG1223	250214	merqury	reassemble	fna|s3_fna
+OG1223	250214	gfastats	reassemble	fna|s3_fna
+OG1223	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1223	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1224	250214	genomescope	reassemble	
+OG1224	250214	tiara	reassemble	fna|s3_fna
+OG1224	250214	contamination	reassemble	fna|s3_fna
+OG1224	250214	busco	reassemble	fna|s3_fna
+OG1224	250214	merqury	reassemble	fna|s3_fna
+OG1224	250214	gfastats	reassemble	fna|s3_fna
+OG1224	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1224	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1225	250214	genomescope	reassemble	
+OG1225	250214	tiara	reassemble	fna|s3_fna
+OG1225	250214	contamination	reassemble	fna|s3_fna
+OG1225	250214	busco	reassemble	fna|s3_fna
+OG1225	250214	merqury	reassemble	fna|s3_fna
+OG1225	250214	gfastats	reassemble	fna|s3_fna
+OG1225	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1225	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1226	250214	genomescope	reassemble	
+OG1226	250214	tiara	reassemble	fna|s3_fna
+OG1226	250214	contamination	reassemble	fna|s3_fna
+OG1226	250214	busco	reassemble	fna|s3_fna
+OG1226	250214	merqury	reassemble	fna|s3_fna
+OG1226	250214	gfastats	reassemble	fna|s3_fna
+OG1226	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1226	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1227	250214	genomescope	reassemble	
+OG1227	250214	tiara	reassemble	fna|s3_fna
+OG1227	250214	contamination	reassemble	fna|s3_fna
+OG1227	250214	busco	reassemble	fna|s3_fna
+OG1227	250214	merqury	reassemble	fna|s3_fna
+OG1227	250214	gfastats	reassemble	fna|s3_fna
+OG1227	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1227	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1228	250214	genomescope	reassemble	
+OG1228	250214	tiara	reassemble	fna|s3_fna
+OG1228	250214	contamination	reassemble	fna|s3_fna
+OG1228	250214	busco	reassemble	fna|s3_fna
+OG1228	250214	merqury	reassemble	fna|s3_fna
+OG1228	250214	gfastats	reassemble	fna|s3_fna
+OG1228	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1228	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1229	250214	genomescope	reassemble	
+OG1229	250214	tiara	reassemble	fna|s3_fna
+OG1229	250214	contamination	reassemble	fna|s3_fna
+OG1229	250214	busco	reassemble	fna|s3_fna
+OG1229	250214	merqury	reassemble	fna|s3_fna
+OG1229	250214	gfastats	reassemble	fna|s3_fna
+OG1229	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1229	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1230	250214	genomescope	reassemble	
+OG1230	250214	tiara	reassemble	fna|s3_fna
+OG1230	250214	contamination	reassemble	fna|s3_fna
+OG1230	250214	busco	reassemble	fna|s3_fna
+OG1230	250214	merqury	reassemble	fna|s3_fna
+OG1230	250214	gfastats	reassemble	fna|s3_fna
+OG1230	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1230	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1231	250214	genomescope	reassemble	
+OG1231	250214	tiara	reassemble	fna|s3_fna
+OG1231	250214	contamination	reassemble	fna|s3_fna
+OG1231	250214	busco	reassemble	fna|s3_fna
+OG1231	250214	merqury	reassemble	fna|s3_fna
+OG1231	250214	gfastats	reassemble	fna|s3_fna
+OG1231	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1231	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1232	250214	genomescope	reassemble	
+OG1232	250214	tiara	reassemble	fna|s3_fna
+OG1232	250214	contamination	reassemble	fna|s3_fna
+OG1232	250214	busco	reassemble	fna|s3_fna
+OG1232	250214	merqury	reassemble	fna|s3_fna
+OG1232	250214	gfastats	reassemble	fna|s3_fna
+OG1232	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1232	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1233	250214	genomescope	reassemble	
+OG1233	250214	tiara	reassemble	fna|s3_fna
+OG1233	250214	contamination	reassemble	fna|s3_fna
+OG1233	250214	busco	reassemble	fna|s3_fna
+OG1233	250214	merqury	reassemble	fna|s3_fna
+OG1233	250214	gfastats	reassemble	fna|s3_fna
+OG1233	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1233	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1234	250214	genomescope	reassemble	
+OG1234	250214	tiara	reassemble	fna|s3_fna
+OG1234	250214	contamination	reassemble	fna|s3_fna
+OG1234	250214	busco	reassemble	fna|s3_fna
+OG1234	250214	merqury	reassemble	fna|s3_fna
+OG1234	250214	gfastats	reassemble	fna|s3_fna
+OG1234	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1234	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1235	250214	genomescope	reassemble	
+OG1235	250214	tiara	reassemble	fna|s3_fna
+OG1235	250214	contamination	reassemble	fna|s3_fna
+OG1235	250214	busco	reassemble	fna|s3_fna
+OG1235	250214	merqury	reassemble	fna|s3_fna
+OG1235	250214	gfastats	reassemble	fna|s3_fna
+OG1235	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1235	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1236	250214	genomescope	reassemble	
+OG1236	250214	tiara	reassemble	fna|s3_fna
+OG1236	250214	contamination	reassemble	fna|s3_fna
+OG1236	250214	busco	reassemble	fna|s3_fna
+OG1236	250214	merqury	reassemble	fna|s3_fna
+OG1236	250214	gfastats	reassemble	fna|s3_fna
+OG1236	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1236	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1237	250214	genomescope	reassemble	
+OG1237	250214	tiara	reassemble	fna|s3_fna
+OG1237	250214	contamination	reassemble	fna|s3_fna
+OG1237	250214	busco	reassemble	fna|s3_fna
+OG1237	250214	merqury	reassemble	fna|s3_fna
+OG1237	250214	gfastats	reassemble	fna|s3_fna
+OG1237	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1237	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1238	250214	genomescope	reassemble	
+OG1238	250214	tiara	reassemble	fna|s3_fna
+OG1238	250214	contamination	reassemble	fna|s3_fna
+OG1238	250214	busco	reassemble	fna|s3_fna
+OG1238	250214	merqury	reassemble	fna|s3_fna
+OG1238	250214	gfastats	reassemble	fna|s3_fna
+OG1238	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1238	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1239	250214	genomescope	reassemble	
+OG1239	250214	tiara	reassemble	fna|s3_fna
+OG1239	250214	contamination	reassemble	fna|s3_fna
+OG1239	250214	busco	reassemble	fna|s3_fna
+OG1239	250214	merqury	reassemble	fna|s3_fna
+OG1239	250214	gfastats	reassemble	fna|s3_fna
+OG1239	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1239	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1240	250214	genomescope	reassemble	
+OG1240	250214	tiara	reassemble	fna|s3_fna
+OG1240	250214	contamination	reassemble	fna|s3_fna
+OG1240	250214	busco	reassemble	fna|s3_fna
+OG1240	250214	merqury	reassemble	fna|s3_fna
+OG1240	250214	gfastats	reassemble	fna|s3_fna
+OG1240	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1240	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1241	250214	genomescope	reassemble	
+OG1241	250214	tiara	reassemble	fna|s3_fna
+OG1241	250214	contamination	reassemble	fna|s3_fna
+OG1241	250214	busco	reassemble	fna|s3_fna
+OG1241	250214	merqury	reassemble	fna|s3_fna
+OG1241	250214	gfastats	reassemble	fna|s3_fna
+OG1241	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1241	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1242	250214	genomescope	reassemble	
+OG1242	250214	tiara	reassemble	fna|s3_fna
+OG1242	250214	contamination	reassemble	fna|s3_fna
+OG1242	250214	busco	reassemble	fna|s3_fna
+OG1242	250214	merqury	reassemble	fna|s3_fna
+OG1242	250214	gfastats	reassemble	fna|s3_fna
+OG1242	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1242	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1243	250214	genomescope	reassemble	
+OG1243	250214	tiara	reassemble	fna|s3_fna
+OG1243	250214	contamination	reassemble	fna|s3_fna
+OG1243	250214	busco	reassemble	fna|s3_fna
+OG1243	250214	merqury	reassemble	fna|s3_fna
+OG1243	250214	gfastats	reassemble	fna|s3_fna
+OG1243	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1243	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1244	250214	genomescope	reassemble	
+OG1244	250214	tiara	reassemble	fna|s3_fna
+OG1244	250214	contamination	reassemble	fna|s3_fna
+OG1244	250214	busco	reassemble	fna|s3_fna
+OG1244	250214	merqury	reassemble	fna|s3_fna
+OG1244	250214	gfastats	reassemble	fna|s3_fna
+OG1244	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1244	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1245	250214	genomescope	reassemble	
+OG1245	250214	tiara	reassemble	fna|s3_fna
+OG1245	250214	contamination	reassemble	fna|s3_fna
+OG1245	250214	busco	reassemble	fna|s3_fna
+OG1245	250214	merqury	reassemble	fna|s3_fna
+OG1245	250214	gfastats	reassemble	fna|s3_fna
+OG1245	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1245	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1246	250214	genomescope	reassemble	
+OG1246	250214	tiara	reassemble	fna|s3_fna
+OG1246	250214	contamination	reassemble	fna|s3_fna
+OG1246	250214	busco	reassemble	fna|s3_fna
+OG1246	250214	merqury	reassemble	fna|s3_fna
+OG1246	250214	gfastats	reassemble	fna|s3_fna
+OG1246	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1246	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1247	250214	genomescope	reassemble	
+OG1247	250214	tiara	reassemble	fna|s3_fna
+OG1247	250214	contamination	reassemble	fna|s3_fna
+OG1247	250214	busco	reassemble	fna|s3_fna
+OG1247	250214	merqury	reassemble	fna|s3_fna
+OG1247	250214	gfastats	reassemble	fna|s3_fna
+OG1247	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1247	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1248	250214	genomescope	reassemble	
+OG1248	250214	tiara	reassemble	fna|s3_fna
+OG1248	250214	contamination	reassemble	fna|s3_fna
+OG1248	250214	busco	reassemble	fna|s3_fna
+OG1248	250214	merqury	reassemble	fna|s3_fna
+OG1248	250214	gfastats	reassemble	fna|s3_fna
+OG1248	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1248	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1249	250214	genomescope	reassemble	
+OG1249	250214	tiara	reassemble	fna|s3_fna
+OG1249	250214	contamination	reassemble	fna|s3_fna
+OG1249	250214	busco	reassemble	fna|s3_fna
+OG1249	250214	merqury	reassemble	fna|s3_fna
+OG1249	250214	gfastats	reassemble	fna|s3_fna
+OG1249	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1249	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1250	250214	genomescope	reassemble	
+OG1250	250214	tiara	reassemble	fna|s3_fna
+OG1250	250214	contamination	reassemble	fna|s3_fna
+OG1250	250214	busco	reassemble	fna|s3_fna
+OG1250	250214	merqury	reassemble	fna|s3_fna
+OG1250	250214	gfastats	reassemble	fna|s3_fna
+OG1250	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1250	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1251	250214	genomescope	reassemble	
+OG1251	250214	tiara	reassemble	fna|s3_fna
+OG1251	250214	contamination	reassemble	fna|s3_fna
+OG1251	250214	busco	reassemble	fna|s3_fna
+OG1251	250214	merqury	reassemble	fna|s3_fna
+OG1251	250214	gfastats	reassemble	fna|s3_fna
+OG1251	250214	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1251	250214	verdict	reassemble	genomescope_model,kmer_depth
+OG1254	250606	tiara	reassemble	fna|s3_fna
+OG1254	250606	contamination	backfill	
+OG1254	250606	busco	reassemble	fna|s3_fna
+OG1254	250606	merqury	reassemble	fna|s3_fna
+OG1254	250606	gfastats	reassemble	fna|s3_fna
+OG1254	250606	depth	reassemble	fna|s3_fna,bam,busco_full_table
+OG1254	250606	verdict	backfill	
+OG1262	250606	gfastats	rerun	
+OG1262	250606	depth	rerun	
+OG1262	250606	verdict	backfill	
+OG1263	250606	gfastats	backfill	
+OG1263	250606	depth	rerun	
+OG1263	250606	verdict	backfill	
+OG1272	250331	gfastats	rerun	
+OG1272	250331	depth	superseded_scdepth	
+OG1272	250331	verdict	rerun_missing_input	kmer_depth
+OG1273	250331	gfastats	rerun	
+OG1273	250331	depth	superseded_scdepth	
+OG1273	250331	verdict	rerun_missing_input	kmer_depth
+OG1274	250331	gfastats	rerun	
+OG1274	250331	depth	superseded_scdepth	
+OG1274	250331	verdict	rerun_missing_input	kmer_depth
+OG1275	250331	gfastats	rerun	
+OG1275	250331	depth	superseded_scdepth	
+OG1275	250331	verdict	rerun_missing_input	kmer_depth
+OG1276	250331	gfastats	rerun	
+OG1276	250331	depth	superseded_scdepth	
+OG1276	250331	verdict	rerun_missing_input	kmer_depth
+OG1277	250331	gfastats	rerun	
+OG1277	250331	depth	superseded_scdepth	
+OG1277	250331	verdict	rerun_missing_input	kmer_depth
+OG1278	250331	gfastats	rerun	
+OG1278	250331	depth	superseded_scdepth	
+OG1278	250331	verdict	rerun_missing_input	kmer_depth
+OG1279	250331	gfastats	rerun	
+OG1279	250331	depth	superseded_scdepth	
+OG1279	250331	verdict	rerun_missing_input	kmer_depth
+OG1280	250331	gfastats	rerun	
+OG1280	250331	depth	superseded_scdepth	
+OG1280	250331	verdict	rerun_missing_input	kmer_depth
+OG1281	250331	gfastats	rerun	
+OG1281	250331	depth	superseded_scdepth	
+OG1281	250331	verdict	rerun_missing_input	kmer_depth
+OG1282	250331	gfastats	rerun	
+OG1282	250331	depth	superseded_scdepth	
+OG1282	250331	verdict	rerun_missing_input	kmer_depth
+OG1283	250331	gfastats	rerun	
+OG1283	250331	depth	superseded_scdepth	
+OG1283	250331	verdict	rerun_missing_input	kmer_depth
+OG1284	250331	gfastats	rerun	
+OG1284	250331	depth	superseded_scdepth	
+OG1284	250331	verdict	rerun_missing_input	kmer_depth
+OG1285	250331	gfastats	rerun	
+OG1285	250331	depth	superseded_scdepth	
+OG1285	250331	verdict	rerun_missing_input	kmer_depth
+OG1286	250331	gfastats	rerun	
+OG1286	250331	depth	superseded_scdepth	
+OG1286	250331	verdict	rerun_missing_input	kmer_depth
+OG1287	250514	gfastats	rerun	
+OG1287	250514	depth	superseded_scdepth	
+OG1287	250514	verdict	rerun_missing_input	kmer_depth
+OG1288	250514	gfastats	rerun	
+OG1288	250514	depth	superseded_scdepth	
+OG1288	250514	verdict	rerun_missing_input	kmer_depth
+OG1289	250514	gfastats	rerun	
+OG1289	250514	depth	superseded_scdepth	
+OG1289	250514	verdict	rerun_missing_input	kmer_depth
+OG1290	250514	gfastats	rerun	
+OG1290	250514	depth	superseded_scdepth	
+OG1290	250514	verdict	rerun_missing_input	kmer_depth
+OG1291	250514	gfastats	rerun	
+OG1291	250514	depth	superseded_scdepth	
+OG1291	250514	verdict	rerun_missing_input	kmer_depth
+OG1292	250514	gfastats	rerun	
+OG1292	250514	depth	superseded_scdepth	
+OG1292	250514	verdict	rerun_missing_input	kmer_depth
+OG1293	250514	gfastats	rerun	
+OG1293	250514	depth	superseded_scdepth	
+OG1293	250514	verdict	rerun_missing_input	kmer_depth
+OG1294	250514	gfastats	rerun	
+OG1294	250514	depth	superseded_scdepth	
+OG1294	250514	verdict	rerun_missing_input	kmer_depth
+OG1295	250514	gfastats	rerun	
+OG1295	250514	depth	superseded_scdepth	
+OG1295	250514	verdict	rerun_missing_input	kmer_depth
+OG1296	250514	gfastats	rerun	
+OG1296	250514	depth	superseded_scdepth	
+OG1296	250514	verdict	rerun_missing_input	kmer_depth
+OG1724	251210	depth	rerun	
+OG1724	251210	verdict	backfill	
+OG1731	251210	depth	rerun_missing_input	genomescope_model
+OG1731	251210	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG1738	251210	depth	rerun_missing_input	genomescope_model
+OG1738	251210	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG1752	251210	depth	rerun	
+OG1752	251210	verdict	rerun_missing_input	kmer_depth
+OG1756	251210	depth	rerun_missing_input	genomescope_model
+OG1756	251210	verdict	rerun_missing_input	genomescope_model,kmer_depth
+OG1765	251210	depth	rerun	
+OG1765	251210	verdict	rerun_missing_input	kmer_depth
+OG1769	251210	depth	rerun	
+OG1769	251210	verdict	rerun_missing_input	kmer_depth
+OG1789	260114	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1789	260114	verdict	reassemble	genomescope_model,kmer_depth
+OG1834	260108	genomescope	reassemble	
+OG1834	260108	tiara	reassemble	fna|s3_fna
+OG1834	260108	contamination	reassemble	fna|s3_fna
+OG1834	260108	busco	reassemble	fna|s3_fna
+OG1834	260108	merqury	reassemble	fna|s3_fna
+OG1834	260108	gfastats	reassemble	fna|s3_fna
+OG1834	260108	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1834	260108	verdict	reassemble	genomescope_model,kmer_depth
+OG1841	260114	depth	backfill	
+OG1841	260114	verdict	rerun	
+OG1842	251215	genomescope	reassemble	
+OG1842	251215	tiara	reassemble	fna|s3_fna
+OG1842	251215	contamination	reassemble	fna|s3_fna
+OG1842	251215	busco	reassemble	fna|s3_fna
+OG1842	251215	merqury	reassemble	fna|s3_fna
+OG1842	251215	gfastats	reassemble	fna|s3_fna
+OG1842	251215	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1842	251215	verdict	reassemble	genomescope_model,kmer_depth
+OG1842	260108	genomescope	reassemble	
+OG1842	260108	tiara	reassemble	fna|s3_fna
+OG1842	260108	contamination	reassemble	fna|s3_fna
+OG1842	260108	busco	reassemble	fna|s3_fna
+OG1842	260108	merqury	reassemble	fna|s3_fna
+OG1842	260108	gfastats	reassemble	fna|s3_fna
+OG1842	260108	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1842	260108	verdict	reassemble	genomescope_model,kmer_depth
+OG1844	251215	genomescope	reassemble	
+OG1844	251215	tiara	reassemble	fna|s3_fna
+OG1844	251215	contamination	reassemble	fna|s3_fna
+OG1844	251215	busco	reassemble	fna|s3_fna
+OG1844	251215	merqury	reassemble	fna|s3_fna
+OG1844	251215	gfastats	reassemble	fna|s3_fna
+OG1844	251215	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1844	251215	verdict	reassemble	genomescope_model,kmer_depth
+OG1845	251215	genomescope	reassemble	
+OG1845	251215	tiara	reassemble	fna|s3_fna
+OG1845	251215	contamination	reassemble	fna|s3_fna
+OG1845	251215	busco	reassemble	fna|s3_fna
+OG1845	251215	merqury	reassemble	fna|s3_fna
+OG1845	251215	gfastats	reassemble	fna|s3_fna
+OG1845	251215	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1845	251215	verdict	reassemble	genomescope_model,kmer_depth
+OG1845	260108	genomescope	reassemble	
+OG1845	260108	tiara	reassemble	fna|s3_fna
+OG1845	260108	contamination	reassemble	fna|s3_fna
+OG1845	260108	busco	reassemble	fna|s3_fna
+OG1845	260108	merqury	reassemble	fna|s3_fna
+OG1845	260108	gfastats	reassemble	fna|s3_fna
+OG1845	260108	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1845	260108	verdict	reassemble	genomescope_model,kmer_depth
+OG1846	251215	genomescope	reassemble	
+OG1846	251215	tiara	reassemble	fna|s3_fna
+OG1846	251215	contamination	reassemble	fna|s3_fna
+OG1846	251215	busco	reassemble	fna|s3_fna
+OG1846	251215	merqury	reassemble	fna|s3_fna
+OG1846	251215	gfastats	reassemble	fna|s3_fna
+OG1846	251215	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1846	251215	verdict	reassemble	genomescope_model,kmer_depth
+OG1846	260108	genomescope	reassemble	
+OG1846	260108	tiara	reassemble	fna|s3_fna
+OG1846	260108	contamination	reassemble	fna|s3_fna
+OG1846	260108	busco	reassemble	fna|s3_fna
+OG1846	260108	merqury	reassemble	fna|s3_fna
+OG1846	260108	gfastats	reassemble	fna|s3_fna
+OG1846	260108	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1846	260108	verdict	reassemble	genomescope_model,kmer_depth
+OG1848	260108	merqury	reassemble	fna|s3_fna
+OG1848	260108	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1848	260108	verdict	reassemble	genomescope_model,kmer_depth
+OG1849	260108	genomescope	reassemble	
+OG1849	260108	tiara	reassemble	fna|s3_fna
+OG1849	260108	contamination	reassemble	fna|s3_fna
+OG1849	260108	busco	reassemble	fna|s3_fna
+OG1849	260108	merqury	reassemble	fna|s3_fna
+OG1849	260108	gfastats	reassemble	fna|s3_fna
+OG1849	260108	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1849	260108	verdict	reassemble	genomescope_model,kmer_depth
+OG1850	260108	genomescope	reassemble	
+OG1850	260108	tiara	reassemble	fna|s3_fna
+OG1850	260108	contamination	reassemble	fna|s3_fna
+OG1850	260108	busco	reassemble	fna|s3_fna
+OG1850	260108	merqury	reassemble	fna|s3_fna
+OG1850	260108	gfastats	reassemble	fna|s3_fna
+OG1850	260108	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG1850	260108	verdict	reassemble	genomescope_model,kmer_depth
+OG1889	260108	gfastats	rerun	
+OG1889	260108	depth	rerun	
+OG1889	260108	verdict	backfill	
+OG1917	251210	gfastats	rerun	
+OG1917	251210	depth	rerun	
+OG1917	251210	verdict	rerun_missing_input	kmer_depth
+OG1942	251215	gfastats	rerun	
+OG1942	251215	depth	rerun	
+OG1942	251215	verdict	backfill	
+OG2407	260703	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG2407	260703	verdict	reassemble	genomescope_model,kmer_depth
+OG2409	260703	depth	reassemble	fna|s3_fna,bam,busco_full_table,genomescope_model,fastp|s3_fastp
+OG2409	260703	verdict	reassemble	genomescope_model,kmer_depth
+OG2607	260724	depth	rerun_missing_input	bam
+OG2607	260724	verdict	backfill	
+OG2630	260909	depth	backfill	
+OG2635	260909	depth	backfill	
+OG2637	260909	depth	backfill	
+OG2638	260909	depth	backfill	
+OG2639	260909	depth	backfill	
+OG2640	260909	depth	backfill	
+OG2642	260909	depth	backfill	
+OG2643	260909	depth	backfill	
+OG2649	260909	depth	backfill	
+OG2959	260909	depth	backfill	
+OG3080	260909	depth	backfill	
+OG3090	260909	depth	backfill	
