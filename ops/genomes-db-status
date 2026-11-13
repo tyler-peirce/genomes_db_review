@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+#
+# Login banner for the genomes database checks. Installed to
+# /usr/local/bin/genomes-db-status and run from the MOTD
+# (ops/60-genomes-db-status) and /etc/bash.bashrc, so every user on the host
+# sees a failing check -- not just tyler, whose home directory others cannot
+# read.
+#
+# Prints every *.FAILING marker in the shared status directory, which the cron
+# wrappers write while their last run failed and remove when healthy. Prints
+# nothing at all when everything is healthy.
+
+STATUS_DIR=${GENOMES_DB_STATUS_DIR:-/var/lib/genomes-db}
+
+shopt -s nullglob
+markers=("$STATUS_DIR"/*.FAILING)
+[ "${#markers[@]}" -eq 0 ] && exit 0
+
+echo
+echo "********************************************************************"
+echo "*  GENOMES DATABASE: ${#markers[@]} scheduled check(s) FAILING"
+echo "********************************************************************"
+for m in "${markers[@]}"; do
+    echo "--- $(basename -- "$m" .FAILING)"
+    cat -- "$m"
+done
+echo

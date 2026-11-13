@@ -3,23 +3,27 @@
 # Daily schema-governance check. Phase B.4.
 #
 # Runs the two checks that answer "does the database still match source
-# control?" and mails only when one of them fails, so a healthy day is silent:
+# control?":
 #
 #   bin/check_drift.py              live tables/views vs schema/object_inventory.tsv
 #   bin/apply_migrations.py --verify  every applied file's SHA-256 vs the ledger
 #
-# Everything is appended to the log either way; stdout is produced only on
-# failure, which is what cron would turn into mail.
+# Everything is appended to the log either way. Stdout -- which cron mails to
+# MAILTO via msmtp-mta (ops/README.md) -- is produced only when the state
+# changes: the first failing run, and the first healthy run after a failure.
+# A check that is left failing on purpose (open question 16) therefore mails
+# once, not every morning.
 #
-# NOTE: this host has no MTA -- no sendmail, no mail binary, postfix inactive --
-# so cron mail goes nowhere. Until one is configured, the two durable signals
-# are the log and the status file:
+# The durable signals are the log and the status file:
 #
-#   ~/log/genomes_db_drift.log      every run, pass or fail
-#   ~/log/genomes_db_drift.FAILING  exists only while the last run failed
+#   ~/log/genomes_db_drift.log           every run, pass or fail
+#   ~/log/genomes_db_drift.log.FAILING   exists only while the last run failed
+#   /var/lib/genomes-db/drift.FAILING    the same marker, readable by every user
 #
-# The status file is what makes this check noticeable without mail. Check it
-# from a shell prompt, a login banner, or a monitoring agent.
+# The shared copy is what the login banner reads (ops/genomes-db-status, run
+# from the MOTD and /etc/bash.bashrc), since other users cannot read ~tyler.
+# If that directory is missing or not writable the shared copy is skipped. See
+# ops/README.md.
 #
 # Install with `crontab -e`:
 #
@@ -40,11 +44,18 @@ export PATH=/usr/local/bin:/usr/bin:/bin
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 LOG=${DRIFT_LOG:-$HOME/log/genomes_db_drift.log}
 FAILFILE=$LOG.FAILING
+STATUS_DIR=${DRIFT_STATUS_DIR:-/var/lib/genomes-db}
+SHAREDFAIL=$STATUS_DIR/drift.FAILING
 
 mkdir -p -- "$(dirname -- "$LOG")"
 
+# Was the previous run failing? Decides whether this run's result is news.
+was_failing=0
+[ -e "$FAILFILE" ] && was_failing=1
+
 out=$(mktemp) || exit 1
-trap 'rm -f -- "$out"' EXIT
+fails=$(mktemp) || exit 1
+trap 'rm -f -- "$out" "$fails"' EXIT
 
 status=0
 {
@@ -59,7 +70,7 @@ for check in "check_drift.py" "apply_migrations.py --verify"; do
         {
             echo "--- FAILED: bin/$check"
             cat -- "$out"
-        } | tee -a "$LOG"
+        } | tee -a "$LOG" >>"$fails"
     else
         {
             echo "--- ok: bin/$check"
@@ -73,10 +84,22 @@ if [ "$status" -ne 0 ]; then
         echo "Schema governance check FAILED at $(date -Is)."
         echo "Full log: $LOG"
         echo "Runbook:  $REPO/docs/database_change_checklist.md (Migration Governance)"
-    } | tee -- "$FAILFILE"
+    } >"$FAILFILE"
+    [ -w "$STATUS_DIR" ] && cp -- "$FAILFILE" "$SHAREDFAIL"
+    # Newly failing: say so, with this run's failures, for cron mail.
+    if [ "$was_failing" -eq 0 ]; then
+        cat -- "$FAILFILE"
+        echo
+        cat -- "$fails"
+    fi
 else
     # Healthy: clear the marker so a stale failure does not look current.
     rm -f -- "$FAILFILE"
+    [ -w "$STATUS_DIR" ] && rm -f -- "$SHAREDFAIL"
+    if [ "$was_failing" -eq 1 ]; then
+        echo "Schema governance check RECOVERED at $(date -Is). Both checks pass."
+        echo "Full log: $LOG"
+    fi
 fi
 
 exit "$status"

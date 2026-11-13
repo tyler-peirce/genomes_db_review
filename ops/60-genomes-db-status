@@ -1,0 +1,5 @@
+#!/bin/sh
+# MOTD hook: shows failing genomes database checks on SSH login.
+# Installed to /etc/update-motd.d/60-genomes-db-status. See ops/README.md.
+[ -x /usr/local/bin/genomes-db-status ] && exec /usr/local/bin/genomes-db-status
+exit 0
