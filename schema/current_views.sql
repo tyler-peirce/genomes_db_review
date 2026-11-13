@@ -549,7 +549,9 @@ CREATE OR REPLACE VIEW public.lca_validation AS
     a.code,
     an.annotation,
     t.row_created_on,
-    t.annotation_id
+    t.annotation_id,
+    t.escalate,
+    t.investigate
    FROM mito_lca_validation t
      JOIN mito_annotation an ON an.annotation_id = t.annotation_id
      JOIN mito_assembly a ON a.assembly_id = an.assembly_id;;
@@ -571,7 +573,11 @@ CREATE OR REPLACE VIEW public.lca_validation_report_view AS
     lv.validated_species_name,
     lv.validator,
     lv.validator_2,
-    lca_tax.lca_taxon_ranks,
+    lv.escalate,
+    lv.investigate,
+    lca_tax.s12_lca_taxon,
+    lca_tax.s16_lca_taxon,
+    lca_tax.co1_lca_taxon,
     lca_tax.lca_orders,
     lca_tax.lca_families,
     lca_tax.lca_genera,
@@ -589,18 +595,43 @@ CREATE OR REPLACE VIEW public.lca_validation_report_view AS
      LEFT JOIN lca_pivot_view lp ON lp.og_id_lp = lv.og_id AND lp.tech = lv.tech AND lp.seq_date = lv.seq_date AND lp.code = lv.code AND lp.annotation = lv.annotation
      LEFT JOIN lca_results_view lr ON lr.og_id_lr = lv.og_id AND lr.tech = lv.tech AND lr.seq_date = lv.seq_date AND lr.code = lv.code AND lr.annotation = lv.annotation
      LEFT JOIN filtered_lca_view flv ON flv.og_id_flv = lv.og_id AND flv.tech = lv.tech AND flv.seq_date = lv.seq_date AND flv.code = lv.code AND flv.annotation = lv.annotation
-     LEFT JOIN ( SELECT lca.og_id,
-            lca.tech,
-            lca.seq_date,
-            lca.code,
-            lca.annotation,
-            string_agg(DISTINCT lca.taxon_rank, ', '::text ORDER BY lca.taxon_rank) AS lca_taxon_ranks,
-            string_agg(DISTINCT lca."order", ', '::text ORDER BY lca."order") AS lca_orders,
-            string_agg(DISTINCT lca.family, ', '::text ORDER BY lca.family) AS lca_families,
-            string_agg(DISTINCT lca.genus, ', '::text ORDER BY lca.genus) AS lca_genera,
-            string_agg(DISTINCT lca.specific_epiphet, ', '::text ORDER BY lca.specific_epiphet) AS lca_specific_epiphets
-           FROM lca
-          GROUP BY lca.og_id, lca.tech, lca.seq_date, lca.code, lca.annotation) lca_tax ON lca_tax.og_id = lv.og_id AND lca_tax.tech = lv.tech AND lca_tax.seq_date = lv.seq_date AND lca_tax.code = lv.code AND lca_tax.annotation = lv.annotation
+     LEFT JOIN ( SELECT l.og_id,
+            l.tech,
+            l.seq_date,
+            l.code,
+            l.annotation,
+            string_agg(DISTINCT l.rank_taxon, ', '::text ORDER BY l.rank_taxon) FILTER (WHERE l.region = '12s'::text) AS s12_lca_taxon,
+            string_agg(DISTINCT l.rank_taxon, ', '::text ORDER BY l.rank_taxon) FILTER (WHERE l.region = '16s'::text) AS s16_lca_taxon,
+            string_agg(DISTINCT l.rank_taxon, ', '::text ORDER BY l.rank_taxon) FILTER (WHERE l.region = 'CO1'::text) AS co1_lca_taxon,
+            string_agg(DISTINCT l."order", ', '::text ORDER BY l."order") AS lca_orders,
+            string_agg(DISTINCT l.family, ', '::text ORDER BY l.family) AS lca_families,
+            string_agg(DISTINCT l.genus, ', '::text ORDER BY l.genus) AS lca_genera,
+            string_agg(DISTINCT l.specific_epiphet, ', '::text ORDER BY l.specific_epiphet) AS lca_specific_epiphets
+           FROM ( SELECT lca.og_id,
+                    lca.tech,
+                    lca.seq_date,
+                    lca.code,
+                    lca.annotation,
+                    lca.region,
+                    lca."order",
+                    lca.family,
+                    lca.genus,
+                    lca.specific_epiphet,
+                        CASE
+                            WHEN lca.taxon_rank IS NULL THEN NULL::text
+                            ELSE concat_ws(': '::text, lca.taxon_rank,
+                            CASE lca.taxon_rank
+                                WHEN 'species'::text THEN lca.species
+                                WHEN 'genus'::text THEN lca.genus
+                                WHEN 'family'::text THEN lca.family
+                                WHEN 'order'::text THEN lca."order"
+                                WHEN 'class'::text THEN lca.class
+                                WHEN 'phylum'::text THEN lca.phylum
+                                ELSE NULL::text
+                            END)
+                        END AS rank_taxon
+                   FROM lca) l
+          GROUP BY l.og_id, l.tech, l.seq_date, l.code, l.annotation) lca_tax ON lca_tax.og_id = lv.og_id AND lca_tax.tech = lv.tech AND lca_tax.seq_date = lv.seq_date AND lca_tax.code = lv.code AND lca_tax.annotation = lv.annotation
      LEFT JOIN sample_view sv ON lv.og_id = sv.og_id_sv;;
 
 -- View: public.mitogenome_data

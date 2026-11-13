@@ -343,11 +343,14 @@ CREATE FUNCTION public.lca_validation_report_view_upd() RETURNS trigger
         'Cannot change key fields (og_id, tech, seq_date, code, annotation) through lca_validation_report_view';
     END IF;
 
-    -- Persist only the editable columns back to the base table (mito_lca_validation since 076).
+    -- Persist only the editable columns back to the base table (mito_lca_validation since 076;
+    -- escalate and investigate since 084).
     UPDATE mito_lca_validation
     SET validated_species_name         = NEW.validated_species_name,
         validator                      = NEW.validator,
         validator_2                    = NEW.validator_2,
+        escalate                       = NEW.escalate,
+        investigate                    = NEW.investigate,
         nominal_species_id_lca_comment = NEW.comment
     WHERE annotation_id = mito_annotation_id(OLD.og_id, OLD.tech, OLD.seq_date, OLD.code, OLD.annotation, false);
 
@@ -2737,7 +2740,9 @@ CREATE TABLE public.mito_lca_validation (
     validated_rank text,
     lca_genus text,
     row_created_on timestamp with time zone DEFAULT now() NOT NULL,
-    annotation_id bigint NOT NULL
+    annotation_id bigint NOT NULL,
+    escalate boolean DEFAULT false NOT NULL,
+    investigate boolean DEFAULT false NOT NULL
 );
 
 
@@ -2812,6 +2817,20 @@ COMMENT ON COLUMN public.mito_lca_validation.annotation_id IS 'The mito_annotati
 
 
 --
+-- Name: COLUMN mito_lca_validation.escalate; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_validation.escalate IS 'Curator flag: escalate this validation for a senior reviewer. Set through lca_validation_report_view in OceanGenom_Web. Default false (084).';
+
+
+--
+-- Name: COLUMN mito_lca_validation.investigate; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.mito_lca_validation.investigate IS 'Curator flag: this validation needs further investigation. Set through lca_validation_report_view in OceanGenom_Web. Default false (084).';
+
+
+--
 -- Name: lca_validation; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -2829,7 +2848,9 @@ CREATE VIEW public.lca_validation AS
     a.code,
     an.annotation,
     t.row_created_on,
-    t.annotation_id
+    t.annotation_id,
+    t.escalate,
+    t.investigate
    FROM ((public.mito_lca_validation t
      JOIN public.mito_annotation an ON ((an.annotation_id = t.annotation_id)))
      JOIN public.mito_assembly a ON ((a.assembly_id = an.assembly_id)));
@@ -9114,7 +9135,11 @@ CREATE VIEW public.lca_validation_report_view AS
     lv.validated_species_name,
     lv.validator,
     lv.validator_2,
-    lca_tax.lca_taxon_ranks,
+    lv.escalate,
+    lv.investigate,
+    lca_tax.s12_lca_taxon,
+    lca_tax.s16_lca_taxon,
+    lca_tax.co1_lca_taxon,
     lca_tax.lca_orders,
     lca_tax.lca_families,
     lca_tax.lca_genera,
@@ -9132,18 +9157,43 @@ CREATE VIEW public.lca_validation_report_view AS
      LEFT JOIN public.lca_pivot_view lp ON (((lp.og_id_lp = lv.og_id) AND (lp.tech = lv.tech) AND (lp.seq_date = lv.seq_date) AND (lp.code = lv.code) AND (lp.annotation = lv.annotation))))
      LEFT JOIN public.lca_results_view lr ON (((lr.og_id_lr = lv.og_id) AND (lr.tech = lv.tech) AND (lr.seq_date = lv.seq_date) AND (lr.code = lv.code) AND (lr.annotation = lv.annotation))))
      LEFT JOIN public.filtered_lca_view flv ON (((flv.og_id_flv = lv.og_id) AND (flv.tech = lv.tech) AND (flv.seq_date = lv.seq_date) AND (flv.code = lv.code) AND (flv.annotation = lv.annotation))))
-     LEFT JOIN ( SELECT lca.og_id,
-            lca.tech,
-            lca.seq_date,
-            lca.code,
-            lca.annotation,
-            string_agg(DISTINCT lca.taxon_rank, ', '::text ORDER BY lca.taxon_rank) AS lca_taxon_ranks,
-            string_agg(DISTINCT lca."order", ', '::text ORDER BY lca."order") AS lca_orders,
-            string_agg(DISTINCT lca.family, ', '::text ORDER BY lca.family) AS lca_families,
-            string_agg(DISTINCT lca.genus, ', '::text ORDER BY lca.genus) AS lca_genera,
-            string_agg(DISTINCT lca.specific_epiphet, ', '::text ORDER BY lca.specific_epiphet) AS lca_specific_epiphets
-           FROM public.lca
-          GROUP BY lca.og_id, lca.tech, lca.seq_date, lca.code, lca.annotation) lca_tax ON (((lca_tax.og_id = lv.og_id) AND (lca_tax.tech = lv.tech) AND (lca_tax.seq_date = lv.seq_date) AND (lca_tax.code = lv.code) AND (lca_tax.annotation = lv.annotation))))
+     LEFT JOIN ( SELECT l.og_id,
+            l.tech,
+            l.seq_date,
+            l.code,
+            l.annotation,
+            string_agg(DISTINCT l.rank_taxon, ', '::text ORDER BY l.rank_taxon) FILTER (WHERE (l.region = '12s'::text)) AS s12_lca_taxon,
+            string_agg(DISTINCT l.rank_taxon, ', '::text ORDER BY l.rank_taxon) FILTER (WHERE (l.region = '16s'::text)) AS s16_lca_taxon,
+            string_agg(DISTINCT l.rank_taxon, ', '::text ORDER BY l.rank_taxon) FILTER (WHERE (l.region = 'CO1'::text)) AS co1_lca_taxon,
+            string_agg(DISTINCT l."order", ', '::text ORDER BY l."order") AS lca_orders,
+            string_agg(DISTINCT l.family, ', '::text ORDER BY l.family) AS lca_families,
+            string_agg(DISTINCT l.genus, ', '::text ORDER BY l.genus) AS lca_genera,
+            string_agg(DISTINCT l.specific_epiphet, ', '::text ORDER BY l.specific_epiphet) AS lca_specific_epiphets
+           FROM ( SELECT lca.og_id,
+                    lca.tech,
+                    lca.seq_date,
+                    lca.code,
+                    lca.annotation,
+                    lca.region,
+                    lca."order",
+                    lca.family,
+                    lca.genus,
+                    lca.specific_epiphet,
+                        CASE
+                            WHEN (lca.taxon_rank IS NULL) THEN NULL::text
+                            ELSE concat_ws(': '::text, lca.taxon_rank,
+                            CASE lca.taxon_rank
+                                WHEN 'species'::text THEN lca.species
+                                WHEN 'genus'::text THEN lca.genus
+                                WHEN 'family'::text THEN lca.family
+                                WHEN 'order'::text THEN lca."order"
+                                WHEN 'class'::text THEN lca.class
+                                WHEN 'phylum'::text THEN lca.phylum
+                                ELSE NULL::text
+                            END)
+                        END AS rank_taxon
+                   FROM public.lca) l
+          GROUP BY l.og_id, l.tech, l.seq_date, l.code, l.annotation) lca_tax ON (((lca_tax.og_id = lv.og_id) AND (lca_tax.tech = lv.tech) AND (lca_tax.seq_date = lv.seq_date) AND (lca_tax.code = lv.code) AND (lca_tax.annotation = lv.annotation))))
      LEFT JOIN public.sample_view sv ON ((lv.og_id = sv.og_id_sv)));
 
 
@@ -9152,6 +9202,41 @@ CREATE VIEW public.lca_validation_report_view AS
 --
 
 COMMENT ON VIEW public.lca_validation_report_view IS 'The LCA validation report, one row per mito_lca_validation row, for curators in OceanGenom_Web. Updatable through trigger trg_lca_validation_report_view_upd (the validation fields only; the key fields are refused).';
+
+
+--
+-- Name: COLUMN lca_validation_report_view.escalate; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lca_validation_report_view.escalate IS 'mito_lca_validation.escalate. Editable through this view.';
+
+
+--
+-- Name: COLUMN lca_validation_report_view.investigate; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lca_validation_report_view.investigate IS 'mito_lca_validation.investigate. Editable through this view.';
+
+
+--
+-- Name: COLUMN lca_validation_report_view.s12_lca_taxon; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lca_validation_report_view.s12_lca_taxon IS '12S LCA result as ''<taxon_rank>: <taxon>'' (e.g. ''genus: Etelis''), every LCA run unioned, '', ''-joined.';
+
+
+--
+-- Name: COLUMN lca_validation_report_view.s16_lca_taxon; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lca_validation_report_view.s16_lca_taxon IS '16S LCA result as ''<taxon_rank>: <taxon>'', every LCA run unioned, '', ''-joined.';
+
+
+--
+-- Name: COLUMN lca_validation_report_view.co1_lca_taxon; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.lca_validation_report_view.co1_lca_taxon IS 'CO1 LCA result as ''<taxon_rank>: <taxon>'', every LCA run unioned, '', ''-joined.';
 
 
 --
