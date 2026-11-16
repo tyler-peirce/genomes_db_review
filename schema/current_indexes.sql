@@ -150,9 +150,6 @@ CREATE UNIQUE INDEX sequencing_pkey ON public.sequencing USING btree (sequencing
 CREATE INDEX sequencing_run_id_idx ON public.sequencing USING btree (run_id);
 CREATE UNIQUE INDEX sequencing_run_pkey ON public.sequencing_run USING btree (run_id);
 CREATE UNIQUE INDEX "Species_pkey" ON public.species USING btree (species);
-CREATE UNIQUE INDEX species_ncbi_assembly_one_chosen_idx ON public.species_ncbi_assembly USING btree (species) WHERE is_chosen;
-CREATE UNIQUE INDEX species_ncbi_assembly_pkey ON public.species_ncbi_assembly USING btree (assembly_accession);
-CREATE INDEX species_ncbi_assembly_species_idx ON public.species_ncbi_assembly USING btree (species);
 CREATE INDEX tissue_og_id_idx ON public.tissue USING btree (og_id);
 CREATE UNIQUE INDEX tissue_pkey ON public.tissue USING btree (tissue_id);
 CREATE UNIQUE INDEX value_conversions_pkey ON public.value_conversions USING btree (source_table, row_key, column_name);

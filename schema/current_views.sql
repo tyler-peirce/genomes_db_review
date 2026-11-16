@@ -1207,20 +1207,39 @@ CREATE OR REPLACE VIEW public.v_genome_size_comparison AS
     sp.ncbi_taxon_id,
     d.seq_date,
     gs.genomesize AS estimated_bp,
-    a.total_sequence_length AS ncbi_bp,
-        CASE
-            WHEN a.total_sequence_length > 0 THEN round(gs.genomesize::numeric / a.total_sequence_length::numeric, 3)
-            ELSE NULL::numeric
-        END AS estimated_over_ncbi,
     a.assembly_accession,
+    a.assembly_name,
     a.assembly_level,
-    a.is_refseq,
-    a.is_representative
+    a.assembly_refseq_category AS refseq_category,
+    a.assembly_bioproject_accession,
+    a.assembly_release_date AS release_date,
+    a.contig_n50,
+    a.ncbi_assembly_count
    FROM draft_genome d
      LEFT JOIN draft_genomescope gs ON gs.draft_id = d.draft_id
      JOIN sample s ON s.og_id = d.og_id
-     JOIN species sp ON s.nominal_species_id = sp.species
-     LEFT JOIN species_ncbi_assembly a ON a.species = sp.species AND a.is_chosen;;
+     JOIN species sp ON sp.species = s.nominal_species_id
+     LEFT JOIN LATERAL ( SELECT n.assembly_accession,
+            n.assembly_name,
+            n.assembly_level,
+            n.assembly_bioproject_accession,
+            n.organism_name,
+            n.organism_taxonomic_id,
+            n.assembly_refseq_category,
+            n.assembly_release_date,
+            n.contig_n50,
+            count(*) OVER () AS ncbi_assembly_count
+           FROM ncbi_genome_assemblies n
+          WHERE n.organism_taxonomic_id = sp.ncbi_taxon_id
+          ORDER BY (n.assembly_refseq_category = 'reference genome'::text) DESC NULLS LAST, (
+                CASE n.assembly_level
+                    WHEN 'Complete Genome'::text THEN 1
+                    WHEN 'Chromosome'::text THEN 2
+                    WHEN 'Scaffold'::text THEN 3
+                    WHEN 'Contig'::text THEN 4
+                    ELSE 5
+                END), n.assembly_release_date DESC NULLS LAST, n.assembly_accession
+         LIMIT 1) a ON true;;
 
 -- View: public.v_hic_library_browse
 CREATE OR REPLACE VIEW public.v_hic_library_browse AS

@@ -289,8 +289,6 @@ ALTER TABLE public.sequencing ADD CONSTRAINT sequencing_pkey PRIMARY KEY (sequen
 ALTER TABLE public.sequencing ADD CONSTRAINT sequencing_run_id_fkey FOREIGN KEY (run_id) REFERENCES sequencing_run(run_id);
 ALTER TABLE public.sequencing_run ADD CONSTRAINT sequencing_run_pkey PRIMARY KEY (run_id);
 ALTER TABLE public.species ADD CONSTRAINT "Species_pkey" PRIMARY KEY (species);
-ALTER TABLE public.species_ncbi_assembly ADD CONSTRAINT species_ncbi_assembly_pkey PRIMARY KEY (assembly_accession);
-ALTER TABLE public.species_ncbi_assembly ADD CONSTRAINT species_ncbi_assembly_species_fkey FOREIGN KEY (species) REFERENCES species(species);
 ALTER TABLE public.tissue ADD CONSTRAINT tissue_og_id_fkey FOREIGN KEY (og_id) REFERENCES sample(og_id);
 ALTER TABLE public.tissue ADD CONSTRAINT tissue_pkey PRIMARY KEY (tissue_id);
 ALTER TABLE public.value_conversions ADD CONSTRAINT value_conversions_pkey PRIMARY KEY (source_table, row_key, column_name);

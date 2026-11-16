@@ -7181,196 +7181,6 @@ COMMENT ON VIEW public.embargo_assignment_view IS 'Per specimen: embargo_status 
 
 
 --
--- Name: ena_candidate_loci_archive; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.ena_candidate_loci_archive (
-    full_seqid text,
-    og_id text,
-    gene_serial integer,
-    locus_tag text,
-    feature_key text,
-    start_coordinate integer,
-    end_coordinate integer,
-    strand character(1),
-    created_at timestamp with time zone
-);
-
-
---
--- Name: TABLE ena_candidate_loci_archive; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.ena_candidate_loci_archive IS 'Frozen copy of ena_candidate_loci as of migration 010. Records the per-candidate locus tags this pipeline submitted before locus-tag assignment moved to the downstream submission pipeline. Historical reference only.';
-
-
---
--- Name: COLUMN ena_candidate_loci_archive.full_seqid; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_candidate_loci_archive.full_seqid IS 'The annotation. Archive: empty, frozen by 010.';
-
-
---
--- Name: COLUMN ena_candidate_loci_archive.og_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_candidate_loci_archive.og_id IS 'The sample.';
-
-
---
--- Name: COLUMN ena_candidate_loci_archive.gene_serial; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_candidate_loci_archive.gene_serial IS 'Serial from ena_locus_registry_archive.';
-
-
---
--- Name: COLUMN ena_candidate_loci_archive.locus_tag; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_candidate_loci_archive.locus_tag IS 'Locus tag submitted.';
-
-
---
--- Name: COLUMN ena_candidate_loci_archive.feature_key; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_candidate_loci_archive.feature_key IS 'Feature key.';
-
-
---
--- Name: COLUMN ena_candidate_loci_archive.start_coordinate; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_candidate_loci_archive.start_coordinate IS 'Start, bp.';
-
-
---
--- Name: COLUMN ena_candidate_loci_archive.end_coordinate; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_candidate_loci_archive.end_coordinate IS 'End, bp.';
-
-
---
--- Name: COLUMN ena_candidate_loci_archive.strand; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_candidate_loci_archive.strand IS 'Strand.';
-
-
---
--- Name: COLUMN ena_candidate_loci_archive.created_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_candidate_loci_archive.created_at IS 'When written.';
-
-
---
--- Name: ena_locus_registry_archive; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.ena_locus_registry_archive (
-    og_id text,
-    gene_serial integer,
-    canonical_gene text,
-    gene_occurrence integer,
-    feature_type text,
-    strand character(1),
-    feature_sequence_sha256 character(64),
-    coordinate_snapshot text,
-    allocation_status text,
-    created_at timestamp with time zone,
-    updated_at timestamp with time zone
-);
-
-
---
--- Name: TABLE ena_locus_registry_archive; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.ena_locus_registry_archive IS 'Frozen copy of ena_locus_registry as of migration 010. Records the specimen gene serials this pipeline allocated before locus-tag assignment moved to the downstream submission pipeline. Historical reference only: do not write to it and do not treat it as the current tag assignment.';
-
-
---
--- Name: COLUMN ena_locus_registry_archive.og_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_locus_registry_archive.og_id IS 'The sample. Archive: empty, frozen by 010.';
-
-
---
--- Name: COLUMN ena_locus_registry_archive.gene_serial; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_locus_registry_archive.gene_serial IS 'Serial allocated for the gene within the specimen.';
-
-
---
--- Name: COLUMN ena_locus_registry_archive.canonical_gene; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_locus_registry_archive.canonical_gene IS 'Canonical gene name.';
-
-
---
--- Name: COLUMN ena_locus_registry_archive.gene_occurrence; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_locus_registry_archive.gene_occurrence IS 'Occurrence of the gene, where it appears more than once.';
-
-
---
--- Name: COLUMN ena_locus_registry_archive.feature_type; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_locus_registry_archive.feature_type IS 'Feature type (CDS, tRNA, rRNA).';
-
-
---
--- Name: COLUMN ena_locus_registry_archive.strand; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_locus_registry_archive.strand IS 'Strand.';
-
-
---
--- Name: COLUMN ena_locus_registry_archive.feature_sequence_sha256; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_locus_registry_archive.feature_sequence_sha256 IS 'SHA-256 of the feature sequence.';
-
-
---
--- Name: COLUMN ena_locus_registry_archive.coordinate_snapshot; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_locus_registry_archive.coordinate_snapshot IS 'Coordinates when allocated.';
-
-
---
--- Name: COLUMN ena_locus_registry_archive.allocation_status; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_locus_registry_archive.allocation_status IS 'Allocation state.';
-
-
---
--- Name: COLUMN ena_locus_registry_archive.created_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_locus_registry_archive.created_at IS 'When allocated.';
-
-
---
--- Name: COLUMN ena_locus_registry_archive.updated_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.ena_locus_registry_archive.updated_at IS 'When last changed.';
-
-
---
 -- Name: ena_related_assemblies; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -10093,7 +9903,7 @@ CREATE TABLE public.ncbi_genome_assemblies (
 -- Name: TABLE ncbi_genome_assemblies; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.ncbi_genome_assemblies IS 'NCBI genome assembly metadata (1,830 rows): what is already assembled for a species. No writer and no reading view found; no FK to species. The empty species_ncbi_assembly was meant to hold the same and is what v_genome_size_comparison reads; consolidating them is a backlog item.';
+COMMENT ON TABLE public.ncbi_genome_assemblies IS 'NCBI genome assembly metadata: what is already assembled for a species. No writer found; no FK to species. Read by v_genome_size_comparison (087), which matches it on organism_taxonomic_id. The only NCBI assembly table since 085 dropped the empty species_ncbi_assembly. No primary key: assembly_accession is UNIQUE.';
 
 
 --
@@ -12265,109 +12075,6 @@ COMMENT ON COLUMN public.species.synonym IS 'A synonym or the accepted name.';
 
 
 --
--- Name: species_ncbi_assembly; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.species_ncbi_assembly (
-    assembly_accession text NOT NULL,
-    species text NOT NULL,
-    ncbi_taxon_id integer NOT NULL,
-    assembly_name text,
-    assembly_level text,
-    total_sequence_length bigint,
-    is_refseq boolean DEFAULT false NOT NULL,
-    is_representative boolean DEFAULT false NOT NULL,
-    is_chosen boolean DEFAULT false NOT NULL,
-    release_date date,
-    retrieved_at timestamp without time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: TABLE species_ncbi_assembly; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.species_ncbi_assembly IS 'Planned NCBI assembly table, with a species FK and one chosen assembly per species. Empty since it was created; ncbi_genome_assemblies holds the data. v_genome_size_comparison reads this table, so its NCBI columns are NULL on every row until the two are consolidated (backlog item).';
-
-
---
--- Name: COLUMN species_ncbi_assembly.assembly_accession; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.species_ncbi_assembly.assembly_accession IS 'GCA_/GCF_ accession.';
-
-
---
--- Name: COLUMN species_ncbi_assembly.species; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.species_ncbi_assembly.species IS 'The species (FK to species).';
-
-
---
--- Name: COLUMN species_ncbi_assembly.ncbi_taxon_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.species_ncbi_assembly.ncbi_taxon_id IS 'NCBI Taxonomy id.';
-
-
---
--- Name: COLUMN species_ncbi_assembly.assembly_name; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.species_ncbi_assembly.assembly_name IS 'Assembly name.';
-
-
---
--- Name: COLUMN species_ncbi_assembly.assembly_level; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.species_ncbi_assembly.assembly_level IS 'Contig, Scaffold, Chromosome or Complete Genome.';
-
-
---
--- Name: COLUMN species_ncbi_assembly.total_sequence_length; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.species_ncbi_assembly.total_sequence_length IS 'bp.';
-
-
---
--- Name: COLUMN species_ncbi_assembly.is_refseq; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.species_ncbi_assembly.is_refseq IS 'A RefSeq assembly.';
-
-
---
--- Name: COLUMN species_ncbi_assembly.is_representative; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.species_ncbi_assembly.is_representative IS 'NCBI''s representative assembly for the species.';
-
-
---
--- Name: COLUMN species_ncbi_assembly.is_chosen; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.species_ncbi_assembly.is_chosen IS 'The one assembly chosen for the species (partial unique index).';
-
-
---
--- Name: COLUMN species_ncbi_assembly.release_date; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.species_ncbi_assembly.release_date IS 'Release date.';
-
-
---
--- Name: COLUMN species_ncbi_assembly.retrieved_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.species_ncbi_assembly.retrieved_at IS 'When the row was fetched from NCBI.';
-
-
---
 -- Name: v_dna_extraction_browse; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -12583,27 +12290,93 @@ CREATE VIEW public.v_genome_size_comparison AS
     sp.ncbi_taxon_id,
     d.seq_date,
     gs.genomesize AS estimated_bp,
-    a.total_sequence_length AS ncbi_bp,
-        CASE
-            WHEN (a.total_sequence_length > 0) THEN round(((gs.genomesize)::numeric / (a.total_sequence_length)::numeric), 3)
-            ELSE NULL::numeric
-        END AS estimated_over_ncbi,
     a.assembly_accession,
+    a.assembly_name,
     a.assembly_level,
-    a.is_refseq,
-    a.is_representative
+    a.assembly_refseq_category AS refseq_category,
+    a.assembly_bioproject_accession,
+    a.assembly_release_date AS release_date,
+    a.contig_n50,
+    a.ncbi_assembly_count
    FROM ((((public.draft_genome d
      LEFT JOIN public.draft_genomescope gs ON ((gs.draft_id = d.draft_id)))
      JOIN public.sample s ON ((s.og_id = d.og_id)))
-     JOIN public.species sp ON ((s.nominal_species_id = sp.species)))
-     LEFT JOIN public.species_ncbi_assembly a ON (((a.species = sp.species) AND a.is_chosen)));
+     JOIN public.species sp ON ((sp.species = s.nominal_species_id)))
+     LEFT JOIN LATERAL ( SELECT n.assembly_accession,
+            n.assembly_name,
+            n.assembly_level,
+            n.assembly_bioproject_accession,
+            n.organism_name,
+            n.organism_taxonomic_id,
+            n.assembly_refseq_category,
+            n.assembly_release_date,
+            n.contig_n50,
+            count(*) OVER () AS ncbi_assembly_count
+           FROM public.ncbi_genome_assemblies n
+          WHERE (n.organism_taxonomic_id = sp.ncbi_taxon_id)
+          ORDER BY (n.assembly_refseq_category = 'reference genome'::text) DESC NULLS LAST,
+                CASE n.assembly_level
+                    WHEN 'Complete Genome'::text THEN 1
+                    WHEN 'Chromosome'::text THEN 2
+                    WHEN 'Scaffold'::text THEN 3
+                    WHEN 'Contig'::text THEN 4
+                    ELSE 5
+                END, n.assembly_release_date DESC NULLS LAST, n.assembly_accession
+         LIMIT 1) a ON (true));
 
 
 --
 -- Name: VIEW v_genome_size_comparison; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.v_genome_size_comparison IS 'Per draft: the GenomeScope genome size against the chosen NCBI assembly of the nominal species. Reads species_ncbi_assembly, which is empty, so ncbi_bp and the columns after it are NULL on every row until it is consolidated with ncbi_genome_assemblies.';
+COMMENT ON VIEW public.v_genome_size_comparison IS 'Per draft: the GenomeScope genome size, beside the NCBI assembly chosen for the nominal species (ncbi_genome_assemblies, matched on taxon id). One assembly per taxon: RefSeq reference genome first, then the most complete level, then the latest release. ncbi_genome_assemblies has no total length, so there is no NCBI size or ratio (087).';
+
+
+--
+-- Name: COLUMN v_genome_size_comparison.ncbi_taxon_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_genome_size_comparison.ncbi_taxon_id IS 'species.ncbi_taxon_id of the nominal species; the key the NCBI assembly is matched on.';
+
+
+--
+-- Name: COLUMN v_genome_size_comparison.estimated_bp; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_genome_size_comparison.estimated_bp IS 'draft_genomescope.genomesize, bp. Check genome_size_reliable before quoting it.';
+
+
+--
+-- Name: COLUMN v_genome_size_comparison.assembly_accession; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_genome_size_comparison.assembly_accession IS 'The chosen NCBI assembly (GCA_/GCF_). NULL: NCBI has no assembly for the taxon in ncbi_genome_assemblies.';
+
+
+--
+-- Name: COLUMN v_genome_size_comparison.refseq_category; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_genome_size_comparison.refseq_category IS 'NCBI RefSeq category: ''reference genome'', '''' or ''NaN''.';
+
+
+--
+-- Name: COLUMN v_genome_size_comparison.contig_n50; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_genome_size_comparison.contig_n50 IS 'NCBI contig N50 of the chosen assembly, bp.';
+
+
+--
+-- Name: COLUMN v_genome_size_comparison.ncbi_assembly_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_genome_size_comparison.ncbi_assembly_count IS 'How many assemblies ncbi_genome_assemblies holds for the taxon; the view shows one.';
+
+
+--
+-- PostgreSQL database dump complete
+--
 
 
 --
@@ -14917,14 +14690,6 @@ ALTER TABLE ONLY public.sequencing_run
 
 
 --
--- Name: species_ncbi_assembly species_ncbi_assembly_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.species_ncbi_assembly
-    ADD CONSTRAINT species_ncbi_assembly_pkey PRIMARY KEY (assembly_accession);
-
-
---
 -- Name: tissue tissue_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15310,20 +15075,6 @@ CREATE INDEX sequencing_library_tube_id_idx ON public.sequencing USING btree (li
 --
 
 CREATE INDEX sequencing_run_id_idx ON public.sequencing USING btree (run_id);
-
-
---
--- Name: species_ncbi_assembly_one_chosen_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX species_ncbi_assembly_one_chosen_idx ON public.species_ncbi_assembly USING btree (species) WHERE is_chosen;
-
-
---
--- Name: species_ncbi_assembly_species_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX species_ncbi_assembly_species_idx ON public.species_ncbi_assembly USING btree (species);
 
 
 --
@@ -16400,14 +16151,6 @@ ALTER TABLE ONLY public.sequencing
 
 ALTER TABLE ONLY public.sequencing
     ADD CONSTRAINT sequencing_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.sequencing_run(run_id);
-
-
---
--- Name: species_ncbi_assembly species_ncbi_assembly_species_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.species_ncbi_assembly
-    ADD CONSTRAINT species_ncbi_assembly_species_fkey FOREIGN KEY (species) REFERENCES public.species(species);
 
 
 --
