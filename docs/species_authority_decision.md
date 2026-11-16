@@ -1,6 +1,17 @@
 # Species Authority Decision
 
-Status: Draft decision record.
+Status: **Superseded 2026-11-13 by the owner's decisions** (`database_review.md` §2, §11 Q1,
+backlog Highest 8). The draft below is kept as history; its recommendation was not adopted.
+
+- `master_species` is the maintained species list: the vertebrate genomes project's list for
+  GoaT. It is not being replaced by `species` or turned into a view.
+- `master_species`, `master_species_genome` and the GoaT views are a colleague's work and out of
+  scope for this project.
+- `sample.nominal_species_id` is not to be cleaned or validated against either table. Samples
+  outside the GoaT list, invertebrates above all, are expected not to match.
+- `species_ncbi_assembly` was dropped (`085`).
+
+Original status: Draft decision record.
 
 ## Decision Needed
 

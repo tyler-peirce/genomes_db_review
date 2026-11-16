@@ -7,7 +7,10 @@ Use this checklist before changing the Ocean Genomes database schema, data-clean
 - Confirm the table or view owner.
 - Confirm whether the affected object is active, planned, deprecated, archive, or staging.
 - Regenerate the schema baseline if the live database may have changed.
-- Identify downstream consumers, including GoaT API views and direct database users.
+- Identify downstream consumers, including GoaT API views and direct database users. The GoaT
+  views (`goat_species_v1`, `goat_project_metadata_v1`) and `master_species` are a colleague's
+  work and out of scope for this project (owner, 2026-11-13): do not change them, and tell the
+  colleague before changing anything they read (`sample`, `ref_assembly`).
 - Capture current row counts and relevant data-quality checks.
 
 ## For Cleanup Work
@@ -42,8 +45,8 @@ Use this checklist before changing the Ocean Genomes database schema, data-clean
     readiness or issue list ends in `_readiness` or `_issues`.
   - **A compatibility view keeps the exact name of the table it stands in for** (`v3.draft_genomes`,
     `v4.raw_qc`), so existing queries keep working when it replaces that table. No prefix.
-  - **An external contract keeps its versioned name** (`goat_species_v1`). A breaking change is a
-    new version (`_v2`) beside the old one, never a rename.
+  - **An external contract keeps its versioned name** (`goat_species_v1`, a colleague's). A
+    breaking change is a new version (`_v2`) beside the old one, never a rename.
   - **Window-only sync helpers start `sync_`** and are dropped when their window closes.
   - **Older views keep their names** (`summary`, `sample_view`, `lca_results_view`, ...).
     Readers depend on them; renaming one is a contract change, not a tidy-up.
