@@ -306,7 +306,7 @@ Owner, 2026-11-23: all 116 rows stay in the draft tables, stubs included ("they 
 | BUSCO `internal_stop_codon_*` | 723 ≤250520 | BUSCO 5.4.6 does not report it | No (owner: leave) |
 | FCS-GX six columns | 41 ≤250520 | 8 mismatched report, 33 no source | No (owner: leave) |
 | GenomeScope depth, verdict, fit, host partition | OG348 230324, OG91 240313 | Too few BUSCO regions; OG91 by owner | No |
-| BUSCO `complete…fragmented` | OG348 230324 (all four), OG262 230419 (`multi_copy`) | Not in the archived summary | Check the `short_summary.json` |
+| BUSCO `complete…fragmented` | OG348 230324 (all four), OG262 230419 (`multi_copy`) | The archived summaries say 0.0% (OG348: C 0.0 / S 0.0 / D 0.0 / F 0.0, M 100%; OG262: D 0.0); the old load stored 0 as NULL | **Yes: set them to 0** (checked on Acacia) |
 | Tiara `bp_plastid` | OG88 230814, OG586 230419 | 0 plastid contigs; the file prints no bp | Not a gap (would be 0) |
 | GenomeScope `genomesize`, `repeatsize`, `uniquesize` | OG817, OG831 240716; OG1908 251210; OG1736, OG1957 251215; OG2624, OG2645, OG2647 260909; OG2905 260925 | The model diverged: the summary's max is `Inf bp` (OG817: 42.8 Mb min / Inf; OG2905: 2.2 Mb / Inf) | No; a new GenomeScope fit only |
 | Depth (`busco_read_depth`, host partition) and fit, verdict present | 12 × 260909 (OG2630…OG3090), OG1841 260114 | `kmer_depth.json` says `too_few_busco_regions` | No |
@@ -314,9 +314,17 @@ Owner, 2026-11-23: all 116 rows stay in the draft tables, stubs included ("they 
 | Everything from GenomeScope on except the basic fit (`core` rows) | OG1731, OG1738 251210; OG1848 260108; OG1789 260114; OG2407, OG2409 260703 | Nothing on Acacia beyond the core summary | Only a re-run from reads (meryl, GenomeScope, BAM) |
 | Depth and verdict, no model | OG1756 251210 | No GenomeScope model | Re-run GenomeScope from reads |
 | Depth and verdict, no BAM | OG2607 260724 | No BAM archived | Re-map, then depth + size |
-| `kmercov` only | OG2653 260909 | Summary has no fitted coverage | Check its summary |
+| `kmercov` only | OG2653 260909 | GenomeScope failed (`-1 bp`, model fit 0%; stored `genomesize` -1, verdict false) | No; a new fit only |
 | `*_min` and `modelfit_allkmers` | 10 later (in the rows above) | Core rows or diverged model | With the re-runs above |
-| No `draft_fastp` row | OG1789 260114 | No fastp report archived | Re-run fastp from reads |
-| No `draft_merqury` row | OG1118 250606, OG1848 260108 | No Merqury output archived | Re-run Merqury |
+| No `draft_fastp` row | OG1789 260114 | No fastp report on Acacia (checked) | Re-run fastp from reads |
+| No `draft_merqury` row | OG1118 250606, OG1848 260108 | No Merqury output on Acacia for either (OG1848's archived Merqury is its 260114 draft's) | Re-run Merqury |
 | Every assembly table | OG1254 250606 | No published `.fna` archived | Re-assemble from reads, or load from the `.fa`/`.fasta` copies if one is the published assembly |
 | `draft_submission` | 1,062 drafts without a row | ENA submission state, not a tool result | Out of scope |
+
+### Archive to Acacia, second pass (2026-11-23)
+
+`draft_backfill/archive/archive2.sh` (same rules as `archive.sh`: `rclone copy --ignore-existing` to `genomes.v2/<OG>/`, then `rclone check`):
+- **Gate:** `verify2.tsv`, every parsed result file on scratch against live (read-only): 2,193 PASS, 0 FAIL / NO_ROW (721 coverage summaries, 727 gfastats, 731 depth, 14 reseeded models). OG91 and OG348 have no new files.
+- **Results written since 2026-11-16:** 483 depth files (`old_rerun/results`) and 924 genome-size files (`old_rerun/gsize/results`) for the reads re-run, 250514 and the 7 tolerance drafts. Copied, and `rclone check`: every data file matches. 121 paths differ, all `coverage/versions.yml` (both runs write one for the same draft, and the first copy is kept) or tool-parameter HTML; nothing already on Acacia was replaced. FCS-GX re-screen: 485 of 485 match.
+- **FCS-GX re-screens of the 97 filled drafts** (221003, 230419): 485 report files (filter report, GX report, taxonomy, summary, log; not the pre-FCS fasta) under `assemblies/genome/NCBI/rescreen_261118/`, kept apart so they are not read as the original screen.
+- Not archived: `busco_rerun/` (OG373/399/421 BUSCO, used only to pick depth regions; the stored BUSCO is the original's) and the reads re-run stage folders (BAMs, histograms: rebuildable).
