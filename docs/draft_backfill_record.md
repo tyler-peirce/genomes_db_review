@@ -105,6 +105,7 @@ The per-batch breakdown is in the gap TSV: `awk -F'\t' '{print $3,$4,$2}' record
 - **OG1254 250606, FCS-GX:**
   - The filter report and <500 bp count are archived.
   - The Tiara, BUSCO, Merqury and gfastats files are not, yet the database has all four.
+    *Corrected 2026-11-23: live has none of the four (as `records/draft_gaps_261109.tsv` already said), nor a `draft_contamination` row.*
   - `parse_decontamination` needs the Tiara file, so the family cannot be rebuilt without risking the stored Tiara values. Left as is.
 
 ## Re-runs started 2026-11-09 (owner: gfastats and depth only)
@@ -287,3 +288,35 @@ Of the 116 drafts with no assembly on live (list with runs: [`records/drafts_wit
 The other 12 are rows with 0–404 reads (OG472 230607, OG864 251031, and 251215/260108 rows of OG1834, OG1842, OG1844, OG1845, OG1846, OG1849, OG1850; all but OG472 and OG864 have an assembled 260114 draft). There is no re-assembly backlog.
 
 Owner, 2026-11-23: all 116 rows stay in the draft tables, stubs included ("they tell a story"). Nothing is deleted.
+
+## 2026-11-23: bigint, OG348, parser on master, and what is still empty
+
+- **`095`** (applied with `bin/apply_migrations.py`): `draft_contamination.bp_exclude/trim/review` to `bigint`; `draft_genomes` dropped and created again with the same definition, comment and grants. Rehearsed on live in a rolled-back transaction first: `draft_genomes` 1,757 rows, same `md5` fingerprint before and after; only the three types changed.
+- **OG348 230324 FCS-GX** filled by `fcs/fcs_fill.py` (`fill5_*`): EXCLUDE 570,688 contigs / 2,313,565,842 bp, TRIM 0 / 0, REVIEW 1 / 488. Row before: [`records/draft_contamination_og348_before_fcs_261123.csv`](records/draft_contamination_og348_before_fcs_261123.csv).
+- **The 8 held for a `<500 bp` mismatch** (OG304, OG306, OG309, OG310, OG311, OG312 221123; OG490, OG517 230419) stay empty (owner). Their archived report is from another decontamination run.
+- **FCS-GX ≤250520:** 682 of 723 filled; 41 empty (8 mismatch, 33 with no report and no pre-FCS assembly).
+- **Parser fix on master:** `OceanOmics-OceanGenomes-Draft-Genomes` `a1d6200` (pushed; 214 tests pass): `ids_from_dot_name` for pre-250606 names, and the backfill `--families` mode. The Setonix production clone still runs `d4bcb35` until it is pulled.
+
+### What is still empty (live, 2026-11-23)
+
+1,757 drafts: 1,640 assembled (723 ≤250520, 917 later) and 117 without assembly tables: the 116 kept by the owner, and **OG1254 250606**, which has fastp and GenomeScope but no Tiara, FCS-GX, BUSCO, Merqury or gfastats row (its published `.fna` is on neither Acacia nor S3; Acacia has `.fa`/`.fasta` copies). It was missed from the 116 list because it has a GenomeScope row. Columns not listed are full on every assembled draft. `genome_size_flags` (set only when unreliable) and `partition_note` (only for a low partition) are empty by design and not counted.
+
+| Gap | Drafts | Why | Can it be filled? |
+|---|---|---|---|
+| BUSCO `internal_stop_codon_*` | 723 ≤250520 | BUSCO 5.4.6 does not report it | No (owner: leave) |
+| FCS-GX six columns | 41 ≤250520 | 8 mismatched report, 33 no source | No (owner: leave) |
+| GenomeScope depth, verdict, fit, host partition | OG348 230324, OG91 240313 | Too few BUSCO regions; OG91 by owner | No |
+| BUSCO `complete…fragmented` | OG348 230324 (all four), OG262 230419 (`multi_copy`) | Not in the archived summary | Check the `short_summary.json` |
+| Tiara `bp_plastid` | OG88 230814, OG586 230419 | 0 plastid contigs; the file prints no bp | Not a gap (would be 0) |
+| GenomeScope `genomesize`, `repeatsize`, `uniquesize` | OG817, OG831 240716; OG1908 251210; OG1736, OG1957 251215; OG2624, OG2645, OG2647 260909; OG2905 260925 | The model diverged: the summary's max is `Inf bp` (OG817: 42.8 Mb min / Inf; OG2905: 2.2 Mb / Inf) | No; a new GenomeScope fit only |
+| Depth (`busco_read_depth`, host partition) and fit, verdict present | 12 × 260909 (OG2630…OG3090), OG1841 260114 | `kmer_depth.json` says `too_few_busco_regions` | No |
+| Verdict and `kmercov`, depth present | OG1262, OG1263 250606; OG1724, OG1752, OG1765, OG1769, OG1917 251210; OG1942 251215; OG1889 260108 | Coverage summary predates the reliability gate | **Yes: `GENOME_SIZE_ONLY`** (OG1262, OG1263, OG1917, OG1942, OG1889 have kmercov/depth 8.7–15; their size is probably far too small) |
+| Everything from GenomeScope on except the basic fit (`core` rows) | OG1731, OG1738 251210; OG1848 260108; OG1789 260114; OG2407, OG2409 260703 | Nothing on Acacia beyond the core summary | Only a re-run from reads (meryl, GenomeScope, BAM) |
+| Depth and verdict, no model | OG1756 251210 | No GenomeScope model | Re-run GenomeScope from reads |
+| Depth and verdict, no BAM | OG2607 260724 | No BAM archived | Re-map, then depth + size |
+| `kmercov` only | OG2653 260909 | Summary has no fitted coverage | Check its summary |
+| `*_min` and `modelfit_allkmers` | 10 later (in the rows above) | Core rows or diverged model | With the re-runs above |
+| No `draft_fastp` row | OG1789 260114 | No fastp report archived | Re-run fastp from reads |
+| No `draft_merqury` row | OG1118 250606, OG1848 260108 | No Merqury output archived | Re-run Merqury |
+| Every assembly table | OG1254 250606 | No published `.fna` archived | Re-assemble from reads, or load from the `.fa`/`.fasta` copies if one is the published assembly |
+| `draft_submission` | 1,062 drafts without a row | ENA submission state, not a tool result | Out of scope |

@@ -6166,9 +6166,9 @@ CREATE TABLE public.draft_contamination (
     num_contigs_exclude integer,
     num_contigs_trim integer,
     num_contigs_review integer,
-    bp_exclude integer,
-    bp_trim integer,
-    bp_review integer,
+    bp_exclude bigint,
+    bp_trim bigint,
+    bp_review bigint,
     num_contigs_lt_500bp integer,
     loaded_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT draft_contamination_has_value CHECK ((num_nonnulls(num_contigs_exclude, num_contigs_trim, num_contigs_review, bp_exclude, bp_trim, bp_review, num_contigs_lt_500bp) > 0))

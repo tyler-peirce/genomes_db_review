@@ -101,7 +101,7 @@ So a failed upload task **does not stop the run**; the rest of the samples carry
 
 ### Not in scope
 
-The draft pipeline's upload modules. Check whether they swallow errors the same way; a short follow-up if so. **Checked 2026-11-23: they do not** (each script exits 1 on a database error, the modules do not force success, failed `PUSH_*` tasks are ignored per sample and re-run by `-resume`). The poller's `post_draft.py` had a trace-check bug that hid `IGNORED` tasks when the log line was missing; fixed locally, not yet pushed (`database_review.md` 3.58).
+The draft pipeline's upload modules. Check whether they swallow errors the same way; a short follow-up if so. **Checked 2026-11-23: they do not** (each script exits 1 on a database error, the modules do not force success, failed `PUSH_*` tasks are ignored per sample and re-run by `-resume`). The poller's `post_draft.py` had a trace-check bug that hid `IGNORED` tasks when the log line was missing; fixed in `pipeline_automations` `672f451` (`database_review.md` 3.58).
 
 ---
 

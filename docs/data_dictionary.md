@@ -4,7 +4,7 @@ Status: rewritten 2026-11-04, after Phases R and RG and migrations `078`/`079`. 
 2026-11-13: design reasons from the migration headers added to each section, the
 [migration index](#migration-index) added, and `082`–`088` reflected. Updated 2026-11-23 for
 `089`–`094`: `raw_data` dropped, `ena_specimen_accessions` a view, the archive schemas dropped,
-read sets per assembly, Hi-C runs linked. The first draft
+read sets per assembly, Hi-C runs linked; and for `095` (`draft_contamination` bp counts `bigint`). The first draft
 (2026-07-07) described the pre-`v2` schema.
 
 This is the map of the `oceanomics_genomes` database: what each table is for, what one row is,
@@ -133,17 +133,20 @@ draft_genome ─┬─ draft_genome_run ── sequencing
 
 | Table | Rows | One row is | Written by |
 |---|---:|---|---|
-| `draft_genome` | 1,720 | An Illumina draft, `(og_id, seq_date)` | `OceanOmics-OceanGenomes-Draft-Genomes`, `bin/draft_genome_stats.py` |
-| `draft_genome_run` | 1,725 | A sequencing row a draft was built from | `draft_genome_stats.py` `link_illumina_runs()`; Illumina only (trigger) |
-| `draft_fastp` | 1,719 | fastp read QC | `push_fastp_to_sqldb.py` |
-| `draft_genomescope` | 1,604 | GenomeScope2 fit, coverage verdict, host depth and partition | `push_assembly_results_to_sqldb.py`, `push_kmer_depth_to_sqldb.py` |
-| `draft_tiara` | 1,603 | Tiara contig classes | `push_decontamination_results_to_sqldb.py` |
-| `draft_contamination` | 1,603 | FCS-GX actions, contigs under 500 bp | `push_decontamination_results_to_sqldb.py` |
-| `draft_busco` | 1,583 | BUSCO | `push_busco_results_to_sqldb.py` |
-| `draft_merqury` | 1,580 | Merqury QV and completeness | `push_merqury_results_to_sqldb.py` |
-| `draft_gfastats` | 874 | gfastats; **the** N50 | `push_gfa_results_to_sqldb.py` |
-| `draft_depthsizer` | 701 | DepthSizer (retired 2026-10-16) | None; frozen |
+| `draft_genome` | 1,757 (2026-11-23) | An Illumina draft, `(og_id, seq_date)` | `OceanOmics-OceanGenomes-Draft-Genomes`, `bin/draft_genome_stats.py` |
+| `draft_genome_run` | 1,762 | A sequencing row a draft was built from | `draft_genome_stats.py` `link_illumina_runs()`; Illumina only (trigger) |
+| `draft_fastp` | 1,756 | fastp read QC | `push_fastp_to_sqldb.py` |
+| `draft_genomescope` | 1,641 | GenomeScope2 fit, coverage verdict, host depth and partition | `push_assembly_results_to_sqldb.py`, `push_kmer_depth_to_sqldb.py` |
+| `draft_tiara` | 1,640 | Tiara contig classes | `push_decontamination_results_to_sqldb.py` |
+| `draft_contamination` | 1,640 | FCS-GX actions, contigs under 500 bp; `bp_*` are `bigint` (`095`) | `push_decontamination_results_to_sqldb.py` |
+| `draft_busco` | 1,640 | BUSCO | `push_busco_results_to_sqldb.py` |
+| `draft_merqury` | 1,638 | Merqury QV and completeness | `push_merqury_results_to_sqldb.py` |
+| `draft_gfastats` | 1,640 | gfastats; **the** N50 | `push_gfa_results_to_sqldb.py` |
+| `draft_depthsizer` | 700 | DepthSizer (retired 2026-10-16) | None; frozen |
 | `draft_submission` | 579 | ENA/NCBI accessions | `ENA-draft-genomes` steps 06 (ERR, ERZ, BioSample) and 07 (GCA) |
+
+`draft_busco.internal_stop_codon_count/percent` depend on the BUSCO version: drafts up to 250520
+ran BUSCO 5.4.6, which does not report them, so they are empty there by design (owner, 2026-11-18).
 
 `v_draft_genome_status` shows, per draft, which processes have a row. `draft_genomes` is the
 compatibility view. `v_genome_size_comparison` sets each draft's genome size beside NCBI's
@@ -490,3 +493,4 @@ and cutover, `049`–`077` Phases R and RG, and `078` onwards the follow-ups.
 | `092` | `coverage_summary`'s comment no longer names `pre_v4_archive` | `091` dropped it |
 | `093` | `ref_assembly.read_set_id` NOT NULL; PacBio links from the read set; `ref_hifi_adapter_filter_run` | Read sets and assemblies met only by date; k-mer evidence from Acacia |
 | `094` | `sequencing_run.flowcell`; Hi-C assembly links from the flowcells in their Hi-C BAMs | 0 of 201 Hi-C assemblies had a Hi-C run; 191 linked, 10 with reasons |
+| `095` | `draft_contamination.bp_exclude/trim/review` to `bigint`; `draft_genomes` recreated as it was | OG348 230324's FCS-GX EXCLUDE is 2,313,565,842 bp, above `integer` |
