@@ -1,10 +1,10 @@
 # Ocean Genomes Database Review
 
-Review date: 2026-10-02 (revision 2); last revised 2026-11-23 (3.56)  
+Review date: 2026-10-02 (revision 2); last revised 2026-11-23 (3.57)  
 First reviewed: 2026-07-07  
 Database: PostgreSQL 14.24, `oceanomics_genomes` @ 146.118.120.134  
 Scope: Schema design, relationship quality, data completeness signals, view design, migration governance, and improvement planning  
-Status: Review and remediation. Migrations `027`–`093` are applied to live and ledgered (2026-10-02 to 2026-11-23). The §10 backlog is closed except the `postgres` password rotation (deferred to 2028 by the owner) and the primary key on `ncbi_genome_assemblies`. Each change is recorded in Appendix C and in the relevant finding.
+Status: Review and remediation. Migrations `027`–`094` are applied to live and ledgered (2026-10-02 to 2026-11-23). The §10 backlog is closed except the `postgres` password rotation (deferred to 2028 by the owner) and the primary key on `ncbi_genome_assemblies`. Each change is recorded in Appendix C and in the relevant finding.
 
 ## 0. What Changed Since Revision 1
 
@@ -1172,6 +1172,25 @@ The decisions and their sources are in `sql/data/093_assembly_read_set.tsv`, mad
 
 The run list is already known when an assembly is launched, but nothing stores it. In `ref_genomes_hic_automation`, `poll-hichifi-assembly-trigger.py` passes the run names that triggered it as `--current-runs`. `stage_previous_hic.py` then stages every other Hi-C run for the OG it finds in `sequencing`. That combined list could be written to `ref_assembly_run` once the assembly row exists. Past assemblies would need it rebuilt from the batch samplesheets or the staging logs (`prev_hic_cmds.sh`), or from the dates instead: the OG's Hi-C runs sequenced before the assembly.
 
+**Done 2026-11-23 (`094`), from the reads themselves, not the staging.** An Illumina read name starts `instrument:run:flowcell:lane`, and the pipeline's Hi-C BAMs keep the names. Every Hi-C run on S3 has one flowcell (31 of 37 confirmed against the saved BaseSpace run record), so the flowcells among an assembly's first ~50,000 BAM records name its runs. 193 of the 201 `hicN` assemblies have a Hi-C BAM on Acacia. Their Hi-C rows are the OG's non-failed Hi-C rows on those runs, so 191 assemblies are linked by 239 links. One came from the OMNIC read-pair total, which fits exactly one set of runs (unique OMNIC fits agreed with the BAM 85 of 85 times). The date rule would have been wrong: OG2088 v260414.hic1 used `NOVA_260605_AD` only, though `NOVA_260420_TW1` came first. `hic2` is not always new Hi-C (OG100, OG106, OG910 reused hic1's).
+
+The evidence is stored, not the links:
+- `sequencing_run.flowcell` holds each run's flowcell.
+- `ref_assembly_hic_flowcell` holds the flowcells found in each assembly's BAM.
+- `refresh_assembly_runs()` derives the links from these through `v_ref_assembly_hic_rule`.
+
+An assembly links only when all of its flowcells resolve. A failed or fixed row therefore moves the links without a re-push.
+
+Writers:
+- ref-genomes `05b_push_hic_runs_to_sqldb.py` reads the flowcells from a new assembly's BAM.
+- `push_hic_yield.py` records a new run's flowcell from BaseSpace.
+
+10 assemblies are not linked. Each has its reason in `ref_assembly_hic_unlinked`, listed by `v_ref_assembly_hic_readiness`:
+- **OG79 v240427.hic2:** 95% of its Hi-C reads are from `NOVA_250312_LA`, which has no OG79 library. Its OMNIC total is 1.79 times OG79's own Hi-C. It looks like it was scaffolded with another specimen's Hi-C. For the owner.
+- **OG906 v250212.hic1:** all of its reads are from `NOVA_240501_LA`, and OG906 has no Hi-C row at all. For the owner.
+- **OG785 v241004.hic2:** all of its reads are from `NOVA_250505_AD`. `OG785G-2_HICL` has FASTQs and QC rows on that run but no `sequencing` row. For the lab; it links itself when the row arrives.
+- **Seven with no BAM:** OG2088 hic2, OG749 hic1 and OG804 hic2, where OMNIC fits two run sets differing by a small top-up, and OG38, OG706, OG810 hic2 and OG860, which have no single OMNIC total.
+
 #### 17.6 Why the plans read stale code
 
 All three Phase R and RG writer branches were cut from local branches that had fallen behind their remotes: draft `phase-r-v3` is 8 commits behind `origin/master`, mito `phase-r-v3` is 10 behind `origin/inverts-dev`, and ref-genomes `phase-rg-v4` is 2 behind `origin/master`. Commits made on Pawsey reach GitHub but not this host's clones until someone fetches. Any writer audit read from these clones, R.0's included, may be out of date. That is how decision 14 came to rest on code that had already changed.
@@ -1191,7 +1210,7 @@ Recommendation:
 4. **Decide what to submit as `COVERAGE` for the 613 assembled drafts with no measured depth.** Either re-run the depth module, or hold their submissions.
 5. **Draft, second tier:** add `genomescope_fit`, `busco_regions` and `partition_note` in the same migration as item 1.
 6. **Mito:** store `completeness_profile` and the assembly QC verdict (`status`, `manual_review_reason`, `numt_flag`, `frameshift_flag`, reference). The verdict belongs on `mito_assembly` or `mito_annotation`. Deciding which comes first.
-7. **Ref:** ~~store the decontamination counts~~ (done 2026-11-11, `083`), and consider making HiFi coverage per assembly through `v4.ref_assembly_run`. Give every assembly its read set and store HiFiAdapterFilt per run (`093`, applied 2026-11-23, with the `refdb.py` changes). Per-assembly `hifi_coverage` can then read `ref_assembly.read_set_id`. Record the Hi-C runs each assembly used in `ref_assembly_run`: have the Hi-C automation write the runs it staged, and backfill past `hicN` assemblies. `hic_coverage` can then be per assembly too.
+7. **Ref:** ~~store the decontamination counts~~ (done 2026-11-11, `083`), and consider making HiFi coverage per assembly through `v4.ref_assembly_run`. Give every assembly its read set and store HiFiAdapterFilt per run (`093`, applied 2026-11-23, with the `refdb.py` changes). Per-assembly `hifi_coverage` can then read `ref_assembly.read_set_id`. ~~Record the Hi-C runs each assembly used in `ref_assembly_run`~~ (done 2026-11-23, `094`: from the flowcells in each assembly's Hi-C BAM, 191 of 201 linked). `hic_coverage` can now be per assembly too.
 8. **Fetch every pipeline clone before a writer audit,** and bring each writer branch up to date with its remote default branch before it is rehearsed. ~~Add this step to `docs/database_change_checklist.md`.~~ Added 2026-10-28, under "For Pipeline Writer and Reader Audits".
 
 ## 7. Table-by-Table Review Notes
@@ -1254,7 +1273,7 @@ sets, one table per tool, submissions with per-haplotype accessions, and SRA upl
 sequencing rows.
 
 Still wrong: 61 assemblies have no run link, the same set since RG.0: their `seq_date` matches no run, so `refresh_assembly_runs()` (`080`, the writer since 2026-11-09) cannot derive one (`v_ref_assembly_run_readiness`; link by hand or fix the date). `093` (applied 2026-11-23) gives every assembly a read set and takes PacBio links from it: 14 remain. The decontamination counts are
-stored since `083` (2026-11-11, `ref_decontamination`), but none of the 186 `hic` assemblies is linked to its Hi-C runs (backlog, medium).
+stored since `083` (2026-11-11, `ref_decontamination`). Hi-C runs: 191 of the 201 `hic` assemblies linked by `094` (2026-11-23), from the flowcells in their Hi-C BAMs; the 10 others are in `v_ref_assembly_hic_readiness` with their reasons (Finding 17.5).
 
 ### Read QC and raw data
 
@@ -1746,7 +1765,7 @@ All four are done. The follow-ons each item left behind are listed with their pa
 6. ~~Refactor `goat_species_v1` after adding API smoke tests.~~ **Out of scope 2026-11-13 (owner):** GoaT is a colleague's work (§2).
 7. ~~Extract migration headers into the data dictionary.~~ **Done 2026-11-13:** `docs/data_dictionary.md` now has a "Why it is shaped this way" list in each section, citing the migration behind each decision, and a migration index with one line per migration (`000`–`086`: what and why). The headers stay the full record.
 8. ~~Store the mito `completeness_profile` and assembly QC verdict (Finding 17.4), and the remaining draft summary values: `genomescope_fit`, `busco_regions` and `partition_note` (Finding 17.3).~~ **Done:** `067` and `068` (2026-10-28); writers deployed; 289 completeness profiles and the NOVA_260925_LA verdicts backfilled (`docs/r6_gate_b1_record.md`).
-9. ~~Store the ref-genome decontamination counts.~~ **Done 2026-11-11, `083`:** `ref_decontamination`, 306 haplotypes of 153 assemblies, backfilled from scratch and the Acacia backups. Consider making HiFi coverage per assembly through `v4.ref_assembly_run`. Link Hi-C runs to assemblies there too: none of the 186 `hicN` assemblies has one (Finding 17.5).
+9. ~~Store the ref-genome decontamination counts.~~ **Done 2026-11-11, `083`:** `ref_decontamination`, 306 haplotypes of 153 assemblies, backfilled from scratch and the Acacia backups. Consider making HiFi coverage per assembly through `v4.ref_assembly_run`. ~~Link Hi-C runs to assemblies there too~~ (done 2026-11-23, `094`: 191 of 201 `hicN` assemblies; Finding 17.5).
 10. ~~Fetch every pipeline clone before a writer audit, and add that step to the change checklist (Finding 17.6).~~ **Done 2026-10-28:** `docs/database_change_checklist.md`, "For Pipeline Writer and Reader Audits".
 11. **One read set per assembly; HiFiAdapterFilt per run** (Finding 17.5, owner 2026-11-23). **`093` applied 2026-11-23** and `refdb.py` changed in both pipeline repos (ref-genomes `0f19431`, post-curation `41bf2b2`, pushed). Left:
     - The owner reviews `sql/data/093_assembly_read_set.tsv` and `093_read_set_changes.tsv`: the 3 corrected read sets, the 7 removed links, and OG57's adapter count of 1. Correct by hand on live if any is wrong; the writers no longer overwrite a read set's runs.
@@ -2115,5 +2134,6 @@ Capture the eight `data_package_*` tables in a migration and the data dictionary
 - revert: schema-identical to a plain restore, and the 8 affected tables row-identical to live;
 - re-apply: identical.
 Writers read at ref-genomes `fb128b3` and post-curation `2d700cf`; only `refdb.py` writes these tables. Its `ensure_read_set` re-added the date rule's runs (OG838 got 240520 back); changed after apply, with the delete path and a per-run HiFiAdapterFilt push (Finding 17.5). Applied on live after a fresh dump (`~/oceanomics_genomes_pre_093_apply_261123.dump`); live then matched the rehearsal: 491/491 assemblies with a read set, 290 read sets, 538 links, 14 unlinked, 0 PacBio links outside the read set. `schema/object_inventory.tsv` gains the two 093 objects. Scripts: `scripts/acacia_assembly_kmers.py`, `match_adapter_filter_runs.py`, `build_assembly_read_sets.py`, `build_093_data.py`. Data: `sql/data/093_*.tsv`, Acacia evidence in `sql/data/093_evidence/`. Pre-change dump: `~/oceanomics_genomes_pre_093_261123.dump`. Rehearsal database `oceanomics_genomes_rehearsal_093` left on the server for review. |
+| 3.57 | 2026-11-23 | **Hi-C runs linked to reference assemblies (Finding 17.5, backlog 9). Migration `094` applied to live** at 06:36 UTC; writer branches `hic-runs-094` in ref-genomes (`3f66a87`), post-curation (`d286ed8`) and `ref_genomes_hic_automation` (`f13ba2f`), not deployed. Evidence: read names (`instrument:run:flowcell:lane`) in the first ~50,000 records of each assembly's Hi-C BAM on Acacia (`scripts/acacia_hic_flowcells.py`) and one flowcell per S3 Hi-C run, 31 of 37 checked against the saved BaseSpace record (`scripts/s3_hic_run_flowcells.py`); `scripts/build_094_data.py` turns them into `sql/data/094_*`. Result: 191 of 201 `hicN` assemblies, 239 links (190 BAM, OG863 v250331.hic1 from a unique OMNIC fit, OG88's iSeq run inferred); 10 left with reasons (OG79 hic2 and OG906 hic1 hold another run's Hi-C, OG785 hic2 waits for a workbook row, 7 have no BAM). Design: `sequencing_run.flowcell` (38 runs), `ref_assembly_hic_flowcell` (232 rows, the evidence), `v_ref_assembly_hic_rule`, and `refresh_assembly_runs()` deriving Hi-C links when every flowcell resolves, with triggers on the two new sources; `set_ref_assembly_hic_flowcells()` for the writer; `ref_assembly_hic_unlinked` and `v_ref_assembly_hic_readiness`. Rehearsed on a restore of live: apply (guards, data checks, the writer's function re-given every BAM's flowcells changes nothing); replay a no-op; probes, rolled back: a nightly rewrite of every `sequencing` and `library` row changes no link; a failed Hi-C row unlinks its assemblies and they relink when it is not; one of two libraries failing keeps the run; adding OG785's missing row links its assembly; clearing and resetting a run's flowcell round-trips; the writer links, repeats and reports unknown or wrong-OG flowcells; refusals refuse; a write to each of the 17 tables with triggers; all 55 views select; revert schema- and row-identical to before (after keeping `updated_at` out of the flowcell backfill); re-apply identical. `push_hic_yield.py` and `05b` were run against the rehearsal, `05b` on the first 4 MB of OG2119's and OG79's real BAMs. Live then matched the rehearsal row for row (`ref_assembly_run` 777, `sequencing_run`, `ref_assembly`, `mito_assembly_run`). Post-checks: ledger 95 files, all hashes match; 55 views select; drift only the colleague's objects. Baseline updated with `094`'s delta only. Also: the compile job in both `post-hichifi-assembly.py` copies now exits non-zero if any push failed, not only the last. Pre-change dumps: `~/oceanomics_genomes_pre_094_261123.dump`, `~/oceanomics_genomes_pre_094_apply_261123.dump`. Revert: `sql/revert/094_ref_assembly_hic_runs_revert.sql`. |
 
 The previous revision is preserved at `/tmp/database_review.prev.md` at the time of writing; the authoritative history is in git.

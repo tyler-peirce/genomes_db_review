@@ -76,7 +76,7 @@ sample ─┬─ tissue ─┬─ dna_extraction ─┬─ illumina_library ─�
 | `illumina_library`, `pacbio_library`, `ont_library`, `hic_library`, `rna_library_ilmn`, `rna_library_kinx` | 2,131 / 436 / 98 / 326 / 393 / 188 | One library prep attempt | `import_v2.py` (the 4.* sheets) | Status checked against `lab_status` (`082`) |
 | `library` | 3,552 | A library of any technology | `import_v2.py` | One key for `sequencing` to point at |
 | `sequencing` | 4,677 | One library on one run | `import_v2.py` (5.Sequencing) | No pair repeats; PacBio SMRT cells share the row, Illumina lanes are not rows (§11 Q5, 2026-11-23) |
-| `sequencing_run` | 213 | A run | Triggers on `sequencing` (`075`) | FK target for `sequencing`, `rna_qc_kinnex`, `hifi_read_qc`, `hic_read_qc` |
+| `sequencing_run` | 218 | A run | Triggers on `sequencing` (`075`); `flowcell` by `push_hic_yield.py` (`094`) | FK target for `sequencing`, `rna_qc_kinnex`, `hifi_read_qc`, `hic_read_qc`. `flowcell` (unique) names a run from a read name |
 | `design_description` | 2 | An Illumina prep protocol | Fixed | FK from `sequencing.design_no` (`063`) |
 | `prep_automation` | 2 | Manual or automated prep | Fixed | Lookup |
 | `lab_status` | 65 | An allowed Status value on one lab sheet | By hand (`INSERT`) | FK target for the nine sheets' status columns, through their `status_sheet` column (`082`) |
@@ -227,6 +227,8 @@ ref_read_set ─┬─ ref_read_set_run ── sequencing      ref_stage
               ├─ ref_genomescope, ref_hifi_adapter_filter │
                                                           │
 ref_assembly ─┬─ ref_assembly_run ── sequencing           │
+              ├─ ref_assembly_hic_flowcell ┄ sequencing_run.flowcell (094)
+              ├─ ref_assembly_hic_unlinked                │
               └─ ref_assembly_part (stage × haplotype) ───┘
                    └─ ref_gfastats, ref_busco, ref_merqury_qv, ref_merqury_completeness,
                       ref_omnic, ref_seqkit_stats, ref_chromosome_stats,
@@ -241,7 +243,9 @@ ref_submission ─┬─ ref_submission_haplotype
 |---|---:|---|---|
 | `ref_assembly` | 468 | An assembly attempt, `(og_id, seq_date, version)` | ref repo and post-curation, via `scripts/lib/refdb.py` |
 | `ref_assembly_part` | 2,024 | One sequence set at one stage | `refdb.py`, on the first result for it |
-| `ref_assembly_run` | 434 | A sequencing row an assembly was built from | Derived by triggers (`080`); hand links for the readiness view |
+| `ref_assembly_run` | 777 | A sequencing row an assembly was built from: PacBio from its read set (`093`), ONT by date, Hi-C from its BAM's flowcells (`094`) | Derived by `refresh_assembly_runs()` from triggers (`080`, `093`, `094`) |
+| `ref_assembly_hic_flowcell` | 232 | A flowcell in an assembly's Hi-C BAM read names: the evidence its Hi-C links derive from (`094`) | ref repo `05b_push_hic_runs_to_sqldb.py` via `set_ref_assembly_hic_flowcells()` |
+| `ref_assembly_hic_unlinked` | 10 | A Hi-C assembly reviewed and left without Hi-C links, and why (`094`) | By review; cleared by `set_ref_assembly_hic_flowcells()` |
 | `ref_stage` | 4 | Stage 0-3: contigs, scaffolded, decontaminated, curated | Fixed |
 | `ref_gfastats` | 1,294 | gfastats; **the** N50 | `04a/04b_*push_gfa*` (ref repo), `04a_push_gfa_results_to_sqldb.py` (post-curation) |
 | `ref_busco` | 781 | BUSCO | `03a_push_busco_results_to_sqldb.py` |
@@ -273,9 +277,11 @@ missing link, and why.
   `seq_date` is the latest run date of those rows, which can differ from the samplesheet date on
   the assembly by up to ~10 days. Dates were recovered from the Acacia backups, not guessed; reads
   that are not OceanOmics sequencing are marked external (`071`).
-- **Run links are exact `(og_id, seq_date)` matches to PacBio/ONT DNA rows, failed runs excluded**
-  (`057`, `069`, `080`); no fuzzy dates. Hi-C runs are not linked to assemblies yet (review
-  Finding 17.5).
+- **Run links are derived, failed runs excluded** (`057`, `069`, `080`, `093`, `094`). PacBio:
+  the runs of the assembly's read set. ONT: exact `(og_id, seq_date)`. Hi-C: the OG's Hi-C rows on
+  the runs whose flowcells (`sequencing_run.flowcell`) are in the assembly's Hi-C BAM read names
+  (`ref_assembly_hic_flowcell`), only when every flowcell resolves (`v_ref_assembly_hic_rule`).
+  Unlinked ones are in `v_ref_assembly_run_readiness` and `v_ref_assembly_hic_readiness`.
 - **Submissions are enforced against the curated part they submit** (`070`), and the accession
   kinds are split by shape: ENA analysis `ERZ` (`analysis_accession`), WGS master
   (`assembly_accession`) and `GCA_` (`gca_accession`), each with a `CHECK`.
@@ -477,3 +483,5 @@ and cutover, `049`–`077` Phases R and RG, and `078` onwards the follow-ups.
 | `090` | `refresh_sequencing_run()` stops checking `raw_data` | `089` left it reading the dropped table, so writes to `sequencing` failed for three minutes |
 | `091` | Drop `pre_v2_archive`, `pre_v3_archive`, `pre_v4_archive` | Close-out V.7, R.8, RG.7: nothing depended on them; dumped and verified first |
 | `092` | `coverage_summary`'s comment no longer names `pre_v4_archive` | `091` dropped it |
+| `093` | `ref_assembly.read_set_id` NOT NULL; PacBio links from the read set; `ref_hifi_adapter_filter_run` | Read sets and assemblies met only by date; k-mer evidence from Acacia |
+| `094` | `sequencing_run.flowcell`; Hi-C assembly links from the flowcells in their Hi-C BAMs | 0 of 201 Hi-C assemblies had a Hi-C run; 191 linked, 10 with reasons |
