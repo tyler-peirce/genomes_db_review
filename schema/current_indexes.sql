@@ -96,6 +96,9 @@ CREATE UNIQUE INDEX prep_automation_pkey ON public.prep_automation USING btree (
 CREATE UNIQUE INDEX ref_assembly_natural_key ON public.ref_assembly USING btree (og_id, seq_date, version);
 CREATE UNIQUE INDEX ref_assembly_pkey ON public.ref_assembly USING btree (assembly_id);
 CREATE INDEX ref_assembly_read_set_id_idx ON public.ref_assembly USING btree (read_set_id);
+CREATE INDEX ref_assembly_hic_flowcell_flowcell_idx ON public.ref_assembly_hic_flowcell USING btree (flowcell);
+CREATE UNIQUE INDEX ref_assembly_hic_flowcell_pkey ON public.ref_assembly_hic_flowcell USING btree (assembly_id, flowcell);
+CREATE UNIQUE INDEX ref_assembly_hic_unlinked_pkey ON public.ref_assembly_hic_unlinked USING btree (assembly_id);
 CREATE UNIQUE INDEX ref_assembly_part_natural_key ON public.ref_assembly_part USING btree (assembly_id, stage, haplotype);
 CREATE UNIQUE INDEX ref_assembly_part_pkey ON public.ref_assembly_part USING btree (part_id);
 CREATE UNIQUE INDEX ref_assembly_run_pkey ON public.ref_assembly_run USING btree (assembly_id, sequencing_id);
@@ -145,6 +148,7 @@ CREATE UNIQUE INDEX schema_migrations_pkey ON public.schema_migrations USING btr
 CREATE INDEX sequencing_library_tube_id_idx ON public.sequencing USING btree (library_tube_id);
 CREATE UNIQUE INDEX sequencing_pkey ON public.sequencing USING btree (sequencing_id);
 CREATE INDEX sequencing_run_id_idx ON public.sequencing USING btree (run_id);
+CREATE UNIQUE INDEX sequencing_run_flowcell_key ON public.sequencing_run USING btree (flowcell);
 CREATE UNIQUE INDEX sequencing_run_pkey ON public.sequencing_run USING btree (run_id);
 CREATE UNIQUE INDEX "Species_pkey" ON public.species USING btree (species);
 CREATE INDEX tissue_og_id_idx ON public.tissue USING btree (og_id);

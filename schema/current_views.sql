@@ -1566,6 +1566,48 @@ CREATE OR REPLACE VIEW public.v_read_set_run_readiness AS
            FROM ref_read_set_external x
           WHERE x.read_set_id = rs.read_set_id));;
 
+-- View: public.v_ref_assembly_hic_readiness
+CREATE OR REPLACE VIEW public.v_ref_assembly_hic_readiness AS
+ SELECT a.assembly_id,
+    a.og_id,
+    a.seq_date,
+    a.version,
+    ( SELECT string_agg(h.flowcell || COALESCE((' ('::text || h.run_id) || ')'::text, ' (no run)'::text), ', '::text ORDER BY h.flowcell) AS string_agg
+           FROM v_ref_assembly_hic_rule h
+          WHERE h.assembly_id = a.assembly_id AND h.sequencing_id IS NULL) AS unresolved,
+    u.reason,
+    u.reviewed_on,
+    ( SELECT string_agg(s.sequencing_id, ', '::text ORDER BY s.seq_date, s.sequencing_id) AS string_agg
+           FROM v_sequencing_browse s
+          WHERE s.og_id = a.og_id AND s.technology = 'Hi-C'::text AND s.library_type = 'hic'::text AND s.status IS DISTINCT FROM 'Failed'::text) AS hic_rows_for_og
+   FROM ref_assembly a
+     LEFT JOIN ref_assembly_hic_unlinked u ON u.assembly_id = a.assembly_id
+  WHERE a.strategy = 'hic'::text AND NOT (EXISTS ( SELECT 1
+           FROM ref_assembly_run l
+             JOIN v_sequencing_browse s ON s.sequencing_id = l.sequencing_id
+          WHERE l.assembly_id = a.assembly_id AND s.technology = 'Hi-C'::text AND s.library_type = 'hic'::text));;
+
+-- View: public.v_ref_assembly_hic_rule
+CREATE OR REPLACE VIEW public.v_ref_assembly_hic_rule AS
+ WITH rows AS (
+         SELECT f.assembly_id,
+            a.og_id,
+            f.flowcell,
+            r.run_id,
+            s.sequencing_id
+           FROM ref_assembly_hic_flowcell f
+             JOIN ref_assembly a ON a.assembly_id = f.assembly_id
+             LEFT JOIN sequencing_run r ON r.flowcell = f.flowcell
+             LEFT JOIN v_sequencing_browse s ON s.og_id = a.og_id AND s.run_id = r.run_id AND s.technology = 'Hi-C'::text AND s.library_type = 'hic'::text AND s.status IS DISTINCT FROM 'Failed'::text
+        )
+ SELECT rows.assembly_id,
+    rows.og_id,
+    rows.flowcell,
+    rows.run_id,
+    rows.sequencing_id,
+    bool_and(rows.sequencing_id IS NOT NULL) OVER (PARTITION BY rows.assembly_id) AS complete
+   FROM rows;;
+
 -- View: public.v_ref_assembly_run_readiness
 CREATE OR REPLACE VIEW public.v_ref_assembly_run_readiness AS
  SELECT a.og_num,

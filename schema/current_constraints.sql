@@ -177,6 +177,14 @@ ALTER TABLE public.ref_assembly ADD CONSTRAINT ref_assembly_pkey PRIMARY KEY (as
 ALTER TABLE public.ref_assembly ADD CONSTRAINT ref_assembly_read_set_id_fkey FOREIGN KEY (read_set_id) REFERENCES ref_read_set(read_set_id);
 ALTER TABLE public.ref_assembly ADD CONSTRAINT ref_assembly_seq_date_check CHECK (seq_date ~ '^[0-9]{6}$'::text);
 ALTER TABLE public.ref_assembly ADD CONSTRAINT ref_assembly_version_check CHECK (version ~ '^(hic|hifi|ont)[0-9]+$'::text);
+ALTER TABLE public.ref_assembly_hic_flowcell ADD CONSTRAINT ref_assembly_hic_flowcell_assembly_id_fkey FOREIGN KEY (assembly_id) REFERENCES ref_assembly(assembly_id) ON DELETE CASCADE;
+ALTER TABLE public.ref_assembly_hic_flowcell ADD CONSTRAINT ref_assembly_hic_flowcell_bam_records_check CHECK (bam_records > 0);
+ALTER TABLE public.ref_assembly_hic_flowcell ADD CONSTRAINT ref_assembly_hic_flowcell_flowcell_check CHECK (flowcell ~ '^[A-Za-z0-9-]+$'::text);
+ALTER TABLE public.ref_assembly_hic_flowcell ADD CONSTRAINT ref_assembly_hic_flowcell_pkey PRIMARY KEY (assembly_id, flowcell);
+ALTER TABLE public.ref_assembly_hic_flowcell ADD CONSTRAINT ref_assembly_hic_flowcell_source_check CHECK (source = ANY (ARRAY['bam'::text, 'omnic'::text]));
+ALTER TABLE public.ref_assembly_hic_unlinked ADD CONSTRAINT ref_assembly_hic_unlinked_assembly_id_fkey FOREIGN KEY (assembly_id) REFERENCES ref_assembly(assembly_id) ON DELETE CASCADE;
+ALTER TABLE public.ref_assembly_hic_unlinked ADD CONSTRAINT ref_assembly_hic_unlinked_pkey PRIMARY KEY (assembly_id);
+ALTER TABLE public.ref_assembly_hic_unlinked ADD CONSTRAINT ref_assembly_hic_unlinked_reason_check CHECK (reason <> ''::text);
 ALTER TABLE public.ref_assembly_part ADD CONSTRAINT ref_assembly_part_assembly_id_fkey FOREIGN KEY (assembly_id) REFERENCES ref_assembly(assembly_id) ON DELETE CASCADE;
 ALTER TABLE public.ref_assembly_part ADD CONSTRAINT ref_assembly_part_haplotype_check CHECK (haplotype = ANY (ARRAY['hap1'::text, 'hap2'::text, 'dual'::text, 'p_ctg'::text, 'a_ctg'::text]));
 ALTER TABLE public.ref_assembly_part ADD CONSTRAINT ref_assembly_part_natural_key UNIQUE (assembly_id, stage, haplotype);
@@ -280,6 +288,7 @@ ALTER TABLE public.sequencing ADD CONSTRAINT sequencing_design_no_fkey FOREIGN K
 ALTER TABLE public.sequencing ADD CONSTRAINT sequencing_library_fkey FOREIGN KEY (library_tube_id) REFERENCES library(library_tube_id);
 ALTER TABLE public.sequencing ADD CONSTRAINT sequencing_pkey PRIMARY KEY (sequencing_id);
 ALTER TABLE public.sequencing ADD CONSTRAINT sequencing_run_id_fkey FOREIGN KEY (run_id) REFERENCES sequencing_run(run_id);
+ALTER TABLE public.sequencing_run ADD CONSTRAINT sequencing_run_flowcell_check CHECK (flowcell ~ '^[A-Za-z0-9-]+$'::text);
 ALTER TABLE public.sequencing_run ADD CONSTRAINT sequencing_run_pkey PRIMARY KEY (run_id);
 ALTER TABLE public.species ADD CONSTRAINT "Species_pkey" PRIMARY KEY (species);
 ALTER TABLE public.tissue ADD CONSTRAINT tissue_og_id_fkey FOREIGN KEY (og_id) REFERENCES sample(og_id);

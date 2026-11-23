@@ -620,6 +620,30 @@ COMMENT ON FUNCTION public.rebuild_mito_gene_views() IS 'Regenerate v_mito_annot
 
 
 --
+-- Name: ref_assembly_hic_flowcell_runs(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ref_assembly_hic_flowcell_runs() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+BEGIN
+  PERFORM refresh_assembly_runs(ARRAY(SELECT DISTINCT og_id FROM ref_assembly
+                                        WHERE assembly_id IN (CASE WHEN TG_OP = 'DELETE' THEN OLD.assembly_id ELSE NEW.assembly_id END,
+                                                              CASE WHEN TG_OP = 'UPDATE' THEN OLD.assembly_id END)));
+  RETURN NULL;
+END
+$$;
+
+
+--
+-- Name: FUNCTION ref_assembly_hic_flowcell_runs(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ref_assembly_hic_flowcell_runs() IS 'Re-derives the links of an assembly whose Hi-C flowcells changed (refresh_assembly_runs). 094.';
+
+
+--
 -- Name: ref_assembly_read_set_default(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -888,8 +912,8 @@ BEGIN
   ON CONFLICT DO NOTHING;
 
   -- Ref: drop a link its row can no longer have (another OG, not PacBio/ONT/Hi-C DNA, failed: what
-  -- ref_assembly_run_genomic_only refuses), and a PacBio link that is not a run of the assembly's
-  -- read set (093). ONT and Hi-C links chosen by hand stay.
+  -- ref_assembly_run_genomic_only refuses), a PacBio link that is not a run of the assembly's read set
+  -- (093), and a Hi-C link the rule does not give (094). ONT links chosen by hand stay.
   DELETE FROM ref_assembly_run r
    USING ref_assembly a
    WHERE a.assembly_id = r.assembly_id
@@ -903,7 +927,12 @@ BEGIN
                        WHERE s.sequencing_id = r.sequencing_id
                          AND s.technology IN ('PacBio HIFI', 'PacBio') AND s.library_type = 'pacbio')
               AND NOT EXISTS (SELECT 1 FROM ref_read_set_run rr
-                               WHERE rr.read_set_id = a.read_set_id AND rr.sequencing_id = r.sequencing_id)));
+                               WHERE rr.read_set_id = a.read_set_id AND rr.sequencing_id = r.sequencing_id))
+          OR (EXISTS (SELECT 1 FROM v_sequencing_browse s
+                       WHERE s.sequencing_id = r.sequencing_id AND s.technology = 'Hi-C' AND s.library_type = 'hic')
+              AND NOT EXISTS (SELECT 1 FROM v_ref_assembly_hic_rule h
+                               WHERE h.assembly_id = r.assembly_id AND h.sequencing_id = r.sequencing_id
+                                 AND h.complete)));
 
   -- PacBio: the read set's runs (093). A failed run produced no reads to build from (069).
   INSERT INTO ref_assembly_run (assembly_id, sequencing_id)
@@ -925,6 +954,14 @@ BEGIN
      AND s.technology = 'ONT' AND s.library_type = 'ont'
      AND s.status IS DISTINCT FROM 'Failed'
   ON CONFLICT DO NOTHING;
+
+  -- Hi-C: the OG's non-failed Hi-C rows on the runs of the assembly's flowcells, when all resolve (094).
+  INSERT INTO ref_assembly_run (assembly_id, sequencing_id)
+  SELECT DISTINCT h.assembly_id, h.sequencing_id
+    FROM v_ref_assembly_hic_rule h
+   WHERE h.complete
+     AND (h.og_id = ANY (p_og_ids) OR h.sequencing_id = ANY (p_sequencing_ids))
+  ON CONFLICT DO NOTHING;
 END
 $$;
 
@@ -933,7 +970,7 @@ $$;
 -- Name: FUNCTION refresh_assembly_runs(p_og_ids text[], p_sequencing_ids text[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.refresh_assembly_runs(p_og_ids text[], p_sequencing_ids text[]) IS 'Re-derive mito_assembly_run and ref_assembly_run for the assemblies of the OGs given and the links of the sequencing rows given. Mito: the rule of v3.sync_mito() (055); a link it no longer gives is removed. Ref: PacBio links are the runs of the assembly''s read set (093); ONT links the OG''s non-failed ONT rows of its seq_date (069); a link its row can no longer have is removed, and Hi-C links chosen by hand stay. Called by triggers on mito_assembly, ref_assembly, ref_read_set_run, sequencing and library. 080, 093.';
+COMMENT ON FUNCTION public.refresh_assembly_runs(p_og_ids text[], p_sequencing_ids text[]) IS 'Re-derive mito_assembly_run and ref_assembly_run for the assemblies of the OGs given and the links of the sequencing rows given. Mito: the rule of v3.sync_mito() (055); a link it no longer gives is removed. Ref: PacBio links are the runs of the assembly''s read set (093); ONT links the OG''s non-failed ONT rows of its seq_date (069); Hi-C links the complete rows of v_ref_assembly_hic_rule (094); a link its row can no longer have, a PacBio link outside the read set and a Hi-C link the rule does not give are removed. Called by triggers on mito_assembly, ref_assembly, ref_read_set_run, ref_assembly_hic_flowcell, sequencing, sequencing_run and library. 080, 093, 094.';
 
 
 --
@@ -1142,6 +1179,32 @@ COMMENT ON FUNCTION public.sequencing_run_ensure() IS 'Creates the sequencing_ru
 
 
 --
+-- Name: sequencing_run_flowcell_runs(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sequencing_run_flowcell_runs() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+BEGIN
+  IF NEW.flowcell IS DISTINCT FROM OLD.flowcell THEN
+    PERFORM refresh_assembly_runs(ARRAY(SELECT DISTINCT a.og_id
+                                          FROM ref_assembly_hic_flowcell f JOIN ref_assembly a USING (assembly_id)
+                                         WHERE f.flowcell IN (NEW.flowcell, OLD.flowcell)));
+  END IF;
+  RETURN NULL;
+END
+$$;
+
+
+--
+-- Name: FUNCTION sequencing_run_flowcell_runs(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sequencing_run_flowcell_runs() IS 'Re-derives the links of the assemblies with a flowcell whose run changed (refresh_assembly_runs). 094.';
+
+
+--
 -- Name: sequencing_run_refresh(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1170,6 +1233,60 @@ $$;
 --
 
 COMMENT ON FUNCTION public.sequencing_run_refresh() IS 'Statement-level: re-derives the runs a statement on sequencing touched. 075, Phase R.7.';
+
+
+--
+-- Name: set_ref_assembly_hic_flowcells(bigint, text[], integer[], text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_ref_assembly_hic_flowcells(p_assembly_id bigint, p_flowcells text[], p_bam_records integer[] DEFAULT NULL::integer[], p_source text DEFAULT 'bam'::text) RETURNS text[]
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+DECLARE
+  a        record;
+  problems text[];
+BEGIN
+  SELECT assembly_id, og_id, seq_date, version INTO a FROM ref_assembly WHERE assembly_id = p_assembly_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'set_ref_assembly_hic_flowcells: no ref_assembly %', p_assembly_id;
+  END IF;
+  IF p_flowcells IS NULL OR cardinality(p_flowcells) = 0 THEN
+    RAISE EXCEPTION 'set_ref_assembly_hic_flowcells: no flowcells given for % %.%', a.og_id, a.seq_date, a.version;
+  END IF;
+  IF p_bam_records IS NOT NULL AND cardinality(p_bam_records) <> cardinality(p_flowcells) THEN
+    RAISE EXCEPTION 'set_ref_assembly_hic_flowcells: % flowcells but % record counts',
+      cardinality(p_flowcells), cardinality(p_bam_records);
+  END IF;
+
+  DELETE FROM ref_assembly_hic_flowcell WHERE assembly_id = a.assembly_id AND flowcell <> ALL (p_flowcells);
+  INSERT INTO ref_assembly_hic_flowcell AS t (assembly_id, flowcell, bam_records, source)
+  SELECT a.assembly_id, f.flowcell, f.records, p_source
+    FROM unnest(p_flowcells, coalesce(p_bam_records, array_fill(NULL::integer, ARRAY[cardinality(p_flowcells)])))
+         AS f (flowcell, records)
+  ON CONFLICT (assembly_id, flowcell) DO UPDATE
+     SET bam_records = EXCLUDED.bam_records, source = EXCLUDED.source, loaded_at = now()
+   WHERE (t.bam_records, t.source) IS DISTINCT FROM (EXCLUDED.bam_records, EXCLUDED.source);
+
+  problems := ARRAY(SELECT CASE WHEN h.run_id IS NULL THEN format('flowcell %s: no sequencing_run has it', h.flowcell)
+                                ELSE format('flowcell %s (%s): no non-failed Hi-C sequencing row of %s',
+                                            h.flowcell, h.run_id, h.og_id) END
+                      FROM v_ref_assembly_hic_rule h
+                     WHERE h.assembly_id = a.assembly_id AND h.sequencing_id IS NULL
+                     ORDER BY h.flowcell);
+  IF cardinality(problems) = 0 THEN
+    DELETE FROM ref_assembly_hic_unlinked WHERE assembly_id = a.assembly_id;
+  END IF;
+  RETURN problems;
+END
+$$;
+
+
+--
+-- Name: FUNCTION set_ref_assembly_hic_flowcells(p_assembly_id bigint, p_flowcells text[], p_bam_records integer[], p_source text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.set_ref_assembly_hic_flowcells(p_assembly_id bigint, p_flowcells text[], p_bam_records integer[], p_source text) IS 'Replace an assembly''s Hi-C flowcells (ref_assembly_hic_flowcell), which re-derives its Hi-C links, and return what does not resolve (a flowcell no run has; a run with no non-failed Hi-C row of the OG): the assembly is then not linked until it does. Clears its ref_assembly_hic_unlinked row when all resolve. Called by ref-genomes 05b_push_hic_runs_to_sqldb.py. 094.';
 
 
 --
@@ -10265,6 +10382,104 @@ ALTER TABLE public.ref_assembly ALTER COLUMN assembly_id ADD GENERATED ALWAYS AS
 
 
 --
+-- Name: ref_assembly_hic_flowcell; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ref_assembly_hic_flowcell (
+    assembly_id bigint NOT NULL,
+    flowcell text NOT NULL,
+    bam_records integer,
+    source text NOT NULL,
+    loaded_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ref_assembly_hic_flowcell_bam_records_check CHECK ((bam_records > 0)),
+    CONSTRAINT ref_assembly_hic_flowcell_flowcell_check CHECK ((flowcell ~ '^[A-Za-z0-9-]+$'::text)),
+    CONSTRAINT ref_assembly_hic_flowcell_source_check CHECK ((source = ANY (ARRAY['bam'::text, 'omnic'::text])))
+);
+
+
+--
+-- Name: TABLE ref_assembly_hic_flowcell; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ref_assembly_hic_flowcell IS 'The flowcells an assembly''s Hi-C reads came from: the evidence its Hi-C links are derived from (v_ref_assembly_hic_rule). Writer: set_ref_assembly_hic_flowcells(), called by ref-genomes 05b_push_hic_runs_to_sqldb.py with the flowcells in the assembly''s Hi-C BAM. Backfilled from the Acacia BAMs (094).';
+
+
+--
+-- Name: COLUMN ref_assembly_hic_flowcell.assembly_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly_hic_flowcell.assembly_id IS 'The assembly (ref_assembly).';
+
+
+--
+-- Name: COLUMN ref_assembly_hic_flowcell.flowcell; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly_hic_flowcell.flowcell IS 'A flowcell barcode from its Hi-C BAM''s read names; sequencing_run.flowcell names the run.';
+
+
+--
+-- Name: COLUMN ref_assembly_hic_flowcell.bam_records; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly_hic_flowcell.bam_records IS 'How many of the BAM records sampled (its first ~4 MB, ~50,000 records) are from this flowcell. NULL for omnic.';
+
+
+--
+-- Name: COLUMN ref_assembly_hic_flowcell.source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly_hic_flowcell.source IS 'bam: read from its Hi-C BAM. omnic: no BAM; the flowcells of the one set of runs its OMNIC read-pair total fits (094, OG863 v250331.hic1).';
+
+
+--
+-- Name: COLUMN ref_assembly_hic_flowcell.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly_hic_flowcell.loaded_at IS 'When the row was written or last changed.';
+
+
+--
+-- Name: ref_assembly_hic_unlinked; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ref_assembly_hic_unlinked (
+    assembly_id bigint NOT NULL,
+    reason text NOT NULL,
+    reviewed_on date NOT NULL,
+    CONSTRAINT ref_assembly_hic_unlinked_reason_check CHECK ((reason <> ''::text))
+);
+
+
+--
+-- Name: TABLE ref_assembly_hic_unlinked; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ref_assembly_hic_unlinked IS 'Hi-C assemblies reviewed and left with no Hi-C link, and why (094). set_ref_assembly_hic_flowcells() deletes the assembly''s row when its flowcells all resolve. Read by v_ref_assembly_hic_readiness.';
+
+
+--
+-- Name: COLUMN ref_assembly_hic_unlinked.assembly_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly_hic_unlinked.assembly_id IS 'The assembly (ref_assembly).';
+
+
+--
+-- Name: COLUMN ref_assembly_hic_unlinked.reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly_hic_unlinked.reason IS 'Why it has no Hi-C link: what the evidence showed.';
+
+
+--
+-- Name: COLUMN ref_assembly_hic_unlinked.reviewed_on; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly_hic_unlinked.reviewed_on IS 'When the reason was recorded.';
+
+
+--
 -- Name: ref_assembly_part; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -10348,7 +10563,7 @@ CREATE TABLE public.ref_assembly_run (
 -- Name: TABLE ref_assembly_run; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.ref_assembly_run IS 'The sequencing rows an assembly was built from: PacBio (the runs of its read set, 093), ONT (the OG''s non-failed ONT rows of its seq_date) and Hi-C (by hand, until writers record it). Kept current by refresh_assembly_runs() from triggers on ref_assembly, ref_read_set_run, sequencing and library (080, 093).';
+COMMENT ON TABLE public.ref_assembly_run IS 'The sequencing rows an assembly was built from: PacBio (the runs of its read set, 093), ONT (the OG''s non-failed ONT rows of its seq_date) and Hi-C (the OG''s non-failed Hi-C rows on the runs of the flowcells in its Hi-C BAM, ref_assembly_hic_flowcell, when all resolve: v_ref_assembly_hic_rule, 094). Kept current by refresh_assembly_runs() from triggers on ref_assembly, ref_read_set_run, ref_assembly_hic_flowcell, sequencing, sequencing_run.flowcell and library (080, 093, 094).';
 
 
 --
@@ -12033,7 +12248,9 @@ CREATE TABLE public.sequencing_run (
     instrument text,
     run_date date,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    flowcell text,
+    CONSTRAINT sequencing_run_flowcell_check CHECK ((flowcell ~ '^[A-Za-z0-9-]+$'::text))
 );
 
 
@@ -12098,6 +12315,13 @@ COMMENT ON COLUMN public.sequencing_run.created_at IS 'When the run was first se
 --
 
 COMMENT ON COLUMN public.sequencing_run.updated_at IS 'When the derived values last changed.';
+
+
+--
+-- Name: COLUMN sequencing_run.flowcell; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.sequencing_run.flowcell IS 'The flowcell barcode (BaseSpace FlowcellBarcode; the third field of the run''s Illumina read names). Unique: a read name''s flowcell names its run. Backfilled for the 37 Hi-C runs on S3 from their FASTQs and BaseSpace run records, and for ISEQ_230719_AD by inference from OG88''s BAM (094); written for new Hi-C runs by ref_genomes_hic_automation push_hic_yield.py. NULL: not recorded.';
 
 
 --
@@ -13043,6 +13267,168 @@ COMMENT ON COLUMN public.v_read_set_run_readiness.read_set_id IS 'The read set w
 --
 
 COMMENT ON COLUMN public.v_read_set_run_readiness.pacbio_rows_for_og IS 'The OG''s PacBio DNA sequencing rows not marked Failed, '', ''-joined: the candidates to link.';
+
+
+--
+-- Name: v_ref_assembly_hic_rule; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_ref_assembly_hic_rule AS
+ WITH rows AS (
+         SELECT f.assembly_id,
+            a.og_id,
+            f.flowcell,
+            r.run_id,
+            s.sequencing_id
+           FROM (((public.ref_assembly_hic_flowcell f
+             JOIN public.ref_assembly a ON ((a.assembly_id = f.assembly_id)))
+             LEFT JOIN public.sequencing_run r ON ((r.flowcell = f.flowcell)))
+             LEFT JOIN public.v_sequencing_browse s ON (((s.og_id = a.og_id) AND (s.run_id = r.run_id) AND (s.technology = 'Hi-C'::text) AND (s.library_type = 'hic'::text) AND (s.status IS DISTINCT FROM 'Failed'::text))))
+        )
+ SELECT rows.assembly_id,
+    rows.og_id,
+    rows.flowcell,
+    rows.run_id,
+    rows.sequencing_id,
+    bool_and((rows.sequencing_id IS NOT NULL)) OVER (PARTITION BY rows.assembly_id) AS complete
+   FROM rows;
+
+
+--
+-- Name: VIEW v_ref_assembly_hic_rule; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.v_ref_assembly_hic_rule IS 'For each assembly flowcell (ref_assembly_hic_flowcell): its run (sequencing_run.flowcell) and the OG''s non-failed Hi-C sequencing rows on it, one row each; sequencing_id NULL where none. complete: every flowcell of the assembly resolves. refresh_assembly_runs() links the complete rows. 094.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_hic_rule.assembly_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_hic_rule.assembly_id IS 'ref_assembly_hic_flowcell.assembly_id.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_hic_rule.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_hic_rule.og_id IS 'The assembly''s OG.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_hic_rule.flowcell; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_hic_rule.flowcell IS 'ref_assembly_hic_flowcell.flowcell.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_hic_rule.run_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_hic_rule.run_id IS 'The run with that flowcell; NULL if none.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_hic_rule.sequencing_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_hic_rule.sequencing_id IS 'A non-failed Hi-C sequencing row of the OG on that run; NULL if none.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_hic_rule.complete; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_hic_rule.complete IS 'Every flowcell of the assembly has a sequencing_id.';
+
+
+--
+-- Name: v_ref_assembly_hic_readiness; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_ref_assembly_hic_readiness AS
+ SELECT a.assembly_id,
+    a.og_id,
+    a.seq_date,
+    a.version,
+    ( SELECT string_agg((h.flowcell || COALESCE(((' ('::text || h.run_id) || ')'::text), ' (no run)'::text)), ', '::text ORDER BY h.flowcell) AS string_agg
+           FROM public.v_ref_assembly_hic_rule h
+          WHERE ((h.assembly_id = a.assembly_id) AND (h.sequencing_id IS NULL))) AS unresolved,
+    u.reason,
+    u.reviewed_on,
+    ( SELECT string_agg(s.sequencing_id, ', '::text ORDER BY s.seq_date, s.sequencing_id) AS string_agg
+           FROM public.v_sequencing_browse s
+          WHERE ((s.og_id = a.og_id) AND (s.technology = 'Hi-C'::text) AND (s.library_type = 'hic'::text) AND (s.status IS DISTINCT FROM 'Failed'::text))) AS hic_rows_for_og
+   FROM (public.ref_assembly a
+     LEFT JOIN public.ref_assembly_hic_unlinked u ON ((u.assembly_id = a.assembly_id)))
+  WHERE ((a.strategy = 'hic'::text) AND (NOT (EXISTS ( SELECT 1
+           FROM (public.ref_assembly_run l
+             JOIN public.v_sequencing_browse s ON ((s.sequencing_id = l.sequencing_id)))
+          WHERE ((l.assembly_id = a.assembly_id) AND (s.technology = 'Hi-C'::text) AND (s.library_type = 'hic'::text))))));
+
+
+--
+-- Name: VIEW v_ref_assembly_hic_readiness; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.v_ref_assembly_hic_readiness IS 'Hi-C assemblies (strategy hic) with no Hi-C run link: the flowcells that do not resolve, the reviewed reason (NULL: not yet pushed by 05b_push_hic_runs_to_sqldb.py, or pushed since the review), and the OG''s non-failed Hi-C rows to choose from. 094.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_hic_readiness.assembly_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_hic_readiness.assembly_id IS 'ref_assembly.assembly_id.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_hic_readiness.og_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_hic_readiness.og_id IS 'The specimen.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_hic_readiness.seq_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_hic_readiness.seq_date IS 'ref_assembly.seq_date.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_hic_readiness.version; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_hic_readiness.version IS 'ref_assembly.version.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_hic_readiness.unresolved; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_hic_readiness.unresolved IS 'Its flowcells that do not resolve, with their run or "(no run)"; NULL when it has no flowcells.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_hic_readiness.reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_hic_readiness.reason IS 'ref_assembly_hic_unlinked.reason; NULL where not reviewed.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_hic_readiness.reviewed_on; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_hic_readiness.reviewed_on IS 'ref_assembly_hic_unlinked.reviewed_on.';
+
+
+--
+-- Name: COLUMN v_ref_assembly_hic_readiness.hic_rows_for_og; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.v_ref_assembly_hic_readiness.hic_rows_for_og IS 'The OG''s non-failed Hi-C sequencing rows, '', ''-joined: the candidates.';
 
 
 --
@@ -14514,6 +14900,22 @@ ALTER TABLE ONLY public.prep_automation
 
 
 --
+-- Name: ref_assembly_hic_flowcell ref_assembly_hic_flowcell_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ref_assembly_hic_flowcell
+    ADD CONSTRAINT ref_assembly_hic_flowcell_pkey PRIMARY KEY (assembly_id, flowcell);
+
+
+--
+-- Name: ref_assembly_hic_unlinked ref_assembly_hic_unlinked_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ref_assembly_hic_unlinked
+    ADD CONSTRAINT ref_assembly_hic_unlinked_pkey PRIMARY KEY (assembly_id);
+
+
+--
 -- Name: ref_assembly ref_assembly_natural_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15108,6 +15510,13 @@ CREATE INDEX pacbio_library_dna_id_idx ON public.pacbio_library USING btree (dna
 
 
 --
+-- Name: ref_assembly_hic_flowcell_flowcell_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ref_assembly_hic_flowcell_flowcell_idx ON public.ref_assembly_hic_flowcell USING btree (flowcell);
+
+
+--
 -- Name: ref_assembly_read_set_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15203,6 +15612,13 @@ CREATE INDEX rna_qc_kinnex_rna_tube_id_idx ON public.rna_qc_kinnex USING btree (
 --
 
 CREATE INDEX sequencing_library_tube_id_idx ON public.sequencing USING btree (library_tube_id);
+
+
+--
+-- Name: sequencing_run_flowcell_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX sequencing_run_flowcell_key ON public.sequencing_run USING btree (flowcell);
 
 
 --
@@ -15368,6 +15784,13 @@ CREATE TRIGGER mito_lca_raw_content_hash BEFORE INSERT OR UPDATE ON public.mito_
 
 
 --
+-- Name: ref_assembly_hic_flowcell ref_assembly_hic_flowcell_runs; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER ref_assembly_hic_flowcell_runs AFTER INSERT OR DELETE OR UPDATE ON public.ref_assembly_hic_flowcell FOR EACH ROW EXECUTE FUNCTION public.ref_assembly_hic_flowcell_runs();
+
+
+--
 -- Name: ref_assembly ref_assembly_read_set_default; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -15456,6 +15879,13 @@ CREATE TRIGGER sequencing_assembly_runs_upd AFTER UPDATE ON public.sequencing RE
 --
 
 CREATE TRIGGER sequencing_run_ensure BEFORE INSERT OR UPDATE OF run_id ON public.sequencing FOR EACH ROW EXECUTE FUNCTION public.sequencing_run_ensure();
+
+
+--
+-- Name: sequencing_run sequencing_run_flowcell_runs; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER sequencing_run_flowcell_runs AFTER UPDATE OF flowcell ON public.sequencing_run FOR EACH ROW EXECUTE FUNCTION public.sequencing_run_flowcell_runs();
 
 
 --
@@ -15955,6 +16385,22 @@ ALTER TABLE ONLY public.pacbio_library
 
 ALTER TABLE ONLY public.pacbio_library
     ADD CONSTRAINT pacbio_library_status_fkey FOREIGN KEY (status_sheet, pacb_status) REFERENCES public.lab_status(sheet, status);
+
+
+--
+-- Name: ref_assembly_hic_flowcell ref_assembly_hic_flowcell_assembly_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ref_assembly_hic_flowcell
+    ADD CONSTRAINT ref_assembly_hic_flowcell_assembly_id_fkey FOREIGN KEY (assembly_id) REFERENCES public.ref_assembly(assembly_id) ON DELETE CASCADE;
+
+
+--
+-- Name: ref_assembly_hic_unlinked ref_assembly_hic_unlinked_assembly_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ref_assembly_hic_unlinked
+    ADD CONSTRAINT ref_assembly_hic_unlinked_assembly_id_fkey FOREIGN KEY (assembly_id) REFERENCES public.ref_assembly(assembly_id) ON DELETE CASCADE;
 
 
 --
