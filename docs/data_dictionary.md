@@ -62,7 +62,7 @@ sample ─┬─ tissue ─┬─ dna_extraction ─┬─ illumina_library ─�
         │          │                  └─ ont_library ──────┤
         │          ├─ rna_extraction ─┬─ rna_library_ilmn ─┼─ library ── sequencing ── sequencing_run
         │          │                  └─ rna_library_kinx ─┤                              │
-        │          └─ hic_lysate ─────── hic_library ──────┘                  raw_data, rna_qc_kinnex,
+        │          └─ hic_lysate ─────── hic_library ──────┘                  rna_qc_kinnex,
         └─ (assembly and submission tables, below)                            hifi_read_qc, hic_read_qc
 ```
 
@@ -75,15 +75,18 @@ sample ─┬─ tissue ─┬─ dna_extraction ─┬─ illumina_library ─�
 | `hic_lysate` | 430 | One lysate | `import_v2.py` (4.HiCLysate) | |
 | `illumina_library`, `pacbio_library`, `ont_library`, `hic_library`, `rna_library_ilmn`, `rna_library_kinx` | 2,131 / 436 / 98 / 326 / 393 / 188 | One library prep attempt | `import_v2.py` (the 4.* sheets) | Status checked against `lab_status` (`082`) |
 | `library` | 3,552 | A library of any technology | `import_v2.py` | One key for `sequencing` to point at |
-| `sequencing` | 4,480 | A sequencing record: usually one library on one run | `import_v2.py` (5.Sequencing) | Grain undecided (§11 Q5) |
-| `sequencing_run` | 213 | A run | Triggers on `sequencing` (`075`) | FK target for `sequencing`, `raw_data`, `rna_qc_kinnex`, `hifi_read_qc`, `hic_read_qc` |
+| `sequencing` | 4,677 | One library on one run | `import_v2.py` (5.Sequencing) | No pair repeats; PacBio SMRT cells share the row, Illumina lanes are not rows (§11 Q5, 2026-11-23) |
+| `sequencing_run` | 213 | A run | Triggers on `sequencing` (`075`) | FK target for `sequencing`, `rna_qc_kinnex`, `hifi_read_qc`, `hic_read_qc` |
 | `design_description` | 2 | An Illumina prep protocol | Fixed | FK from `sequencing.design_no` (`063`) |
 | `prep_automation` | 2 | Manual or automated prep | Fixed | Lookup |
 | `lab_status` | 65 | An allowed Status value on one lab sheet | By hand (`INSERT`) | FK target for the nine sheets' status columns, through their `status_sheet` column (`082`) |
-| `raw_data` | 8,010 | One FASTQ file | No current writer found | No new rows since July (§11 Q13) |
 | `rna_qc_kinnex` | 96 | Kinnex read QC, library × run | No current writer found | Keys: `061` |
 | `hifi_read_qc` | 279 | HiFi yield, library × run | ref repo `0b_push_hifi_yield_results_to_sqldb.py` | `sequencing_id` NULL where no single row matches |
-| `hic_read_qc` | 552 | Hi-C yield, library × run × lane | `ref_genomes_hic_automation/push_hic_yield.py` | As above |
+| `hic_read_qc` | 552 | Hi-C yield, library × run × lane | `ref_genomes_hic_automation/push_hic_yield.py` | As above. Keyed on OG, tissue and library code, not the tube, so 51 rows cannot link where an OG has two Hi-C libraries on a run |
+
+Read QC is kept at the `sequencing` grain, one library on one run, with Hi-C split further by
+lane; `draft_fastp` is per draft (§11 Q4, 2026-11-23). `raw_data` (a FASTQ file list, unmaintained
+since NOVA_250520) was dropped by `089`; it is in `archive/dropped_261123/`.
 
 Import bookkeeping: `import_quarantine` (1,866 rows rejected by a constraint, held for the lab to
 fix), `value_conversions` (1,457 values stored by a conversion rule, with the raw text),
@@ -286,8 +289,8 @@ missing link, and why.
 |---|---:|---|---|
 | `ena_validation_attempts` | 1,374 | One ENA validation of one mitogenome annotation | mito pipeline `push_ena_validation_results.py` |
 | `ena_submissions` | 539 | One submission of an annotation | `ENA-mito-genomes` (downstream; this pipeline never writes it) |
-| `ena_specimen_accessions` | 2,848 | A specimen's ENA-usable BioSample, if known | mito `backfill_ena_specimen_accessions.py`; 1 accession (§11 Q14) |
-| `ena_related_assemblies` | 0 | Planned | None |
+| `ena_specimen_accessions` | 3,721 | View (`089`): a sample and its BioSample from `sample.ncbi_biosample_id` | Not a write path; read by mito `audit_ena_readiness.py`. The old table is in `archive/dropped_261123/` (§11 Q14) |
+| `ena_related_assemblies` | 0 | Planned; FK to `sample` (`089`) | None |
 
 `ena_validation_latest` and `ena_submission_status` are the reading views.
 
@@ -368,13 +371,13 @@ Things a reader will otherwise get wrong. Each is also in the column comment.
 
 | Decision | Options | Needed for |
 |---|---|---|
-| Sample status columns (§11 Q2) | User-entered, imported, or derived | Status normalisation, `summary` |
-| `sequencing` row grain (§11 Q5) | Run, library on a run, lane, or output file | The library model, QC relationships |
-| `ena_specimen_accessions` (§11 Q14) | Keep, or a view over `sample` | ENA tables |
+| `sample.workflow` and `priority` values (§11 Q2) | The web app's vocabulary; left to the colleague who owns OceanGenom_Web (owner, 2026-11-23) | Their column comments |
 | Unwritten `sample` submission columns | Keep, or drop in favour of `draft_submission` / `ref_submission` | Column cleanup |
 
 Settled 2026-11-13: the species source for names is `master_species` (§11 Q1), and the GoaT
-contract (§11 Q6) is out of scope, a colleague's.
+contract (§11 Q6) is out of scope, a colleague's. Settled 2026-11-23: `sequencing` is one library
+on a run (Q5), QC follows it (Q4), `raw_data` dropped (Q13), `ena_specimen_accessions` a view
+over `sample` (Q14), and the ENA accession gaps explained (Q12); `089`.
 
 ## Migration index
 
@@ -466,3 +469,5 @@ and cutover, `049`–`077` Phases R and RG, and `078` onwards the follow-ups.
 | `086` | Correct `ncbi_genome_assemblies`' comment | It named the objects `085` dropped |
 | `087` | `v_genome_size_comparison` recreated on `ncbi_genome_assemblies` | Owner decision; the NCBI table that has data. No length there, so no NCBI size or ratio |
 | `088` | `ncbi_genome_assemblies`' comment names its reader | `086`'s said it had none |
+| `089` | Drop `raw_data`; `ena_specimen_accessions` a view over `sample`; §11 answers in comments | Owner decisions 2026-11-23: unmaintained table; a one-off backfill nothing read |
+| `090` | `refresh_sequencing_run()` stops checking `raw_data` | `089` left it reading the dropped table, so writes to `sequencing` failed for three minutes |

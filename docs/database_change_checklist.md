@@ -73,6 +73,14 @@ a draft clone 12 days behind `origin/master`, and the writer had been added in b
 - **Before dropping a column as "unread" or "unwritten", search every repository at its remote
   default branch.** Do the same for anything readable on Pawsey. Say in the record which places
   could not be read.
+- **Before dropping a table or column, search the database's own function bodies too:**
+  `SELECT oid::regprocedure FROM pg_proc WHERE prosrc ~ '\m<name>\M'`. PL/pgSQL bodies are not
+  dependency-tracked, so `DROP` does not refuse, and the function fails only when it next runs.
+  `089` dropped `raw_data` while `refresh_sequencing_run()`, called by the triggers on
+  `sequencing`, still read it, and every write to `sequencing` failed until `090` (three minutes).
+- **Rehearse writes, not only reads.** Selecting every view does not run a trigger. If the change
+  touches a table that has triggers, or that a function reads, write to that table in the
+  rehearsal (in a transaction, rolled back).
 
 
 ## Migration Governance
