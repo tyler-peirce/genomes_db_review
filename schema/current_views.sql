@@ -1710,6 +1710,40 @@ CREATE OR REPLACE VIEW public.v_ref_assembly_summary AS
      LEFT JOIN ref_merqury_qv mq ON mq.part_id = f.part_id
      LEFT JOIN ref_merqury_completeness mc ON mc.part_id = f.part_id;;
 
+-- View: public.v_ref_read_set_readiness
+CREATE OR REPLACE VIEW public.v_ref_read_set_readiness AS
+ WITH used AS (
+         SELECT a.read_set_id,
+            string_agg((a.seq_date || '.'::text) || a.version, ', '::text ORDER BY a.seq_date, a.version) AS assemblies
+           FROM ref_assembly a
+          GROUP BY a.read_set_id
+        ), runs AS (
+         SELECT r.read_set_id,
+            count(*) AS n_runs,
+            count(f.sequencing_id) AS n_counted,
+            sum(f.contam_reads) AS contam_reads,
+            string_agg(r.sequencing_id, ', '::text ORDER BY r.sequencing_id) FILTER (WHERE f.sequencing_id IS NULL) AS uncounted
+           FROM ref_read_set_run r
+             LEFT JOIN ref_hifi_adapter_filter_run f USING (sequencing_id)
+          GROUP BY r.read_set_id
+        )
+ SELECT rs.og_id,
+    rs.seq_date,
+    rs.read_set_id,
+    i.issue,
+    i.detail,
+    u.assemblies
+   FROM ref_read_set rs
+     LEFT JOIN used u USING (read_set_id)
+     LEFT JOIN runs n USING (read_set_id)
+     LEFT JOIN ref_hifi_adapter_filter h USING (read_set_id)
+     CROSS JOIN LATERAL ( VALUES ('no GenomeScope'::text,NULL::text,u.read_set_id IS NOT NULL AND NOT (EXISTS ( SELECT 1
+                   FROM ref_genomescope g
+                  WHERE g.read_set_id = rs.read_set_id))), ('no runs'::text,NULL::text,n.read_set_id IS NULL AND NOT (EXISTS ( SELECT 1
+                   FROM ref_read_set_external x
+                  WHERE x.read_set_id = rs.read_set_id))), ('runs without a HiFiAdapterFilt count'::text,n.uncounted,n.uncounted IS NOT NULL), ('HiFiAdapterFilt total differs from its runs'::text,format('ref_hifi_adapter_filter %s, ref_hifi_adapter_filter_run sum %s'::text, h.contam_reads, n.contam_reads),h.contam_reads IS NOT NULL AND n.n_runs = n.n_counted AND h.contam_reads::numeric <> n.contam_reads), ('used by no assembly'::text,NULL::text,u.read_set_id IS NULL)) i(issue, detail, applies)
+  WHERE i.applies;;
+
 -- View: public.v_rna_extraction_browse
 CREATE OR REPLACE VIEW public.v_rna_extraction_browse AS
  SELECT s.og_num,

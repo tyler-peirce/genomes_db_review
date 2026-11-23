@@ -174,6 +174,7 @@ ALTER TABLE public.prep_automation ADD CONSTRAINT prep_automation_pkey PRIMARY K
 ALTER TABLE public.ref_assembly ADD CONSTRAINT ref_assembly_natural_key UNIQUE (og_id, seq_date, version);
 ALTER TABLE public.ref_assembly ADD CONSTRAINT ref_assembly_og_id_fkey FOREIGN KEY (og_id) REFERENCES sample(og_id);
 ALTER TABLE public.ref_assembly ADD CONSTRAINT ref_assembly_pkey PRIMARY KEY (assembly_id);
+ALTER TABLE public.ref_assembly ADD CONSTRAINT ref_assembly_read_set_id_fkey FOREIGN KEY (read_set_id) REFERENCES ref_read_set(read_set_id);
 ALTER TABLE public.ref_assembly ADD CONSTRAINT ref_assembly_seq_date_check CHECK (seq_date ~ '^[0-9]{6}$'::text);
 ALTER TABLE public.ref_assembly ADD CONSTRAINT ref_assembly_version_check CHECK (version ~ '^(hic|hifi|ont)[0-9]+$'::text);
 ALTER TABLE public.ref_assembly_part ADD CONSTRAINT ref_assembly_part_assembly_id_fkey FOREIGN KEY (assembly_id) REFERENCES ref_assembly(assembly_id) ON DELETE CASCADE;
@@ -203,6 +204,9 @@ ALTER TABLE public.ref_gfastats ADD CONSTRAINT ref_gfastats_pkey PRIMARY KEY (pa
 ALTER TABLE public.ref_hifi_adapter_filter ADD CONSTRAINT ref_hifi_adapter_filter_has_value CHECK (num_nonnulls(contam_reads) > 0);
 ALTER TABLE public.ref_hifi_adapter_filter ADD CONSTRAINT ref_hifi_adapter_filter_pkey PRIMARY KEY (read_set_id);
 ALTER TABLE public.ref_hifi_adapter_filter ADD CONSTRAINT ref_hifi_adapter_filter_read_set_id_fkey FOREIGN KEY (read_set_id) REFERENCES ref_read_set(read_set_id) ON DELETE CASCADE;
+ALTER TABLE public.ref_hifi_adapter_filter_run ADD CONSTRAINT ref_hifi_adapter_filter_run_contam_reads_check CHECK (contam_reads >= 0);
+ALTER TABLE public.ref_hifi_adapter_filter_run ADD CONSTRAINT ref_hifi_adapter_filter_run_pkey PRIMARY KEY (sequencing_id);
+ALTER TABLE public.ref_hifi_adapter_filter_run ADD CONSTRAINT ref_hifi_adapter_filter_run_sequencing_id_fkey FOREIGN KEY (sequencing_id) REFERENCES sequencing(sequencing_id) ON DELETE CASCADE;
 ALTER TABLE public.ref_merqury_completeness ADD CONSTRAINT ref_merqury_completeness_has_value CHECK (num_nonnulls(solid_k_mers, total_k_mers, completeness) > 0);
 ALTER TABLE public.ref_merqury_completeness ADD CONSTRAINT ref_merqury_completeness_part_id_fkey FOREIGN KEY (part_id) REFERENCES ref_assembly_part(part_id) ON DELETE CASCADE;
 ALTER TABLE public.ref_merqury_completeness ADD CONSTRAINT ref_merqury_completeness_pkey PRIMARY KEY (part_id);

@@ -620,6 +620,54 @@ COMMENT ON FUNCTION public.rebuild_mito_gene_views() IS 'Regenerate v_mito_annot
 
 
 --
+-- Name: ref_assembly_read_set_default(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ref_assembly_read_set_default() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $_$
+DECLARE
+  k   text;
+  ids text[];
+  rid bigint;
+BEGIN
+  IF NEW.read_set_id IS NOT NULL THEN
+    RETURN NEW;
+  END IF;
+  -- A re-push (INSERT ... ON CONFLICT DO UPDATE) keeps the assembly's own read set.
+  SELECT a.read_set_id INTO rid FROM ref_assembly a
+   WHERE a.og_id = NEW.og_id AND a.seq_date = NEW.seq_date AND a.version = NEW.version;
+  IF rid IS NULL THEN
+    -- refdb.read_set_runs(): the OG's non-failed PacBio DNA rows up to the date + 21 days, keyed by
+    -- their latest seq_date (the date itself when there are none).
+    SELECT coalesce(max(s.seq_date), NEW.seq_date), coalesce(array_agg(s.sequencing_id), '{}')
+      INTO k, ids
+      FROM v_sequencing_browse s
+     WHERE s.og_id = NEW.og_id AND s.technology IN ('PacBio HIFI', 'PacBio') AND s.library_type = 'pacbio'
+       AND s.status IS DISTINCT FROM 'Failed' AND s.seq_date ~ '^[0-9]{6}$'
+       AND to_date(s.seq_date, 'YYMMDD') <= to_date(NEW.seq_date, 'YYMMDD') + 21;
+    SELECT rs.read_set_id INTO rid FROM ref_read_set rs
+     WHERE rs.og_id = NEW.og_id AND coalesce(rs.seq_date, '') = k;
+    IF rid IS NULL THEN
+      INSERT INTO ref_read_set (og_id, seq_date) VALUES (NEW.og_id, k) RETURNING read_set_id INTO rid;
+      INSERT INTO ref_read_set_run (read_set_id, sequencing_id) SELECT rid, unnest(ids);
+    END IF;
+  END IF;
+  NEW.read_set_id := rid;
+  RETURN NEW;
+END
+$_$;
+
+
+--
+-- Name: FUNCTION ref_assembly_read_set_default(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ref_assembly_read_set_default() IS 'BEFORE INSERT on ref_assembly: a row without read_set_id takes that of the assembly with its key (a re-push), else the read set refdb.read_set_runs() gives for its date (the OG''s non-failed PacBio DNA runs up to the date + 21 days, keyed by their latest seq_date), created with those runs if missing. An existing read set''s runs are not changed. 093.';
+
+
+--
 -- Name: ref_assembly_run_genomic_only(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -659,7 +707,7 @@ CREATE FUNCTION public.ref_assembly_runs_link() RETURNS trigger
 BEGIN
   -- The ref writers' upsert sets og_id = EXCLUDED.og_id on every push; that changes nothing.
   IF TG_OP = 'INSERT'
-     OR (NEW.og_id, NEW.seq_date) IS DISTINCT FROM (OLD.og_id, OLD.seq_date) THEN
+     OR (NEW.og_id, NEW.seq_date, NEW.read_set_id) IS DISTINCT FROM (OLD.og_id, OLD.seq_date, OLD.read_set_id) THEN
     PERFORM refresh_assembly_runs(ARRAY[NEW.og_id]);
   END IF;
   RETURN NULL;
@@ -671,7 +719,30 @@ $$;
 -- Name: FUNCTION ref_assembly_runs_link(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ref_assembly_runs_link() IS 'Links a new or re-keyed reference assembly to its runs (refresh_assembly_runs). 080.';
+COMMENT ON FUNCTION public.ref_assembly_runs_link() IS 'Links a new, re-keyed or re-read-set reference assembly to its runs (refresh_assembly_runs). 080, 093.';
+
+
+--
+-- Name: ref_hifi_adapter_filter_run_pacbio_only(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ref_hifi_adapter_filter_run_pacbio_only() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+DECLARE
+  tech  text;
+  ltype text;
+BEGIN
+  SELECT s.technology, s.library_type INTO tech, ltype
+    FROM public.v_sequencing_browse s WHERE s.sequencing_id = NEW.sequencing_id;
+  IF tech IS NULL OR tech NOT IN ('PacBio HIFI', 'PacBio') OR ltype IS DISTINCT FROM 'pacbio' THEN
+    RAISE EXCEPTION 'ref_hifi_adapter_filter_run: % is % / % sequencing; HiFiAdapterFilt runs on PacBio DNA',
+      NEW.sequencing_id, coalesce(tech, 'unknown'), coalesce(ltype, 'unknown');
+  END IF;
+  RETURN NEW;
+END
+$$;
 
 
 --
@@ -702,6 +773,33 @@ $$;
 --
 
 COMMENT ON FUNCTION public.ref_read_set_external_exclusive() IS 'A read set is either external or linked to sequencing rows, not both (071).';
+
+
+--
+-- Name: ref_read_set_run_assembly_runs(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ref_read_set_run_assembly_runs() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+DECLARE
+  ids bigint[];
+BEGIN
+  ids := CASE TG_OP WHEN 'INSERT' THEN ARRAY[NEW.read_set_id]
+                    WHEN 'DELETE' THEN ARRAY[OLD.read_set_id]
+                    ELSE ARRAY[NEW.read_set_id, OLD.read_set_id] END;
+  PERFORM refresh_assembly_runs(ARRAY(SELECT DISTINCT og_id FROM ref_assembly WHERE read_set_id = ANY (ids)));
+  RETURN NULL;
+END
+$$;
+
+
+--
+-- Name: FUNCTION ref_read_set_run_assembly_runs(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ref_read_set_run_assembly_runs() IS 'A run added to or removed from a read set is added to or removed from the PacBio links of the assemblies built from it (refresh_assembly_runs). 093.';
 
 
 --
@@ -771,7 +869,7 @@ CREATE FUNCTION public.refresh_assembly_runs(p_og_ids text[], p_sequencing_ids t
     SET search_path TO 'public', 'pg_temp'
     AS $$
 BEGIN
-  -- Mito: every link is derived, so drop one the rule no longer gives.
+  -- Mito: every link is derived, so drop one the rule no longer gives (080, unchanged).
   DELETE FROM mito_assembly_run r
    USING mito_assembly a
    WHERE a.assembly_id = r.assembly_id
@@ -789,25 +887,42 @@ BEGIN
      AND mito_run_matches(a.tech, s.technology, s.library_type, s.instrument)
   ON CONFLICT DO NOTHING;
 
-  -- Ref: a link may have been chosen by hand, so drop only one its row can no longer have
-  -- (what ref_assembly_run_genomic_only refuses, or another OG's row).
+  -- Ref: drop a link its row can no longer have (another OG, not PacBio/ONT/Hi-C DNA, failed: what
+  -- ref_assembly_run_genomic_only refuses), and a PacBio link that is not a run of the assembly's
+  -- read set (093). ONT and Hi-C links chosen by hand stay.
   DELETE FROM ref_assembly_run r
    USING ref_assembly a
    WHERE a.assembly_id = r.assembly_id
      AND (a.og_id = ANY (p_og_ids) OR r.sequencing_id = ANY (p_sequencing_ids))
-     AND NOT EXISTS (SELECT 1 FROM v_sequencing_browse s
-                      WHERE s.sequencing_id = r.sequencing_id AND s.og_id = a.og_id
-                        AND s.technology IN ('PacBio HIFI', 'PacBio', 'ONT', 'Hi-C')
-                        AND s.library_type IN ('pacbio', 'ont', 'hic')
-                        AND s.status IS DISTINCT FROM 'Failed');
+     AND (NOT EXISTS (SELECT 1 FROM v_sequencing_browse s
+                       WHERE s.sequencing_id = r.sequencing_id AND s.og_id = a.og_id
+                         AND s.technology IN ('PacBio HIFI', 'PacBio', 'ONT', 'Hi-C')
+                         AND s.library_type IN ('pacbio', 'ont', 'hic')
+                         AND s.status IS DISTINCT FROM 'Failed')
+          OR (EXISTS (SELECT 1 FROM v_sequencing_browse s
+                       WHERE s.sequencing_id = r.sequencing_id
+                         AND s.technology IN ('PacBio HIFI', 'PacBio') AND s.library_type = 'pacbio')
+              AND NOT EXISTS (SELECT 1 FROM ref_read_set_run rr
+                               WHERE rr.read_set_id = a.read_set_id AND rr.sequencing_id = r.sequencing_id)));
 
-  -- 069: a failed run produced no reads to build from.
+  -- PacBio: the read set's runs (093). A failed run produced no reads to build from (069).
+  INSERT INTO ref_assembly_run (assembly_id, sequencing_id)
+  SELECT DISTINCT a.assembly_id, rr.sequencing_id
+    FROM ref_assembly a
+    JOIN ref_read_set_run rr ON rr.read_set_id = a.read_set_id
+    JOIN v_sequencing_browse s ON s.sequencing_id = rr.sequencing_id AND s.og_id = a.og_id
+   WHERE (a.og_id = ANY (p_og_ids) OR rr.sequencing_id = ANY (p_sequencing_ids))
+     AND s.technology IN ('PacBio HIFI', 'PacBio') AND s.library_type = 'pacbio'
+     AND s.status IS DISTINCT FROM 'Failed'
+  ON CONFLICT DO NOTHING;
+
+  -- ONT: the OG's non-failed ONT DNA rows of the assembly's seq_date (080's rule).
   INSERT INTO ref_assembly_run (assembly_id, sequencing_id)
   SELECT DISTINCT a.assembly_id, s.sequencing_id
     FROM ref_assembly a
     JOIN v_sequencing_browse s ON s.og_id = a.og_id AND s.seq_date = a.seq_date
    WHERE a.og_id = ANY (p_og_ids)
-     AND s.technology IN ('PacBio HIFI', 'PacBio', 'ONT') AND s.library_type IN ('pacbio', 'ont')
+     AND s.technology = 'ONT' AND s.library_type = 'ont'
      AND s.status IS DISTINCT FROM 'Failed'
   ON CONFLICT DO NOTHING;
 END
@@ -818,7 +933,7 @@ $$;
 -- Name: FUNCTION refresh_assembly_runs(p_og_ids text[], p_sequencing_ids text[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.refresh_assembly_runs(p_og_ids text[], p_sequencing_ids text[]) IS 'Re-derive mito_assembly_run and ref_assembly_run for the assemblies of the OGs given and the links of the sequencing rows given: the run-link rules of v3.sync_mito() (055) and v4.sync_ref() (069). Mito links the rule no longer gives are removed; a ref link only when its row can no longer have one, so links chosen by hand stay. Called by triggers on mito_assembly, ref_assembly, sequencing and library. 080.';
+COMMENT ON FUNCTION public.refresh_assembly_runs(p_og_ids text[], p_sequencing_ids text[]) IS 'Re-derive mito_assembly_run and ref_assembly_run for the assemblies of the OGs given and the links of the sequencing rows given. Mito: the rule of v3.sync_mito() (055); a link it no longer gives is removed. Ref: PacBio links are the runs of the assembly''s read set (093); ONT links the OG''s non-failed ONT rows of its seq_date (069); a link its row can no longer have is removed, and Hi-C links chosen by hand stay. Called by triggers on mito_assembly, ref_assembly, ref_read_set_run, sequencing and library. 080, 093.';
 
 
 --
@@ -5577,7 +5692,7 @@ CREATE TABLE public.ref_hifi_adapter_filter (
 -- Name: TABLE ref_hifi_adapter_filter; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.ref_hifi_adapter_filter IS 'HiFiAdapterFilt: reads removed as adapter-contaminated, per HiFi read set (ref_read_set). Written by 0a_push_hifiadapt_results_to_sqldb.py (ref repo).';
+COMMENT ON TABLE public.ref_hifi_adapter_filter IS 'HiFiAdapterFilt: reads removed as adapter-contaminated, per HiFi read set (ref_read_set), as the push writes it (0a_push_hifiadapt_results_to_sqldb.py, ref repo). The per-run counts are in ref_hifi_adapter_filter_run; v_ref_read_set_readiness lists totals that differ from their sum. To become a view over ref_hifi_adapter_filter_run once the push writes per run (093).';
 
 
 --
@@ -5618,7 +5733,7 @@ CREATE TABLE public.ref_read_set (
 -- Name: TABLE ref_read_set; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.ref_read_set IS 'A HiFi read set: the PacBio reads one reference-pipeline run took in for an OG (the samplesheet''s date). seq_date is the latest seq_date of its sequencing rows, not the samplesheet date. NULL = unknown (before RG, or a public.raw_qc state no dated read set matches). Migration 062.';
+COMMENT ON TABLE public.ref_read_set IS 'A HiFi read set: the PacBio reads one reference-pipeline run took in for an OG. Every assembly has one (ref_assembly.read_set_id, 093), and its GenomeScope (ref_genomescope) is of these reads. seq_date is the latest seq_date of its sequencing rows, or the assembly''s or samplesheet''s date when it has none. Migrations 062, 093.';
 
 
 --
@@ -8200,6 +8315,7 @@ CREATE TABLE public.ref_assembly (
     attempt integer GENERATED ALWAYS AS (("substring"(version, '[0-9]+$'::text))::integer) STORED,
     og_num integer GENERATED ALWAYS AS ((SUBSTRING(og_id FROM 3))::integer) STORED,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    read_set_id bigint NOT NULL,
     CONSTRAINT ref_assembly_seq_date_check CHECK ((seq_date ~ '^[0-9]{6}$'::text)),
     CONSTRAINT ref_assembly_version_check CHECK ((version ~ '^(hic|hifi|ont)[0-9]+$'::text))
 );
@@ -8266,6 +8382,13 @@ COMMENT ON COLUMN public.ref_assembly.og_num IS 'Numeric part of og_id, for sort
 --
 
 COMMENT ON COLUMN public.ref_assembly.created_at IS 'When the row was first written (database clock).';
+
+
+--
+-- Name: COLUMN ref_assembly.read_set_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_assembly.read_set_id IS 'The HiFi read set the assembly was built from (FK to ref_read_set); its runs are the assembly''s PacBio links in ref_assembly_run. Backfilled from merqury k-mer totals where Acacia has them (093, sql/data/093_assembly_read_set.tsv); a new assembly gets one from ref_assembly_read_set_default().';
 
 
 --
@@ -10225,7 +10348,7 @@ CREATE TABLE public.ref_assembly_run (
 -- Name: TABLE ref_assembly_run; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.ref_assembly_run IS 'The sequencing rows an assembly was built from: PacBio/ONT DNA, and Hi-C once writers record it (trigger). Links to the OG''s non-failed PacBio/ONT rows of the assembly''s seq_date are kept current by refresh_assembly_runs() from triggers on ref_assembly, sequencing and library (080). A link chosen by hand stays until its row can no longer have one.';
+COMMENT ON TABLE public.ref_assembly_run IS 'The sequencing rows an assembly was built from: PacBio (the runs of its read set, 093), ONT (the OG''s non-failed ONT rows of its seq_date) and Hi-C (by hand, until writers record it). Kept current by refresh_assembly_runs() from triggers on ref_assembly, ref_read_set_run, sequencing and library (080, 093).';
 
 
 --
@@ -11395,6 +11518,54 @@ CREATE VIEW public.ref_genomes_sra_uploads AS
 --
 
 COMMENT ON VIEW public.ref_genomes_sra_uploads IS 'Compatibility view: public.ref_genomes_sra_uploads''s columns in its order, status and date recombined. Not a write path: write ref_sra_upload and its run links (ref_sra_upload_run, resolve_sra_upload_runs()), as ENA-ref-genomes step 09 does.';
+
+
+--
+-- Name: ref_hifi_adapter_filter_run; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ref_hifi_adapter_filter_run (
+    sequencing_id text NOT NULL,
+    contam_reads bigint NOT NULL,
+    source text,
+    loaded_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ref_hifi_adapter_filter_run_contam_reads_check CHECK ((contam_reads >= 0))
+);
+
+
+--
+-- Name: TABLE ref_hifi_adapter_filter_run; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ref_hifi_adapter_filter_run IS 'HiFiAdapterFilt per PacBio sequencing row: reads removed as adapter-contaminated, summed over the row''s cells (one .stats per cell BAM). A read set''s figure is the sum over its runs. Backfilled from the Acacia .stats files and the read-set totals (093, sql/data/093_adapter_filter_run.tsv); no writer yet (the push writes ref_hifi_adapter_filter).';
+
+
+--
+-- Name: COLUMN ref_hifi_adapter_filter_run.sequencing_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_hifi_adapter_filter_run.sequencing_id IS 'The PacBio DNA sequencing row (FK to sequencing; trigger).';
+
+
+--
+-- Name: COLUMN ref_hifi_adapter_filter_run.contam_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_hifi_adapter_filter_run.contam_reads IS 'HiFi reads HiFiAdapterFilt removed as adapter-contaminated, over the row''s cells.';
+
+
+--
+-- Name: COLUMN ref_hifi_adapter_filter_run.source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_hifi_adapter_filter_run.source IS 'Where the count came from: acacia (the .stats files), single_run or zero_total (a read-set total that fixes it), with the detail.';
+
+
+--
+-- Name: COLUMN ref_hifi_adapter_filter_run.loaded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ref_hifi_adapter_filter_run.loaded_at IS 'When the row was written.';
 
 
 --
@@ -12896,7 +13067,7 @@ CREATE VIEW public.v_ref_assembly_run_readiness AS
 -- Name: VIEW v_ref_assembly_run_readiness; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.v_ref_assembly_run_readiness IS 'Assemblies with no run link, and the OG''s PacBio/ONT DNA rows to choose from. Their seq_date matches no run date (RG.0 §1.5), so refresh_assembly_runs() (080) cannot derive one: link them by hand, or fix the date.';
+COMMENT ON VIEW public.v_ref_assembly_run_readiness IS 'Assemblies with no run link, and the OG''s PacBio/ONT DNA rows to choose from: their read set has no runs (v_ref_read_set_readiness) and no ONT row has their seq_date. Give the read set its runs, or fix the date (080, 093).';
 
 
 --
@@ -13283,6 +13454,51 @@ COMMENT ON COLUMN public.v_ref_assembly_summary.qv IS 'ref_merqury_qv.qv.';
 --
 
 COMMENT ON COLUMN public.v_ref_assembly_summary.kmer_completeness IS 'ref_merqury_completeness.completeness, %.';
+
+
+--
+-- Name: v_ref_read_set_readiness; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_ref_read_set_readiness AS
+ WITH used AS (
+         SELECT a.read_set_id,
+            string_agg(((a.seq_date || '.'::text) || a.version), ', '::text ORDER BY a.seq_date, a.version) AS assemblies
+           FROM public.ref_assembly a
+          GROUP BY a.read_set_id
+        ), runs AS (
+         SELECT r.read_set_id,
+            count(*) AS n_runs,
+            count(f.sequencing_id) AS n_counted,
+            sum(f.contam_reads) AS contam_reads,
+            string_agg(r.sequencing_id, ', '::text ORDER BY r.sequencing_id) FILTER (WHERE (f.sequencing_id IS NULL)) AS uncounted
+           FROM (public.ref_read_set_run r
+             LEFT JOIN public.ref_hifi_adapter_filter_run f USING (sequencing_id))
+          GROUP BY r.read_set_id
+        )
+ SELECT rs.og_id,
+    rs.seq_date,
+    rs.read_set_id,
+    i.issue,
+    i.detail,
+    u.assemblies
+   FROM ((((public.ref_read_set rs
+     LEFT JOIN used u USING (read_set_id))
+     LEFT JOIN runs n USING (read_set_id))
+     LEFT JOIN public.ref_hifi_adapter_filter h USING (read_set_id))
+     CROSS JOIN LATERAL ( VALUES ('no GenomeScope'::text,NULL::text,((u.read_set_id IS NOT NULL) AND (NOT (EXISTS ( SELECT 1
+                   FROM public.ref_genomescope g
+                  WHERE (g.read_set_id = rs.read_set_id)))))), ('no runs'::text,NULL::text,((n.read_set_id IS NULL) AND (NOT (EXISTS ( SELECT 1
+                   FROM public.ref_read_set_external x
+                  WHERE (x.read_set_id = rs.read_set_id)))))), ('runs without a HiFiAdapterFilt count'::text,n.uncounted,(n.uncounted IS NOT NULL)), ('HiFiAdapterFilt total differs from its runs'::text,format('ref_hifi_adapter_filter %s, ref_hifi_adapter_filter_run sum %s'::text, h.contam_reads, n.contam_reads),((h.contam_reads IS NOT NULL) AND (n.n_runs = n.n_counted) AND ((h.contam_reads)::numeric <> n.contam_reads))), ('used by no assembly'::text,NULL::text,(u.read_set_id IS NULL))) i(issue, detail, applies))
+  WHERE i.applies;
+
+
+--
+-- Name: VIEW v_ref_read_set_readiness; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.v_ref_read_set_readiness IS 'Read sets with something missing or inconsistent: an assembly''s read set with no GenomeScope, no runs (not external), runs without a per-run HiFiAdapterFilt count, a stored total that differs from the per-run sum, or used by no assembly. assemblies lists the assemblies built from it. 093.';
 
 
 --
@@ -14386,6 +14602,14 @@ ALTER TABLE ONLY public.ref_hifi_adapter_filter
 
 
 --
+-- Name: ref_hifi_adapter_filter_run ref_hifi_adapter_filter_run_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ref_hifi_adapter_filter_run
+    ADD CONSTRAINT ref_hifi_adapter_filter_run_pkey PRIMARY KEY (sequencing_id);
+
+
+--
 -- Name: ref_merqury_completeness ref_merqury_completeness_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14884,6 +15108,13 @@ CREATE INDEX pacbio_library_dna_id_idx ON public.pacbio_library USING btree (dna
 
 
 --
+-- Name: ref_assembly_read_set_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ref_assembly_read_set_id_idx ON public.ref_assembly USING btree (read_set_id);
+
+
+--
 -- Name: ref_assembly_run_sequencing_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15137,6 +15368,13 @@ CREATE TRIGGER mito_lca_raw_content_hash BEFORE INSERT OR UPDATE ON public.mito_
 
 
 --
+-- Name: ref_assembly ref_assembly_read_set_default; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER ref_assembly_read_set_default BEFORE INSERT ON public.ref_assembly FOR EACH ROW EXECUTE FUNCTION public.ref_assembly_read_set_default();
+
+
+--
 -- Name: ref_assembly_run ref_assembly_run_genomic_only; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -15147,7 +15385,14 @@ CREATE TRIGGER ref_assembly_run_genomic_only BEFORE INSERT OR UPDATE ON public.r
 -- Name: ref_assembly ref_assembly_runs_link; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER ref_assembly_runs_link AFTER INSERT OR UPDATE OF og_id, seq_date ON public.ref_assembly FOR EACH ROW EXECUTE FUNCTION public.ref_assembly_runs_link();
+CREATE TRIGGER ref_assembly_runs_link AFTER INSERT OR UPDATE OF og_id, seq_date, read_set_id ON public.ref_assembly FOR EACH ROW EXECUTE FUNCTION public.ref_assembly_runs_link();
+
+
+--
+-- Name: ref_hifi_adapter_filter_run ref_hifi_adapter_filter_run_pacbio_only; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER ref_hifi_adapter_filter_run_pacbio_only BEFORE INSERT OR UPDATE ON public.ref_hifi_adapter_filter_run FOR EACH ROW EXECUTE FUNCTION public.ref_hifi_adapter_filter_run_pacbio_only();
 
 
 --
@@ -15155,6 +15400,13 @@ CREATE TRIGGER ref_assembly_runs_link AFTER INSERT OR UPDATE OF og_id, seq_date 
 --
 
 CREATE TRIGGER ref_read_set_external_no_runs BEFORE INSERT OR UPDATE ON public.ref_read_set_external FOR EACH ROW EXECUTE FUNCTION public.ref_read_set_external_exclusive();
+
+
+--
+-- Name: ref_read_set_run ref_read_set_run_assembly_runs; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER ref_read_set_run_assembly_runs AFTER INSERT OR DELETE OR UPDATE ON public.ref_read_set_run FOR EACH ROW EXECUTE FUNCTION public.ref_read_set_run_assembly_runs();
 
 
 --
@@ -15730,6 +15982,14 @@ ALTER TABLE ONLY public.ref_assembly_part
 
 
 --
+-- Name: ref_assembly ref_assembly_read_set_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ref_assembly
+    ADD CONSTRAINT ref_assembly_read_set_id_fkey FOREIGN KEY (read_set_id) REFERENCES public.ref_read_set(read_set_id);
+
+
+--
 -- Name: ref_assembly_run ref_assembly_run_assembly_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15791,6 +16051,14 @@ ALTER TABLE ONLY public.ref_gfastats
 
 ALTER TABLE ONLY public.ref_hifi_adapter_filter
     ADD CONSTRAINT ref_hifi_adapter_filter_read_set_id_fkey FOREIGN KEY (read_set_id) REFERENCES public.ref_read_set(read_set_id) ON DELETE CASCADE;
+
+
+--
+-- Name: ref_hifi_adapter_filter_run ref_hifi_adapter_filter_run_sequencing_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ref_hifi_adapter_filter_run
+    ADD CONSTRAINT ref_hifi_adapter_filter_run_sequencing_id_fkey FOREIGN KEY (sequencing_id) REFERENCES public.sequencing(sequencing_id) ON DELETE CASCADE;
 
 
 --

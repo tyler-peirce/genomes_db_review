@@ -95,6 +95,7 @@ CREATE UNIQUE INDEX pacbio_library_pkey ON public.pacbio_library USING btree (pa
 CREATE UNIQUE INDEX prep_automation_pkey ON public.prep_automation USING btree (prep_automation);
 CREATE UNIQUE INDEX ref_assembly_natural_key ON public.ref_assembly USING btree (og_id, seq_date, version);
 CREATE UNIQUE INDEX ref_assembly_pkey ON public.ref_assembly USING btree (assembly_id);
+CREATE INDEX ref_assembly_read_set_id_idx ON public.ref_assembly USING btree (read_set_id);
 CREATE UNIQUE INDEX ref_assembly_part_natural_key ON public.ref_assembly_part USING btree (assembly_id, stage, haplotype);
 CREATE UNIQUE INDEX ref_assembly_part_pkey ON public.ref_assembly_part USING btree (part_id);
 CREATE UNIQUE INDEX ref_assembly_run_pkey ON public.ref_assembly_run USING btree (assembly_id, sequencing_id);
@@ -105,6 +106,7 @@ CREATE UNIQUE INDEX ref_decontamination_pkey ON public.ref_decontamination USING
 CREATE UNIQUE INDEX ref_genomescope_pkey ON public.ref_genomescope USING btree (read_set_id);
 CREATE UNIQUE INDEX ref_gfastats_pkey ON public.ref_gfastats USING btree (part_id);
 CREATE UNIQUE INDEX ref_hifi_adapter_filter_pkey ON public.ref_hifi_adapter_filter USING btree (read_set_id);
+CREATE UNIQUE INDEX ref_hifi_adapter_filter_run_pkey ON public.ref_hifi_adapter_filter_run USING btree (sequencing_id);
 CREATE UNIQUE INDEX ref_merqury_completeness_pkey ON public.ref_merqury_completeness USING btree (part_id);
 CREATE UNIQUE INDEX ref_merqury_qv_pkey ON public.ref_merqury_qv USING btree (part_id);
 CREATE UNIQUE INDEX ref_omnic_pkey ON public.ref_omnic USING btree (part_id);
