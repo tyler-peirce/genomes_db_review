@@ -1,10 +1,10 @@
 # Ocean Genomes Database Review
 
-Review date: 2026-10-02 (revision 2); last revised 2026-11-23 (3.54)  
+Review date: 2026-10-02 (revision 2); last revised 2026-11-23 (3.55)  
 First reviewed: 2026-07-07  
 Database: PostgreSQL 14.24, `oceanomics_genomes` @ 146.118.120.134  
 Scope: Schema design, relationship quality, data completeness signals, view design, migration governance, and improvement planning  
-Status: Review and remediation. Migrations `027`–`090` are applied to live and ledgered (2026-10-02 to 2026-11-23). The §10 backlog is closed except the `postgres` password rotation (deferred to 2028 by the owner) and the primary key on `ncbi_genome_assemblies`. Each change is recorded in Appendix C and in the relevant finding.
+Status: Review and remediation. Migrations `027`–`092` are applied to live and ledgered (2026-10-02 to 2026-11-23). The §10 backlog is closed except the `postgres` password rotation (deferred to 2028 by the owner) and the primary key on `ncbi_genome_assemblies`. Each change is recorded in Appendix C and in the relevant finding.
 
 ## 0. What Changed Since Revision 1
 
@@ -1197,8 +1197,8 @@ Split by Phase R (`052`, merged `072`) into `draft_genome` and one table per pro
 `v_draft_genome_status` showing the gaps. This is the shape the review asked for. 1,720 drafts.
 
 Still wrong: BUSCO's N50 columns are unreliable and carried as-is (commented; use
-`draft_gfastats`). 261 host and partition values exist only in `pre_v3_archive.draft_genomes`
-and are lost at R.8 unless backfilled (Finding 17.1). The upload modules have not yet been
+`draft_gfastats`). The host and partition values once held only in `pre_v3_archive.draft_genomes`
+are all in `draft_genomescope` (checked 2026-11-23, before `091` dropped the archive). The upload modules have not yet been
 checked for swallowed errors, as the mito writers were.
 
 ### Mitogenome and LCA tables
@@ -1626,11 +1626,11 @@ Both gates are now cleared. **V.0 was dropped by decision and V.1 is done**, bot
 
    **What this does and does not fix.** It resolves *addressing* completely: `FROM sample` and `FROM public.sample` both reach the new table and the `search_path` stops mattering. It does nothing for *contracts* — the removed `og_id` columns, the sixteen removed `sample` columns, `status_overwrite` as `boolean`, the real date and numeric types, and the `sequencing` library registry break a stale query wherever the table sits. Consolidation is the last step of the cutover, not a way to avoid the middle ones; doing it early would only convert loud breakage into late breakage.
 
-**V.7 — Close out.** Next. (1) Drop `pre_v2_archive` after a quiet period; `~/oceanomics_genomes_pre_v6_261015.dump` is the permanent copy. (2) ~~Teach `bin/check_drift.py --coverage` that `035`–`046`'s `v2.x` became `public.x` via `048`.~~ **Done 2026-11-04:** it accepts any schema prefix, which also covers `v3`/`v4` (27 → 120 of 132 migration-covered). (3) ~~Refresh the object comments that still say `v2.`~~ **Done 2026-11-04 in `079`.** The 17 objects become migration-covered; re-run `bin/check_drift.py --coverage` and update section 13. Phase H's remaining scope shrinks to what is genuinely beyond `v2`.
+**V.7 — Close out.** **Done 2026-11-23.** (1) ~~Drop `pre_v2_archive` after a quiet period~~ dropped by `091`; `~/oceanomics_genomes_pre_v6_261015.dump` is the permanent copy. (2) ~~Teach `bin/check_drift.py --coverage` that `035`–`046`'s `v2.x` became `public.x` via `048`.~~ **Done 2026-11-04:** it accepts any schema prefix, which also covers `v3`/`v4` (27 → 120 of 132 migration-covered). (3) ~~Refresh the object comments that still say `v2.`~~ **Done 2026-11-04 in `079`.** The 17 objects become migration-covered; re-run `bin/check_drift.py --coverage` and update section 13. Phase H's remaining scope shrinks to what is genuinely beyond `v2`.
 
 ### Phase R: assembly relations (planned 2026-10-15)
 
-**Status 2026-11-04: R.0–R.7b and RG.0–RG.6 done; R.8 and RG.7 remain.** The merges ran on
+**Status 2026-11-23: all done, R.8 and RG.7 by `091`** (one item below still open: the draft upload modules). The merges ran on
 2026-11-02: `072` (R.6) moved the mito and draft tables into `public`, `073` (RG.6) did the same for
 the reference-genome tables, and `074`–`076` (R.7, R.7b) re-keyed the LCA, BLAST, validation and
 ENA tables on `annotation_id`. `077` added the read-QC run FKs. The flat tables are in
@@ -1638,11 +1638,11 @@ ENA tables on `annotation_id`. `077` added the read-QC run FKs. The flat tables 
 `docs/r7_record.md`, `docs/r7b_record.md`.
 
 What remains:
-- **R.8:** drop `pre_v3_archive` and the two empty `ena_*_archive` tables, after a quiet period
-  of clean nightly imports and drift runs. Take a `pg_dump` that morning, kept outside git, as the
-  permanent copy. Backfill or accept the loss of the 261 draft values held only there first
-  (Finding 17.1).
-- **RG.7:** the same for `pre_v4_archive`.
+- ~~**R.8:** drop `pre_v3_archive` and the two empty `ena_*_archive` tables~~ **Done:** the
+  `ena_*_archive` tables by `085` (2026-11-13), `pre_v3_archive` by `091` (2026-11-23). Every value
+  it alone held was already in `draft_genomescope`.
+- ~~**RG.7:** the same for `pre_v4_archive`.~~ **Done by `091`.** Permanent copy of all three
+  schemas: `~/oceanomics_genomes_archives_pre_091_261123.dump`.
 - ~~**Run links (found 2026-11-04, `078`)**~~ **Done 2026-11-09 (`080`):** `mito_assembly_run` and
   `ref_assembly_run` are kept current by triggers, with the window syncs' rules.
 - **The draft upload modules:** check them for swallowed errors, as was done for the mito writers.
@@ -2071,5 +2071,6 @@ Capture the eight `data_package_*` tables in a migration and the data dictionary
 
 | 3.53 | 2026-11-23 | **Header and §0.4 brought up to date with the backlog.** The header said 3.40 and that only Phase A was applied. §0.4 still showed Findings 4–7 and 12–14 as unchanged or new, though §10 and each finding's own note record them as done or partly done. Finding 1 now gives the live coverage (120 / 9 / 3, from `bin/check_drift.py --coverage`). New colleague drift since 3.52: `og_embargo_log` (live, in neither `sql/` nor the baseline). Its owner is unconfirmed, and it is kept out of the baseline like the other `og_*` tables. The draft-genome backfill of 2026-11-18 to 2026-11-23 is in `docs/draft_backfill_record.md`. No schema change. |
 | 3.54 | 2026-11-23 | **§11 Q2, Q4, Q5, Q12, Q13 and Q14 answered**, from live (read-only) and the code; owner decisions on each. **Migration `089` applied to live** at 01:56 UTC: `raw_data` dropped (Q13) and `ena_specimen_accessions` replaced by a view over `sample` (Q14), both exported first to `archive/dropped_261123/` with row fingerprints the guard checks; `ena_related_assemblies`' FK moved to `sample`; comments answer Q4/Q5/Q12 and drop the stale species references. Rehearsed on a restore of live: apply, replay a no-op, revert schema-identical with both tables' rows restored, the guard refusing on a changed table, all 57 views select. **The rehearsal missed a function:** `refresh_sequencing_run()` (`075`), called by the triggers on `sequencing`, still read `raw_data`, so writes to `sequencing` failed. **`090` fixed it at 01:59 UTC**, after a rehearsal that reproduced the failure and showed a `sequencing` insert and delete working. No scheduled writer ran in those three minutes (the import is at 18:00 UTC); the server log is not readable from this account. The checklist now requires a function-body search before a drop and a write in any rehearsal touching a table with triggers. Q2 left to the colleague; `sample.assigned_species` left as is. Not done (owner): a UNIQUE on `sequencing (library_tube_id, run_id)`, and ENA look-ups for the Q12 rows. Seen and not this project's: `build_nfcore_samplesheet_rows` and `build_rna_kinx_samplesheet_from_run` have been dropped from live outside the migrations; the drift check compares tables and views only, so it did not report them. |
+| 3.55 | 2026-11-23 | **Plans in `docs/` reviewed against live.** Everything is done except the close-out and the items below. **Migration `091` applied to live** at 02:24 UTC: `pre_v2_archive`, `pre_v3_archive` and `pre_v4_archive` dropped (V.7, R.8, RG.7; owner, who confirmed OceanGenom_Web does not read them). Before it: no view, FK, function body or trigger outside them depended on them; no repository names them (remote default branches: OceanOmics-Database `45abf6d`, Mitogenomes `85ffa32` and `inverts-dev` `6707415`, Draft-Genomes `9bfec88`, ref-genomes `fb128b3`, post-curation `2d700cf`, ref_gen_automation `fc75e7f`, ref_genomes_hic_automation `4180383`, ENA-draft `f5e403e`, ENA-mito `3d9d35a`, ENA-ref `2551f18`); every R.8 value in `pre_v3_archive.draft_genomes` was in `draft_genomescope`. Permanent copy `~/oceanomics_genomes_archives_pre_091_261123.dump`, verified by restore (35 tables, 383,829 rows, every row-set md5 equal to live). Rehearsed on a restore of live: the opt-in guard refuses without the verified row total; apply; a write to every one of the 14 `public` tables with triggers and a `sequencing` insert and delete, rolled back; all 52 views select; replay a no-op; revert by `pg_restore` schema-identical with all rows; re-apply identical. Database 337 MB after. **`092`**: `coverage_summary`'s comment no longer names the dropped schema; `goat_species_v1`'s does, left for the colleague. Still open from the plans: the draft upload modules are not yet checked for swallowed errors (Phase R); ref-genomes and post-curation still load the pre-`pawseyenv/2026.11` modules, though ref results keep landing; 61 ref assemblies and the 186 `hic` ones have no run link; 14 SRA uploads unlinked. |
 
 The previous revision is preserved at `/tmp/database_review.prev.md` at the time of writing; the authoritative history is in git.

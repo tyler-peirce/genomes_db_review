@@ -127,7 +127,7 @@ As RG.5, on a restore of live taken the morning of:
 
 ## After RG.6
 
-- **RG.7 (close-out):** after a quiet period, drop `pre_v4_archive`. A `pg_dump` the morning of goes outside git.
+- ~~**RG.7 (close-out):** after a quiet period, drop `pre_v4_archive`.~~ **Done 2026-11-23 by `091`**; the `pg_dump` is `~/oceanomics_genomes_archives_pre_091_261123.dump`.
 - **Labels the owner parked:** OG819 `250704.hic2` (built from 250717 reads), OG56 `250704.*` and OG73
   `250704.hic1` name a failed run, so they have no run link; re-stage or rename when the owner decides.
 - **SRA uploads still unlinked (14):** mostly older uploads whose file names carry no run; they stay in

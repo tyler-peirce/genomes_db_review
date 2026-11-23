@@ -327,11 +327,18 @@ which read it. `087` recreated the view on `ncbi_genome_assemblies`.
 
 ## Archives
 
-| Schema | Holds | Drop | Permanent copy |
-|---|---|---|---|
-| `pre_v2_archive` | The 20 pre-`v2` tables and views | V.7, after a quiet period | `~/oceanomics_genomes_pre_v6_261015.dump` |
-| `pre_v3_archive` | `mitogenome_data`, `draft_genomes`, the 260909 orphans, `076`'s hash maps | R.8, after a quiet period | A `pg_dump` taken the morning of the drop |
-| `pre_v4_archive` | The six old ref-genome tables and their two views, `ref_key_map`, `ref_excluded_rows` | RG.7, after a quiet period | As R.8 |
+All three archive schemas were dropped by `091` on 2026-11-23 (V.7, R.8, RG.7). Nothing outside
+them depended on them, and every value R.8 had to keep was already in `public`.
+
+| Schema | Held | Permanent copy |
+|---|---|---|
+| `pre_v2_archive` | The 18 pre-`v2` tables and 3 views (179 MB) | `~/oceanomics_genomes_archives_pre_091_261123.dump`, and `~/oceanomics_genomes_pre_v6_261015.dump` |
+| `pre_v3_archive` | `mitogenome_data`, `draft_genomes`, the 260909 orphans, `076`'s hash maps | `~/oceanomics_genomes_archives_pre_091_261123.dump` |
+| `pre_v4_archive` | The six old ref-genome tables and their two views, `ref_key_map`, `ref_excluded_rows` | As above |
+
+The archive dump is `pg_dump -Fc` of the three schemas (sha256 `f5f39458…`), verified by a restore
+that reproduced every table's row count and row-set md5 (35 tables, 383,829 rows). Restore it
+with `pg_restore` (`sql/revert/091_drop_archive_schemas_revert.sql`).
 
 The two empty `public.ena_*_archive` tables were dropped by `085`.
 
@@ -358,9 +365,6 @@ Things a reader will otherwise get wrong. Each is also in the column comment.
   `library`. Mito links include failed runs; ref links do not. A tissue or extraction moved upstream
   of `library` is not caught: run `SELECT refresh_assembly_runs(ARRAY(SELECT og_id FROM sample))`.
 - **DepthSizer is retired.** `draft_depthsizer` is frozen at its 701 rows.
-- **261 draft values exist only in `pre_v3_archive.draft_genomes`**: the `lambda_depth`-era
-  host and partition values for the 260909 and 260925 batches. They are lost at R.8 unless
-  backfilled first (`database_review.md` Finding 17.1).
 - **Lab status columns are checked against `lab_status`** (`082`). A value the lab enters that
   is not in its sheet's list loads as NULL, with a `lookup` record in `import_quarantine` holding
   the raw value. Add the value to `lab_status` and the next import fills it in. `summary` reports the latest extraction or library per
@@ -471,3 +475,5 @@ and cutover, `049`–`077` Phases R and RG, and `078` onwards the follow-ups.
 | `088` | `ncbi_genome_assemblies`' comment names its reader | `086`'s said it had none |
 | `089` | Drop `raw_data`; `ena_specimen_accessions` a view over `sample`; §11 answers in comments | Owner decisions 2026-11-23: unmaintained table; a one-off backfill nothing read |
 | `090` | `refresh_sequencing_run()` stops checking `raw_data` | `089` left it reading the dropped table, so writes to `sequencing` failed for three minutes |
+| `091` | Drop `pre_v2_archive`, `pre_v3_archive`, `pre_v4_archive` | Close-out V.7, R.8, RG.7: nothing depended on them; dumped and verified first |
+| `092` | `coverage_summary`'s comment no longer names `pre_v4_archive` | `091` dropped it |
