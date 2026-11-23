@@ -5731,7 +5731,7 @@ CREATE VIEW public.coverage_summary AS
 -- Name: VIEW coverage_summary; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.coverage_summary IS 'Coverage per OG from raw_qc, hifi_reads_qc and hic_reads_qc (the compatibility views). Replaced the public view of the same name at RG.6 (073); the old one is in pre_v4_archive.';
+COMMENT ON VIEW public.coverage_summary IS 'Coverage per OG from raw_qc, hifi_reads_qc and hic_reads_qc (the compatibility views). Replaced the public view of the same name at RG.6 (073); the old one was in pre_v4_archive, dropped by 091 (copy: ~/oceanomics_genomes_archives_pre_091_261123.dump).';
 
 
 --
