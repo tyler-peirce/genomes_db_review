@@ -1,6 +1,6 @@
 # Phase R plan — assembly relations: mitogenome split, draft-genome split, unconnected tables
 
-Status: **complete 2026-11-23: R.8 done by `091`** (archive dropped; permanent copy `~/oceanomics_genomes_archives_pre_091_261123.dump`). Still open: the draft upload modules' error check (`database_review.md` Phase R). History: **R.0–R.5 done 2026-10-16** (`050`–`055` applied to live; pipeline branches ready, not
+Status: **complete 2026-11-23: R.8 done by `091`** (archive dropped; permanent copy `~/oceanomics_genomes_archives_pre_091_261123.dump`). The draft upload modules' error check is done too (2026-11-23: they fail loudly; `database_review.md` Phase R). History: **R.0–R.5 done 2026-10-16** (`050`–`055` applied to live; pipeline branches ready, not
 deployed). `056` (2026-10-19) reorders the `v3` mito and draft views: `og_num` first, columns
 grouped by output. **R.6, the merge, done 2026-11-02** (`072`; [`r6_merge_record.md`](r6_merge_record.md)). R.7 is next; its migrations are now numbered from `073`. Written 2026-10-15, after V.6; revised
 2026-10-16 with the owner's answers, the draft pipeline's code, and the `v3` build approach.

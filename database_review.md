@@ -1,6 +1,6 @@
 # Ocean Genomes Database Review
 
-Review date: 2026-10-02 (revision 2); last revised 2026-11-23 (3.57)  
+Review date: 2026-10-02 (revision 2); last revised 2026-11-23 (3.58)  
 First reviewed: 2026-07-07  
 Database: PostgreSQL 14.24, `oceanomics_genomes` @ 146.118.120.134  
 Scope: Schema design, relationship quality, data completeness signals, view design, migration governance, and improvement planning  
@@ -1249,8 +1249,8 @@ Split by Phase R (`052`, merged `072`) into `draft_genome` and one table per pro
 
 Still wrong: BUSCO's N50 columns are unreliable and carried as-is (commented; use
 `draft_gfastats`). The host and partition values once held only in `pre_v3_archive.draft_genomes`
-are all in `draft_genomescope` (checked 2026-11-23, before `091` dropped the archive). The upload modules have not yet been
-checked for swallowed errors, as the mito writers were.
+are all in `draft_genomescope` (checked 2026-11-23, before `091` dropped the archive). The upload modules were
+checked 2026-11-23 (Draft-Genomes `origin/master` `9bfec88`): they do not swallow errors. Each of the seven `bin/push_*` scripts rolls back and exits 1 on any database error (`upload_records` re-raises; `sys.exit("❌ Error: …")`); the modules run them under `bash -euo pipefail` with no `set +e` or forced `exit 0`; `PUSH_*` tasks are `ignore`d per sample (`conf/modules.config`), so the run carries on and `-resume` re-runs them. The one deliberate exit 0 is a draft with no `sequencing` row yet, and live has none left without a run link (1,757 of 1,757). The poller's `post_draft.py` flags a run with ignored tasks for review from nf-core's completion line, but its trace fallback read the file twice and never saw `IGNORED`; fixed in a local clone of `pipeline_automations`, not yet pushed.
 
 ### Mitogenome and LCA tables
 
@@ -1681,7 +1681,7 @@ Both gates are now cleared. **V.0 was dropped by decision and V.1 is done**, bot
 
 ### Phase R: assembly relations (planned 2026-10-15)
 
-**Status 2026-11-23: all done, R.8 and RG.7 by `091`** (one item below still open: the draft upload modules). The merges ran on
+**Status 2026-11-23: all done, R.8 and RG.7 by `091`; the draft upload modules checked the same day.** The merges ran on
 2026-11-02: `072` (R.6) moved the mito and draft tables into `public`, `073` (RG.6) did the same for
 the reference-genome tables, and `074`–`076` (R.7, R.7b) re-keyed the LCA, BLAST, validation and
 ENA tables on `annotation_id`. `077` added the read-QC run FKs. The flat tables are in
@@ -1696,7 +1696,7 @@ What remains:
   schemas: `~/oceanomics_genomes_archives_pre_091_261123.dump`.
 - ~~**Run links (found 2026-11-04, `078`)**~~ **Done 2026-11-09 (`080`):** `mito_assembly_run` and
   `ref_assembly_run` are kept current by triggers, with the window syncs' rules.
-- **The draft upload modules:** check them for swallowed errors, as was done for the mito writers.
+- ~~**The draft upload modules:** check them for swallowed errors, as was done for the mito writers.~~ **Done 2026-11-23:** they do not (Phase R summary above). One follow-up outside them: the poller's `post_draft.py` trace check (fix not yet pushed).
 
 The history follows.
 
@@ -2135,5 +2135,6 @@ Capture the eight `data_package_*` tables in a migration and the data dictionary
 - re-apply: identical.
 Writers read at ref-genomes `fb128b3` and post-curation `2d700cf`; only `refdb.py` writes these tables. Its `ensure_read_set` re-added the date rule's runs (OG838 got 240520 back); changed after apply, with the delete path and a per-run HiFiAdapterFilt push (Finding 17.5). Applied on live after a fresh dump (`~/oceanomics_genomes_pre_093_apply_261123.dump`); live then matched the rehearsal: 491/491 assemblies with a read set, 290 read sets, 538 links, 14 unlinked, 0 PacBio links outside the read set. `schema/object_inventory.tsv` gains the two 093 objects. Scripts: `scripts/acacia_assembly_kmers.py`, `match_adapter_filter_runs.py`, `build_assembly_read_sets.py`, `build_093_data.py`. Data: `sql/data/093_*.tsv`, Acacia evidence in `sql/data/093_evidence/`. Pre-change dump: `~/oceanomics_genomes_pre_093_261123.dump`. Rehearsal database `oceanomics_genomes_rehearsal_093` left on the server for review. |
 | 3.57 | 2026-11-23 | **Hi-C runs linked to reference assemblies (Finding 17.5, backlog 9). Migration `094` applied to live** at 06:36 UTC; writer branches `hic-runs-094` in ref-genomes (`3f66a87`), post-curation (`d286ed8`) and `ref_genomes_hic_automation` (`f13ba2f`), not deployed. Evidence: read names (`instrument:run:flowcell:lane`) in the first ~50,000 records of each assembly's Hi-C BAM on Acacia (`scripts/acacia_hic_flowcells.py`) and one flowcell per S3 Hi-C run, 31 of 37 checked against the saved BaseSpace record (`scripts/s3_hic_run_flowcells.py`); `scripts/build_094_data.py` turns them into `sql/data/094_*`. Result: 191 of 201 `hicN` assemblies, 239 links (190 BAM, OG863 v250331.hic1 from a unique OMNIC fit, OG88's iSeq run inferred); 10 left with reasons (OG79 hic2 and OG906 hic1 hold another run's Hi-C, OG785 hic2 waits for a workbook row, 7 have no BAM). Design: `sequencing_run.flowcell` (38 runs), `ref_assembly_hic_flowcell` (232 rows, the evidence), `v_ref_assembly_hic_rule`, and `refresh_assembly_runs()` deriving Hi-C links when every flowcell resolves, with triggers on the two new sources; `set_ref_assembly_hic_flowcells()` for the writer; `ref_assembly_hic_unlinked` and `v_ref_assembly_hic_readiness`. Rehearsed on a restore of live: apply (guards, data checks, the writer's function re-given every BAM's flowcells changes nothing); replay a no-op; probes, rolled back: a nightly rewrite of every `sequencing` and `library` row changes no link; a failed Hi-C row unlinks its assemblies and they relink when it is not; one of two libraries failing keeps the run; adding OG785's missing row links its assembly; clearing and resetting a run's flowcell round-trips; the writer links, repeats and reports unknown or wrong-OG flowcells; refusals refuse; a write to each of the 17 tables with triggers; all 55 views select; revert schema- and row-identical to before (after keeping `updated_at` out of the flowcell backfill); re-apply identical. `push_hic_yield.py` and `05b` were run against the rehearsal, `05b` on the first 4 MB of OG2119's and OG79's real BAMs. Live then matched the rehearsal row for row (`ref_assembly_run` 777, `sequencing_run`, `ref_assembly`, `mito_assembly_run`). Post-checks: ledger 95 files, all hashes match; 55 views select; drift only the colleague's objects. Baseline updated with `094`'s delta only. Also: the compile job in both `post-hichifi-assembly.py` copies now exits non-zero if any push failed, not only the last. Pre-change dumps: `~/oceanomics_genomes_pre_094_261123.dump`, `~/oceanomics_genomes_pre_094_apply_261123.dump`. Revert: `sql/revert/094_ref_assembly_hic_runs_revert.sql`. |
+| 3.58 | 2026-11-23 | **Phase R closed: draft upload modules checked** (Draft-Genomes `origin/master` `9bfec88`). No swallowed errors: the seven `bin/push_*` scripts roll back and exit 1 on a database error; the upload modules run under `bash -euo pipefail` without forcing success; `PUSH_*` tasks are ignored per sample, so the run continues and `-resume` re-runs them. The only deliberate exit 0 (a draft with no `sequencing` row yet) has left no gap: live, 1,757 of 1,757 drafts have a run link. Found in the poller (`pipeline_automations` `post_draft.py`, Pawsey checkout at `5deaed4`): `draft_has_errored_processes()` read the trace twice, so `IGNORED` was never seen when nf-core's "completed successfully, but with errored process" line was not in the log tail. Fixed and tested in a local clone; the push was not permitted from this session, so it is not on GitHub or Pawsey yet. Also: docs brought up to date for `089`–`094` (data dictionary read-set and Hi-C rows, the 2026-07-07 live snapshots marked as history, three rehearsal rules in the change checklist). |
 
 The previous revision is preserved at `/tmp/database_review.prev.md` at the time of writing; the authoritative history is in git.
