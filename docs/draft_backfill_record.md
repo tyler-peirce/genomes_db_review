@@ -328,3 +328,15 @@ Owner, 2026-11-23: all 116 rows stay in the draft tables, stubs included ("they 
 - **Results written since 2026-11-16:** 483 depth files (`old_rerun/results`) and 924 genome-size files (`old_rerun/gsize/results`) for the reads re-run, 250514 and the 7 tolerance drafts. Copied, and `rclone check`: every data file matches. 121 paths differ, all `coverage/versions.yml` (both runs write one for the same draft, and the first copy is kept) or tool-parameter HTML; nothing already on Acacia was replaced. FCS-GX re-screen: 485 of 485 match.
 - **FCS-GX re-screens of the 97 filled drafts** (221003, 230419): 485 report files (filter report, GX report, taxonomy, summary, log; not the pre-FCS fasta) under `assemblies/genome/NCBI/rescreen_261118/`, kept apart so they are not read as the original screen.
 - Not archived: `busco_rerun/` (OG373/399/421 BUSCO, used only to pick depth regions; the stored BUSCO is the original's) and the reads re-run stage folders (BAMs, histograms: rebuildable).
+
+### Easy fills (2026-11-23)
+
+- **BUSCO zeros:** OG348 230324 `complete`, `single_copy`, `multi_copy`, `fragmented` and OG262 230419 `multi_copy` set to 0. The archived short summaries say 0.0% (OG348: M 100%). One transaction, guarded on the columns still being NULL, with a read-back. Before: [`records/draft_busco_before_zero_261123.csv`](records/draft_busco_before_zero_261123.csv).
+- **`GENOME_SIZE_ONLY` for 9 later drafts** (`old_rerun/gsize9/`, list `gate/gsize/g9.tsv`). Run with `--skip_upload_results` first, then resumed to upload. Before: [`records/draft_genomescope_before_gsize9_261123.csv`](records/draft_genomescope_before_gsize9_261123.csv). All fits `original` (no reseed won).
+  - **Reliable:** OG1752, OG1765, OG1769 (kmercov ÷ lambda_depth 0.93–0.95).
+  - **Not reliable:** OG1262, OG1263 (250606), OG1917 (251210), OG1942 (251215), OG1889 (260108). Flags: `no_kmer_peak`, `genome_size_disagrees_with_assembly`, `fitted_coverage_disagrees_with_read_depth`, `host_coverage_too_low`. Stored sizes of 55–141 Mb against 2.2–3.1 Gb of host assembly. `genomesize` is unchanged; the verdict says not to quote it.
+  - **Not reliable:** OG1724 (251210), with a degenerate model (`non_finite_genome_size`, model fit 37.6%).
+  - **`genomesize` changed on 4, which the upload did without a separate gate:**
+    - OG1752 1,061,368,001 → 1,461,926,461; OG1765 763,749,811 → 957,768,937; OG1769 577,133,041 → 678,678,093. These are the three the 2026-11-11 backfill refused on purpose: the stored values come from a GenomeScope run that has no file on Acacia, and Acacia's only summary (`kmers/<key>.genomescope/summary.txt`, 2026-01-06) gives the new values. The new values agree with the measured depth (verdict reliable). The heterozygosity and `*_min` columns now come from the same summary.
+    - OG1724: 0 → NULL. The launcher paired `genomescope_old/…_genomescope2_summary.txt` (max `Inf`) with `genomescope/model.txt`. Both of its fits are degenerate (max 0 bp or Inf).
+    - To undo any of the four, restore its row from the snapshot.
