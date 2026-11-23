@@ -1,0 +1,261 @@
+read_set_id	og_id	seq_date	n_runs	db_contam_reads	per_run_sum	runs_without_file	result
+1	OG1651	260522	1		0		no stored value
+2	OG910	241127	1	0	0		equal
+3	OG2164	260331	1		0		no stored value
+4	OG61	250317	1	0		OG61W_D_SBL_PACB_250317_AD	run(s) without a file
+5	OG8	230512	1		0		no stored value
+6	OG672	240215	1		0		no stored value
+7	OG107	240125	1	0	0		equal
+8	OG2138	260626	1	0	0		equal
+9	OG2134	260511	1		0		no stored value
+10	OG2159	260408	1		0		no stored value
+11	OG2130	260428	1		0		no stored value
+12	OG10	230209	1		0		no stored value
+13	OG46	240215	1		0		no stored value
+14	OG40	241004	1	0	0		equal
+15	OG777	240520	1		0		no stored value
+16	OG686	241004	1	0	0		equal
+17	OG78	260626	1	0	0		equal
+18	OG1422	260227	1	0	0		equal
+19	OG2218	260428	1		0		no stored value
+20	OG698	241004	1	0	0		equal
+21	OG2121	260511	1	0	0		equal
+22	OG790	250704	1	0	0		equal
+23	OG673	240427	1	0	0		equal
+24	OG756	250704	1	0	0		equal
+25	OG2161	260331	1		0		no stored value
+26	OG784	241018	1	0	0		equal
+27	OG683	241023	1		0		no stored value
+28	OG47	231115	1		0		no stored value
+29	OG2128	260603	1		0		no stored value
+30	OG2092	260626	1	0	0		equal
+31	OG2122	260511	1		0		no stored value
+32	OG15	230413	1		0		no stored value
+33	OG2132	260408	1	0	0		equal
+34	OG2142	260603	1		0		no stored value
+35	OG60	241127	1		0		no stored value
+36	OG2237	260414	1		0		no stored value
+37	OG696	240228	1	0	0		equal
+38	OG844	260511	1	0	0		equal
+39	OG678	240327	1	0	0		equal
+40	OG775	241004	1	0	0		equal
+41	OG855	240821	1	0	0		equal
+42	OG7	230915	1		0		no stored value
+43	OG824	241004	1	0	0		equal
+44	OG73	250307	1	0		OG73W_D_SBL_PACB_250307_AD	run(s) without a file
+45	OG2145	260730	2	0	0		equal
+46	OG652	240327	1	0	0		equal
+47	OG104	250113	2		0		no stored value
+48	OG2119	260408	1	0	0		equal
+49	OG2136	260730	1	0	0		equal
+50	OG1455	260331	1	0	0		equal
+51	OG2100	260227	1	0	0		equal
+52	OG664	241018	1	0	0		equal
+53	OG57	231027	1	0	1		differs
+54	OG680	241004	1	0	0		equal
+55	OG645	240427	1		0		no stored value
+56	OG820	240501	1	0	0		equal
+57	OG76	230825	1		0		no stored value
+58	OG14	230209	1		0		no stored value
+59	OG2143	260421	1	0	0		equal
+60	OG70	250307	1	0	0		equal
+61	OG834	240927	1	0	0		equal
+62	OG1	230525	1		0		no stored value
+63	OG2105	260421	2	0		OG2105G_D_SBL2_PACB_260421_AMD,OG2105G_D_SBL_PACB_260421_AMD	run(s) without a file
+64	OG38	230609	1		0		no stored value
+65	OG847	260626	1	0	0		equal
+66	OG2131	260511	1		0		no stored value
+67	OG836	240520	1	0	0		equal
+68	OG65	250704	1	0	0		equal
+69	OG2133	260522	1		0		no stored value
+70	OG765	240821	1	0	0		equal
+71	OG787	240927	1		0		no stored value
+72	OG759	240520	1		0		no stored value
+73	OG56	240116	1	0	0		equal
+74	OG702	240501	1	0	0		equal
+75	OG794	250307	1		0		no stored value
+76	OG757	241018	1		0		no stored value
+77	OG2189	260414	1	0	0		equal
+78	OG2325	260428	1		0		no stored value
+79	OG657	240501	1		0		no stored value
+80	OG829	240927	1	0	0		equal
+81	OG706	240206	2		0		no stored value
+82	OG1699	260421	1	0	0		equal
+83	OG781	260421	2	0	0		equal
+84	OG762	241018	1	0	0		equal
+85	OG1650	260331	1		0		no stored value
+86	OG658	240327	1	0	0		equal
+87	OG2227	260414	1		0		no stored value
+88	OG2127	260603	1	0	0		equal
+89	OG6	230628	1		0		no stored value
+90	OG55	231115	1	0	0		equal
+91	OG1161	250113	2	0	0		equal
+92	OG81	250704	1	0	0		equal
+93	OG803	240927	1	0	0		equal
+94	OG695	240520	1		0		no stored value
+95	OG95	230525	1		0		no stored value
+96	OG681	250307	1	0	0		equal
+97	OG679	250307	1	0	0		equal
+98	OG755	240821	1		0		no stored value
+99	OG716	260730	1	0	0		equal
+100	OG2098	260511	1		0		no stored value
+101	OG115	240125	1		0		no stored value
+102	OG750	241004	1	0	0		equal
+103	OG793	250317	1	0	0		equal
+104	OG665	240501	1	0	0		equal
+105	OG766	241004	1	0	0		equal
+106	OG2118	260626	1	0	0		equal
+107	OG701	240427	1		0		no stored value
+108	OG2202	260331	1		0		no stored value
+109	OG11	230825	1		0		no stored value
+110	OG105	231027	1		0		no stored value
+111	OG863	241004	1	0	0		equal
+112	OG2182	260331	1		0		no stored value
+113	OG2242	260414	1		0		no stored value
+114	OG2241	260414	1		0		no stored value
+115	OG2099	260603	1		0		no stored value
+116	OG113	231027	1	0	0		equal
+117	OG758	241127	1	0	0		equal
+118	OG2317	260303	2	0	0		equal
+119	OG848	250113	2		0		no stored value
+120	OG2205	260522	1		0		no stored value
+121	OG2179	260428	1		0		no stored value
+122	OG1573	260626	1	0	0		equal
+123	OG647	240501	1		0		no stored value
+124	OG2166	260331	1		0		no stored value
+125	OG659	240427	1	0	0		equal
+126	OG856	240821	1	0		OG856H_D_SBL_PACB_240821_AD	run(s) without a file
+127	OG2178	260408	1		0		no stored value
+128	OG64	250307	1	0	0		equal
+129	OG699	250317	1	0	0		equal
+130	OG866	241023	1	0	0		equal
+131	OG108	231027	1		0		no stored value
+132	OG36	230724	1		0		no stored value
+133	OG100	240116	1	0	0		equal
+134	OG53	230915	2		0		no stored value
+135	OG2269	260428	1		0		no stored value
+136	OG2203	260408	1	0	0		equal
+137	OG869	250818	1	0	0		equal
+138	OG763	251117	0	0			no runs
+139	OG88	230724	1		0		no stored value
+140	OG675	250828	1	0	0		equal
+141	OG1560	260408	1	0	0		equal
+142	OG2268	260428	1		0		no stored value
+143	OG837	240813	1	0	0		equal
+144	OG42	240215	1		0		no stored value
+145	OG767	241004	1	0	0		equal
+146	OG62	250317	1	0	0		equal
+147	OG662	240327	1	0	0		equal
+148	OG666	241004	1	0	0		equal
+149	OG2113	260522	1		0		no stored value
+150	OG810	241004	1		0		no stored value
+151	OG654	240327	1		0		no stored value
+152	OG1297	250818	1	0	0		equal
+153	OG852	250717	1	0	0		equal
+154	OG3	230825	1		1		no stored value
+155	OG37	240116	1	0	0		equal
+156	OG721	240501	1	0	0		equal
+157	OG660	240228	2		0		no stored value
+158	OG35	231027	1		0		no stored value
+159	OG648	250704	1	0	0		equal
+160	OG2146	260414	1	0	0		equal
+161	OG637	240206	2		0		no stored value
+162	OG801	250828	1	0	0		equal
+163	OG1663	260603	1	0	0		equal
+164	OG85	240927	1	0	0		equal
+165	OG13	230209	1		0		no stored value
+166	OG106	240927	1	0	0		equal
+167	OG704	240417	1	0	0		equal
+168	OG778	241018	1	0	0		equal
+169	OG2109	260626	1	0	0		equal
+170	OG650	240327	1		0		no stored value
+171	OG808	240520	1	0	0		equal
+172	OG1613	260603	1	0	0		equal
+173	OG1639	260626	1	0	0		equal
+174	OG58	250704	1	0	0		equal
+175	OG2135	260730	1	0	0		equal
+176	OG853	250717	1	0	0		equal
+177	OG2220	260421	1	0	0		equal
+178	OG711	260603	1		0		no stored value
+179	OG28	230811	4		0		no stored value
+180	OG2188	260408	1		0		no stored value
+181	OG2093	260227	1	0	0		equal
+182	OG906	250212	0				no runs
+183	OG54	241004	1	0	0		equal
+184	OG2266	260511	1		0		no stored value
+185	OG1701	260428	1		0		no stored value
+186	OG1369	260227	1	0	0		equal
+187	OG2165	260428	1		0		no stored value
+188	OG819	250717	1	0	0		equal
+189	OG2112	260603	1	0	0		equal
+190	OG9	240206	1		0		no stored value
+191	OG2090	260303	1	0	0		equal
+192	OG859	241023	2		0		no stored value
+193	OG101	240206	1		0		no stored value
+194	OG1326	260730	1	0	0		equal
+195	OG868	250317	1	0	0		equal
+196	OG770	241127	1	0	0		equal
+197	OG769	250828	1	0	0		equal
+198	OG99	240215	1		0		no stored value
+199	OG90	240821	1	0	0		equal
+200	OG785	241004	1	0	0		equal
+201	OG646	240821	1		0		no stored value
+202	OG2320	260303	1	0	0		equal
+203	OG800	241004	1	0	0		equal
+204	OG2102	260227	1	0	0		equal
+205	OG804	260522	2	0	0		equal
+206	OG838	240813	2	0	0		equal
+207	OG2104	260414	1	0	0		equal
+208	OG72	241023	1	0	0		equal
+209	OG907	250828	1	0	0		equal
+210	OG1678	260603	1		0		no stored value
+211	OG2116	260603	1		0		no stored value
+212	OG27	230512	1		0		no stored value
+213	OG2088	260414	1	0	0		equal
+214	OG2	230413	1		0		no stored value
+215	OG845	241023	3	0		OG845H_D2_SBL2_PACB_241023_AD,OG845H_D2_SBL_PACB_241023_AD	run(s) without a file
+216	OG2126	260730	2	0	0		equal
+217	OG813	250704	1	0	0		equal
+218	OG1454	260227	1	0	0		equal
+219	OG751	250317	1	0	0		equal
+220	OG651	240327	1		0		no stored value
+221	OG748	241018	1	0	0		equal
+222	OG2177	260603	1		0		no stored value
+223	OG2156	260408	1	0	0		equal
+224	OG2163	260603	1	0	0		equal
+225	OG849	241127	1	0	0		equal
+226	OG865	250818	1	0	0		equal
+227	OG79	240427	1	0	0		equal
+228	OG52	230825	1		0		no stored value
+229	OG2151	260421	1	0	0		equal
+230	OG2209	260626	1	0	0		equal
+231	OG676	240327	1	0	0		equal
+232	OG799	241018	1	0	0		equal
+233	OG39	241018	1	0	0		equal
+234	OG12	230512	1		0		no stored value
+235	OG860	240927	1		0		no stored value
+236	OG649	240427	1	0	0		equal
+237	OG2089	260227	1	0	0		equal
+238	OG749	250331	1	0	0		equal
+239	OG5	230628	2		1		no stored value
+240	OG788	240927	1	0	0		equal
+241	OG67	241127	1	0	0		equal
+242	OG111	241018	1	0	0		equal
+243	OG114	240116	1	0	0		equal
+244	OG811	241004	1	0	0		equal
+245	OG709	240501	1		0		no stored value
+246	OG2200	260603	1		0		no stored value
+247	OG2124	260421	1	0	0		equal
+248	OG16	240427	1		0		no stored value
+310	OG760	240520	1		0		no stored value
+313	OG2089	260721	2	0	0		equal
+314	OG2093	260721	2	0	0		equal
+318	OG2128	260721	2	0	0		equal
+335	OG1568	261102	1	0	0		equal
+336	OG1591	261102	1	0	0		equal
+337	OG1592	261102	1	0	0		equal
+338	OG1643	261102	1	0	0		equal
+339	OG1653	261102	1	0	0		equal
+340	OG1681	261102	1	0	0		equal
+341	OG2095	261102	1	0	0		equal
+342	OG2408	261102	1	0	0		equal
