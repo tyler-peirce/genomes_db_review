@@ -48,6 +48,8 @@ table	ont_library
 table	pacbio_library
 table	prep_automation
 table	ref_assembly
+table	ref_assembly_hic_flowcell
+table	ref_assembly_hic_unlinked
 table	ref_assembly_part
 table	ref_assembly_run
 table	ref_busco
@@ -122,6 +124,8 @@ view	v_quarantine_displaced
 view	v_quarantine_open
 view	v_read_qc_sequencing_readiness
 view	v_read_set_run_readiness
+view	v_ref_assembly_hic_readiness
+view	v_ref_assembly_hic_rule
 view	v_ref_assembly_run_readiness
 view	v_ref_assembly_status
 view	v_ref_assembly_summary

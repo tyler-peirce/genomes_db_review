@@ -1,0 +1,11 @@
+og_id	seq_date	version	reason
+OG2088	260414	hic2	no Hi-C BAM on Acacia; OMNIC's 240,870,035 read pairs fit 2 sets of the OG's runs: NOVA_260420_TW1+NOVA_260605_AD | ISEQ_260416_TW+NOVA_260420_TW1+NOVA_260605_AD
+OG38	230609	hic1	no Hi-C BAM on Acacia and no single OMNIC total
+OG706	240206	hic2	no Hi-C BAM on Acacia and no single OMNIC total
+OG749	241018	hic1	no Hi-C BAM on Acacia; OMNIC's 243,560,695 read pairs fit 2 sets of the OG's runs: NOVA_250505_AD | NEXT_250325_AD+NOVA_250505_AD
+OG785	241004	hic2	100.0% of its Hi-C reads are from NOVA_250505_AD, which has no OG785 Hi-C sequencing row
+OG79	240427	hic2	95.2% of its Hi-C reads are from NOVA_250312_LA, which has no OG79 Hi-C sequencing row
+OG804	260522	hic2	no Hi-C BAM on Acacia; OMNIC's 221,756,607 read pairs fit 2 sets of the OG's runs: NOVA_260420_TW1+NOVA_260605_AD | ISEQ_260416_TW+NOVA_260420_TW1+NOVA_260605_AD
+OG810	241004	hic2	no Hi-C BAM on Acacia and no single OMNIC total
+OG860	240927	hic1	no Hi-C BAM on Acacia and no single OMNIC total
+OG906	250212	hic1	100.0% of its Hi-C reads are from NOVA_240501_LA, which has no OG906 Hi-C sequencing row
