@@ -1,10 +1,10 @@
 # Ocean Genomes Database Review
 
-Review date: 2026-10-02 (revision 2); last revised 2026-11-04 (3.40)  
+Review date: 2026-10-02 (revision 2); last revised 2026-11-23 (3.53)  
 First reviewed: 2026-07-07  
 Database: PostgreSQL 14.24, `oceanomics_genomes` @ 146.118.120.134  
 Scope: Schema design, relationship quality, data completeness signals, view design, migration governance, and improvement planning  
-Status: Review, plus the Phase A remediations applied on 2026-10-02 (migrations `027`–`030`). Each is recorded in Appendix C and in the relevant finding.
+Status: Review and remediation. Migrations `027`–`088` are applied to live and ledgered (2026-10-02 to 2026-11-16). The §10 backlog is closed except the `postgres` password rotation (deferred to 2028 by the owner) and the primary key on `ncbi_genome_assemblies`. Each change is recorded in Appendix C and in the relevant finding.
 
 ## 0. What Changed Since Revision 1
 
@@ -72,23 +72,23 @@ The `data_package_*` subsystem is the largest single piece of undocumented schem
 
 | # | Finding (rev 1) | Status now |
 |---|---|---|
-| 1 | Repository is not the schema source of truth | **Worse at review; much improved 2026-10-05.** One declared migration system, re-baselined, drift checked daily. Coverage 22 of 64 and routed. |
-| 2 | Species data has two competing authorities | **Worse.** Now three species tables and a fourth `og_id` authority; sample species drift grew. |
-| 3 | Logical relationships not enforced | **Much improved.** `blast_filtered_lca` orphans 334 → 0; FKs are now actually addable. |
-| 4 | FK columns not indexed | **Unchanged.** All 24 candidates still missing. |
-| 5 | Sequencing modelled with polymorphic nullable columns | **Unchanged.** |
-| 6 | Columns unused or nearly unused | **Unchanged.** All 16 named columns still fully empty. |
-| 7 | Dates/numbers/statuses stored as text | **Mixed.** New tables are properly typed; legacy unchanged; status cardinality worsened. |
+| 1 | Repository is not the schema source of truth | **Resolved for this project's objects.** One declared migration system (2026-10-05), drift checked daily, ledger 89 files. Coverage on 2026-11-23: 120 objects by a migration, 9 by the baseline only, 3 by neither. The 3 are colleague drift (`og_embargo_log`, `og_priority_log`, `v_sample_master_species`), kept out of the baseline. |
+| 2 | Species data has two competing authorities | **Closed for this project's scope (2026-11-13).** `species_ncbi_assembly` dropped (`085`). `master_species` is the authority for names and, with `master_species_genome`, is a colleague's GoaT work. Sample species validation withdrawn by the owner (backlog Highest 8). |
+| 3 | Logical relationships not enforced | **Much improved.** `blast_filtered_lca` orphans 334 → 0, and direct FKs to `sample` added in Phases R and RG. |
+| 4 | FK columns not indexed | **Resolved 2026-10-02** (`030`): all 24 columns indexed. |
+| 5 | Sequencing modelled with polymorphic nullable columns | **Resolved at the `v2` cutover** (`045`, 2026-10-13; merged into `public` by `048`). `library` is the shared identity registry, and `sequencing` has one library FK target. |
+| 6 | Columns unused or nearly unused | **Mostly resolved.** The nine `sample` workflow flags were dropped (`036`). The `status_overwrite` columns are kept because they are live. `eschmeyer_id`, `ncbi_sample_name` and `hifi_public` are undecided. |
+| 7 | Dates/numbers/statuses stored as text | **Resolved.** Legacy dates and numbers typed at the `v2` cutover (`036`, `045`), and lab Status columns FK'd to `lab_status` (`082`, 2026-11-09). |
 | 8 | Reporting views hide logic and carry performance risk | **`summary` resolved 2026-11-09** (`081`): set-based, ~60 ms, no JIT (was 7.6 s, then 2.0 s). `goat_species_v1` unchanged (~10 s for a full read); out of scope, a colleague's GoaT work (§2). |
 | 9 | Documentation coverage minimal | **Resolved for this project's objects** (2026-11-04, `078`/`079`): 130 of 132 tables and views and 1,123 of 2,041 columns in `public` commented (was 3 and 60 in October). |
 | 10 | — | **New at review; resolved 2026-10-05.** One system declared, ledger gap closed, drift check scheduled. |
 | 11 | — | **New. RESOLVED 2026-10-02** by migration `027`. Production views read frozen August snapshots. |
-| 12 | — | **New.** Snapshot tables have become permanent fixtures. |
-| 13 | — | **New.** Nine tables have no primary key. |
-| 14 | — | **New.** Database credentials in a world-readable file. |
-| 15 | — | **New.** Live `lca_validation` species-name coverage is incomplete; exposed by fixing 11. |
+| 12 | — | **Resolved 2026-10-15** (`047`, Phase F). `lca_old` dropped (`032`), and the `SS260818` snapshots archived to CSV and dropped. |
+| 13 | — | **One left.** Of the nine tables without a primary key, only `ncbi_genome_assemblies` remains, and it has a UNIQUE constraint. |
+| 14 | — | **Partly resolved.** File set to mode `600` (2026-10-02), and credentials consolidated in one file with a rotation runbook. Rotating the password is deferred to 2028 (owner, 2026-11-04). |
+| 15 | — | **Open, not re-measured since October.** The table is now `mito_lca_validation` (Phase R), and `lca_validation` is a compatibility view. |
 | 16 | — | **New. RESOLVED 2026-10-02** by migrations `028`+`029`. `mitogenome_submission_view` ENA join keyed one grain too coarse. |
-| 17 | — | **New 2026-10-28.** The pipelines compute more than they upload. Two draft gaps block R.6, and the draft ENA `COVERAGE` is the wrong quantity. |
+| 17 | — | **Resolved.** The R.6 gaps were closed (`067`, `068`; R.6 deployed via `072`, 2026-11-02), draft ENA `COVERAGE` now sends `busco_read_depth`, assembly runs have a writer (`080`), and ref decontamination counts are stored (`083`). Old draft batches were backfilled 2026-11-18 (`docs/draft_backfill_record.md`). Still open: Hi-C runs are not linked to assemblies. |
 
 ## 1. Executive Summary
 
@@ -2069,5 +2069,7 @@ Capture the eight `data_package_*` tables in a migration and the data dictionary
 | 3.50 | 2026-11-13 | **GoaT out of scope (owner).** `goat_species_v1`, `goat_project_metadata_v1`, the GoaT contract and `master_species` are a colleague's work. Stated in §2; Finding 8's `goat_species_v1` recommendation, backlog Medium 6 and §11 Q6 are marked out of scope; measurements are kept. `docs/database_change_checklist.md` and `docs/species_authority_decision.md` (now marked superseded) say the same. |
 | 3.51 | 2026-11-13 | **Data dictionary: migration headers extracted** (backlog Medium 7). Each section of `docs/data_dictionary.md` gains a "Why it is shaped this way" list citing its migrations, and a migration index gives one line per migration, `000`–`086`. Stale entries fixed: lab Status is checked against `lab_status` (`082`); `085`'s objects removed; species source and GoaT scope as decided. |
 | 3.52 | 2026-11-13 | **Migrations `087` and `088` applied to live** (07:33 UTC and after). `087` recreates `v_genome_size_comparison` on `ncbi_genome_assemblies` (owner decision): the same 1,572 rows as before `085` (drafts whose nominal species is in `species`), now with an NCBI assembly for 1,053, matched on taxon id. One assembly per taxon: RefSeq reference genome, then the most complete level, then the latest release, then accession (88 taxa have several; `ncbi_assembly_count` shows how many). `ncbi_bp` and `estimated_over_ncbi` are gone, because `ncbi_genome_assemblies` has no total sequence length; if a loader adds it, they can come back. Added: assembly name, BioProject, release date, contig N50. Rehearsed on a restore of live (row set equal to the old view's, choice deterministic, 0.25 s, replay a no-op, revert schema-identical). `088` makes `ncbi_genome_assemblies`' comment name the view as its reader. Baseline updated with both deltas; colleague drift left out. Pre-change dump: `~/oceanomics_genomes_pre_087_261113.dump`. |
+
+| 3.53 | 2026-11-23 | **Header and §0.4 brought up to date with the backlog.** The header said 3.40 and that only Phase A was applied. §0.4 still showed Findings 4–7 and 12–14 as unchanged or new, though §10 and each finding's own note record them as done or partly done. Finding 1 now gives the live coverage (120 / 9 / 3, from `bin/check_drift.py --coverage`). New colleague drift since 3.52: `og_embargo_log` (live, in neither `sql/` nor the baseline). Its owner is unconfirmed, and it is kept out of the baseline like the other `og_*` tables. The draft-genome backfill of 2026-11-18 to 2026-11-23 is in `docs/draft_backfill_record.md`. No schema change. |
 
 The previous revision is preserved at `/tmp/database_review.prev.md` at the time of writing; the authoritative history is in git.
