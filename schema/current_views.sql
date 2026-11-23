@@ -204,6 +204,26 @@ CREATE OR REPLACE VIEW public.embargo_assignment_view AS
            FROM lca_validation lv
           WHERE lv.og_id = s.og_id) lv1 ON true;;
 
+-- View: public.ena_specimen_accessions
+CREATE OR REPLACE VIEW public.ena_specimen_accessions AS
+ SELECT s.og_id,
+    s.og_num AS og_numeric,
+    b.accession AS ena_biosample_accession,
+        CASE
+            WHEN b.accession IS NOT NULL THEN 'sample.ncbi_biosample_id'::text
+            ELSE NULL::text
+        END AS accession_source,
+    NULL::timestamp with time zone AS verified_at,
+    NULL::timestamp with time zone AS updated_at
+   FROM sample s
+     CROSS JOIN LATERAL ( SELECT NULLIF(btrim(s.ncbi_biosample_id), ''::text) AS accession) b0
+     CROSS JOIN LATERAL ( SELECT
+                CASE
+                    WHEN b0.accession ~ '^SAM(EA|N|D)[0-9]+$'::text THEN b0.accession
+                    ELSE NULL::text
+                END AS accession) b
+  WHERE s.og_id ~ '^OG[0-9]+$'::text;;
+
 -- View: public.ena_submission_status
 CREATE OR REPLACE VIEW public.ena_submission_status AS
  WITH latest AS (
@@ -1806,13 +1826,6 @@ CREATE OR REPLACE VIEW public.v_sequencing_run_fk_readiness AS
     count(*) FILTER (WHERE c.run_id IS NOT NULL AND r.run_id IS NULL) AS failing_rows,
     string_agg(DISTINCT c.run_id, ', '::text) FILTER (WHERE c.run_id IS NOT NULL AND r.run_id IS NULL) AS failing_run_ids
    FROM sequencing c
-     LEFT JOIN sequencing_run r ON r.run_id = c.run_id
-UNION ALL
- SELECT 'raw_data'::text AS child,
-    count(*) AS child_rows,
-    count(*) FILTER (WHERE c.run_id IS NOT NULL AND r.run_id IS NULL) AS failing_rows,
-    string_agg(DISTINCT c.run_id, ', '::text) FILTER (WHERE c.run_id IS NOT NULL AND r.run_id IS NULL) AS failing_run_ids
-   FROM raw_data c
      LEFT JOIN sequencing_run r ON r.run_id = c.run_id
 UNION ALL
  SELECT 'hifi_read_qc'::text AS child,

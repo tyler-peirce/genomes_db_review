@@ -17,7 +17,6 @@ table	draft_merqury
 table	draft_submission
 table	draft_tiara
 table	ena_related_assemblies
-table	ena_specimen_accessions
 table	ena_submissions
 table	ena_validation_attempts
 table	hic_library
@@ -48,7 +47,6 @@ table	og_workflow_recommendation
 table	ont_library
 table	pacbio_library
 table	prep_automation
-table	raw_data
 table	ref_assembly
 table	ref_assembly_part
 table	ref_assembly_run
@@ -87,6 +85,7 @@ view	blast_filtered_lca
 view	coverage_summary
 view	draft_genomes
 view	embargo_assignment_view
+view	ena_specimen_accessions
 view	ena_submission_status
 view	ena_validation_latest
 view	filtered_lca_view

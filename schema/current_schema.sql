@@ -850,7 +850,6 @@ BEGIN
   DELETE FROM sequencing_run r
    WHERE r.run_id = ANY (p_runs)
      AND NOT EXISTS (SELECT 1 FROM sequencing s WHERE s.run_id = r.run_id)
-     AND NOT EXISTS (SELECT 1 FROM raw_data d WHERE d.run_id = r.run_id)
      AND NOT EXISTS (SELECT 1 FROM rna_qc_kinnex k WHERE k.run_id = r.run_id)
      AND NOT EXISTS (SELECT 1 FROM hifi_read_qc h WHERE h.run_id = r.run_id)
      AND NOT EXISTS (SELECT 1 FROM hic_read_qc c WHERE c.run_id = r.run_id);
@@ -3876,7 +3875,7 @@ COMMENT ON COLUMN public.sample.field_id IS 'The collector''s own identifier. 1.
 -- Name: COLUMN sample.nominal_species_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.sample.nominal_species_id IS 'The species name the specimen arrived as. 1.MetaData "Nominal Species ID". Free text, not validated against species on import (backlog item 8); the LCA validates it later (mito_lca_validation). Meaning undecided: §11 Q1 (which species table it should match).';
+COMMENT ON COLUMN public.sample.nominal_species_id IS 'The species name the specimen arrived as. 1.MetaData "Nominal Species ID". Free text and deliberately not validated: master_species, the name authority, is the vertebrate GoaT list and does not cover every sample (owner, 2026-11-13). The LCA checks it later (mito_lca_validation).';
 
 
 --
@@ -7216,7 +7215,7 @@ COMMENT ON COLUMN public.ena_related_assemblies.id IS 'Surrogate key.';
 -- Name: COLUMN ena_related_assemblies.og_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.ena_related_assemblies.og_id IS 'The sample.';
+COMMENT ON COLUMN public.ena_related_assemblies.og_id IS 'The sample (FK to sample; to ena_specimen_accessions before 089).';
 
 
 --
@@ -7276,70 +7275,76 @@ ALTER TABLE public.ena_related_assemblies ALTER COLUMN id ADD GENERATED ALWAYS A
 
 
 --
--- Name: ena_specimen_accessions; Type: TABLE; Schema: public; Owner: -
+-- Name: ena_specimen_accessions; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE TABLE public.ena_specimen_accessions (
-    og_id text NOT NULL,
-    og_numeric integer NOT NULL,
-    ena_biosample_accession text,
-    accession_source text,
-    verified_at timestamp with time zone,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT ena_specimen_biosample_check CHECK (((ena_biosample_accession IS NULL) OR (ena_biosample_accession ~ '^SAM(EA|N|D)[0-9]+$'::text))),
-    CONSTRAINT ena_specimen_og_id_check CHECK ((og_id ~ '^OG[0-9]+$'::text)),
-    CONSTRAINT ena_specimen_og_numeric_check CHECK (((og_numeric >= 0) AND (og_numeric <= 999999))),
-    CONSTRAINT ena_specimen_og_numeric_matches_check CHECK ((og_numeric = (SUBSTRING(og_id FROM 3))::integer))
-);
+CREATE VIEW public.ena_specimen_accessions AS
+ SELECT s.og_id,
+    s.og_num AS og_numeric,
+    b.accession AS ena_biosample_accession,
+        CASE
+            WHEN (b.accession IS NOT NULL) THEN 'sample.ncbi_biosample_id'::text
+            ELSE NULL::text
+        END AS accession_source,
+    NULL::timestamp with time zone AS verified_at,
+    NULL::timestamp with time zone AS updated_at
+   FROM ((public.sample s
+     CROSS JOIN LATERAL ( SELECT NULLIF(btrim(s.ncbi_biosample_id), ''::text) AS accession) b0)
+     CROSS JOIN LATERAL ( SELECT
+                CASE
+                    WHEN (b0.accession ~ '^SAM(EA|N|D)[0-9]+$'::text) THEN b0.accession
+                    ELSE NULL::text
+                END AS accession) b)
+  WHERE (s.og_id ~ '^OG[0-9]+$'::text);
 
 
 --
--- Name: TABLE ena_specimen_accessions; Type: COMMENT; Schema: public; Owner: -
+-- Name: VIEW ena_specimen_accessions; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.ena_specimen_accessions IS 'Specimen registry for ENA: one row per OG with an ENA-referenceable BioSample, where one is known. Filled by the mito pipeline bin/backfill_ena_specimen_accessions.py; 1 of 2,848 rows has an accession. Whether to keep it or make it a view over sample is open (§11 Q14).';
+COMMENT ON VIEW public.ena_specimen_accessions IS 'Compatibility view (089): one row per sample, with its BioSample from sample.ncbi_biosample_id, the accession every ENA submission used. Was a table filled once, in August 2026, by the mito pipeline''s backfill_ena_specimen_accessions.py; archived in archive/dropped_261123/. Read by Mitogenomes bin/audit_ena_readiness.py. Not a write path: write sample.ncbi_biosample_id.';
 
 
 --
 -- Name: COLUMN ena_specimen_accessions.og_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.ena_specimen_accessions.og_id IS 'The sample (FK to sample).';
+COMMENT ON COLUMN public.ena_specimen_accessions.og_id IS 'The sample.';
 
 
 --
 -- Name: COLUMN ena_specimen_accessions.og_numeric; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.ena_specimen_accessions.og_numeric IS 'Numeric part of og_id (checked to match).';
+COMMENT ON COLUMN public.ena_specimen_accessions.og_numeric IS 'Numeric part of og_id (sample.og_num).';
 
 
 --
 -- Name: COLUMN ena_specimen_accessions.ena_biosample_accession; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.ena_specimen_accessions.ena_biosample_accession IS 'SAMEA/SAMN/SAMD accession. A SAMN is NCBI-registered and webin-cli cannot resolve it (007).';
+COMMENT ON COLUMN public.ena_specimen_accessions.ena_biosample_accession IS 'sample.ncbi_biosample_id when it is a SAMEA/SAMN/SAMD accession, else NULL. A SAMN is NCBI-registered and webin-cli cannot resolve it (007).';
 
 
 --
 -- Name: COLUMN ena_specimen_accessions.accession_source; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.ena_specimen_accessions.accession_source IS 'Where the accession came from, e.g. sample,draft_genomes.';
+COMMENT ON COLUMN public.ena_specimen_accessions.accession_source IS 'Always sample.ncbi_biosample_id where there is an accession.';
 
 
 --
 -- Name: COLUMN ena_specimen_accessions.verified_at; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.ena_specimen_accessions.verified_at IS 'When the accession was last checked.';
+COMMENT ON COLUMN public.ena_specimen_accessions.verified_at IS 'Always NULL; kept so the table''s readers see the same columns.';
 
 
 --
 -- Name: COLUMN ena_specimen_accessions.updated_at; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.ena_specimen_accessions.updated_at IS 'When the row was last written.';
+COMMENT ON COLUMN public.ena_specimen_accessions.updated_at IS 'Always NULL; kept so the table''s readers see the same columns.';
 
 
 --
@@ -7507,7 +7512,7 @@ COMMENT ON COLUMN public.ena_submissions.ena_study_accession IS 'ENA study (PRJE
 -- Name: COLUMN ena_submissions.ena_sample_accession; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.ena_submissions.ena_sample_accession IS 'ENA sample (ERS...). Missing on 172 of 539 (§11 Q12).';
+COMMENT ON COLUMN public.ena_submissions.ena_sample_accession IS 'ENA sample (ERS...). Empty where the submission reused an NCBI BioSample (SAMN...), which has no ERS: 166 of the 172 empty on 2026-11-23. The other 5 reused a SAMEA sample, whose ERS exists at ENA but is not in a receipt, so it was not recorded; and OG25 ilmn 230814 carries a SAMN under biosample_source ''webin_registered''. §11 Q12.';
 
 
 --
@@ -7528,7 +7533,7 @@ COMMENT ON COLUMN public.ena_submissions.ena_assembly_accession IS 'Public assem
 -- Name: COLUMN ena_submissions.ena_sequence_accession; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.ena_submissions.ena_sequence_accession IS 'Empty on every row: genome-context submissions return analysis and assembly accessions, not sequence ones (§11 Q12).';
+COMMENT ON COLUMN public.ena_submissions.ena_sequence_accession IS 'Always empty, as expected: genome-context submissions return analysis (ERZ) and assembly (GCA) accessions, not sequence ones. §11 Q12.';
 
 
 --
@@ -10123,61 +10128,6 @@ COMMENT ON COLUMN public.prep_automation.description IS 'What the value means at
 
 
 --
--- Name: raw_data; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.raw_data (
-    og_id text,
-    run_id text NOT NULL,
-    lane_id text NOT NULL,
-    filename text NOT NULL,
-    og_num integer GENERATED ALWAYS AS ((SUBSTRING(og_id FROM 3))::integer) STORED
-);
-
-
---
--- Name: TABLE raw_data; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.raw_data IS 'Raw sequencing files: one row per FASTQ file of an OG on a run and lane. No current writer found in the pipeline repositories; took no new rows Jul-Nov 2026 (§11 Q13). FK run_id to sequencing_run (075).';
-
-
---
--- Name: COLUMN raw_data.og_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.raw_data.og_id IS 'The sample (FK to sample). NULL on 30 rows.';
-
-
---
--- Name: COLUMN raw_data.run_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.raw_data.run_id IS 'The run (FK to sequencing_run).';
-
-
---
--- Name: COLUMN raw_data.lane_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.raw_data.lane_id IS 'Library and lane as the sequencer named them, e.g. F15-0238_L1.';
-
-
---
--- Name: COLUMN raw_data.filename; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.raw_data.filename IS 'The FASTQ file name.';
-
-
---
--- Name: COLUMN raw_data.og_num; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.raw_data.og_num IS 'Numeric part of og_id, for sorting. Generated.';
-
-
---
 -- Name: ref_assembly_assembly_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -11799,7 +11749,7 @@ CREATE TABLE public.sequencing (
 -- Name: TABLE sequencing; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.sequencing IS 'One row per sequencing record. Source: the 5.Sequencing sheet (import_v2.py). Each row names one library (library_tube_id) and one run (run_id). Grain undecided: a library on a run in most rows, but see §11 Q5.';
+COMMENT ON TABLE public.sequencing IS 'One row per library on a run. Source: the 5.Sequencing sheet (import_v2.py). Each row names one library (library_tube_id) and one run (run_id); no pair repeats (4,677 of 4,677 on 2026-11-23). PacBio SMRT cells share the row (cell_id lists them, smrt_num counts them); Illumina lanes are not rows here (hic_read_qc keeps them). §11 Q5, answered 2026-11-23.';
 
 
 --
@@ -11920,7 +11870,7 @@ CREATE TABLE public.sequencing_run (
 -- Name: TABLE sequencing_run; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.sequencing_run IS 'One sequencing run, derived from sequencing.run_id. Kept current by the sequencing_run_ensure and sequencing_run_refresh_* triggers on sequencing (075); sequencing, raw_data, rna_qc_kinnex (075), hifi_read_qc and hic_read_qc (077) have FKs to it.';
+COMMENT ON TABLE public.sequencing_run IS 'One sequencing run, derived from sequencing.run_id. Kept current by the sequencing_run_ensure and sequencing_run_refresh_* triggers on sequencing (075); sequencing, rna_qc_kinnex (075), hifi_read_qc and hic_read_qc (077) have FKs to it.';
 
 
 --
@@ -12001,7 +11951,7 @@ CREATE TABLE public.species (
 -- Name: TABLE species; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.species IS 'Species names with their lineage, one row per name. Loaded from NCBI rankedlineage.dmp by OceanOmics-OceanGenomes-Draft-Genomes scripts/taxonomy/load_taxonomy.py (insert-only, existing rows never touched), plus earlier AFD-sourced rows. The draft pipeline routes BUSCO lineages on class. One of several species sources: which is authoritative is undecided (§11 Q1).';
+COMMENT ON TABLE public.species IS 'Species names with their lineage, one row per name. Loaded from NCBI rankedlineage.dmp by OceanOmics-OceanGenomes-Draft-Genomes scripts/taxonomy/load_taxonomy.py (insert-only, existing rows never touched), plus earlier AFD-sourced rows. The draft pipeline routes BUSCO lineages on class. Not the name authority: that is master_species (§11 Q1, 2026-11-13).';
 
 
 --
@@ -13465,13 +13415,6 @@ CREATE VIEW public.v_sequencing_run_fk_readiness AS
    FROM (public.sequencing c
      LEFT JOIN public.sequencing_run r ON ((r.run_id = c.run_id)))
 UNION ALL
- SELECT 'raw_data'::text AS child,
-    count(*) AS child_rows,
-    count(*) FILTER (WHERE ((c.run_id IS NOT NULL) AND (r.run_id IS NULL))) AS failing_rows,
-    string_agg(DISTINCT c.run_id, ', '::text) FILTER (WHERE ((c.run_id IS NOT NULL) AND (r.run_id IS NULL))) AS failing_run_ids
-   FROM (public.raw_data c
-     LEFT JOIN public.sequencing_run r ON ((r.run_id = c.run_id)))
-UNION ALL
  SELECT 'hifi_read_qc'::text AS child,
     count(*) AS child_rows,
     count(*) FILTER (WHERE ((c.run_id IS NOT NULL) AND (r.run_id IS NULL))) AS failing_rows,
@@ -13491,7 +13434,7 @@ UNION ALL
 -- Name: VIEW v_sequencing_run_fk_readiness; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON VIEW public.v_sequencing_run_fk_readiness IS 'Per table with an FK to sequencing_run (sequencing, raw_data: 075; hifi_read_qc, hic_read_qc: 077): rows whose run is not in sequencing_run. The FKs make this 0; kept as the check.';
+COMMENT ON VIEW public.v_sequencing_run_fk_readiness IS 'Per table with an FK to sequencing_run (sequencing: 075; hifi_read_qc, hic_read_qc: 077): rows whose run is not in sequencing_run. The FKs make this 0; kept as the check. raw_data was dropped by 089.';
 
 
 --
@@ -14012,30 +13955,6 @@ ALTER TABLE ONLY public.ena_related_assemblies
 
 
 --
--- Name: ena_specimen_accessions ena_specimen_accessions_ena_biosample_accession_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.ena_specimen_accessions
-    ADD CONSTRAINT ena_specimen_accessions_ena_biosample_accession_key UNIQUE (ena_biosample_accession);
-
-
---
--- Name: ena_specimen_accessions ena_specimen_accessions_og_numeric_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.ena_specimen_accessions
-    ADD CONSTRAINT ena_specimen_accessions_og_numeric_key UNIQUE (og_numeric);
-
-
---
--- Name: ena_specimen_accessions ena_specimen_accessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.ena_specimen_accessions
-    ADD CONSTRAINT ena_specimen_accessions_pkey PRIMARY KEY (og_id);
-
-
---
 -- Name: ena_submissions ena_submissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14376,14 +14295,6 @@ ALTER TABLE ONLY public.pacbio_library
 
 ALTER TABLE ONLY public.prep_automation
     ADD CONSTRAINT prep_automation_pkey PRIMARY KEY (prep_automation);
-
-
---
--- Name: raw_data raw_data_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.raw_data
-    ADD CONSTRAINT raw_data_pkey PRIMARY KEY (run_id, lane_id, filename);
 
 
 --
@@ -14973,13 +14884,6 @@ CREATE INDEX pacbio_library_dna_id_idx ON public.pacbio_library USING btree (dna
 
 
 --
--- Name: raw_data_og_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX raw_data_og_id_idx ON public.raw_data USING btree (og_id);
-
-
---
 -- Name: ref_assembly_run_sequencing_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -15454,15 +15358,7 @@ ALTER TABLE ONLY public.draft_tiara
 --
 
 ALTER TABLE ONLY public.ena_related_assemblies
-    ADD CONSTRAINT ena_related_assemblies_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.ena_specimen_accessions(og_id);
-
-
---
--- Name: ena_specimen_accessions ena_specimen_accessions_og_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.ena_specimen_accessions
-    ADD CONSTRAINT ena_specimen_accessions_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.sample(og_id);
+    ADD CONSTRAINT ena_related_assemblies_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.sample(og_id);
 
 
 --
@@ -15807,22 +15703,6 @@ ALTER TABLE ONLY public.pacbio_library
 
 ALTER TABLE ONLY public.pacbio_library
     ADD CONSTRAINT pacbio_library_status_fkey FOREIGN KEY (status_sheet, pacb_status) REFERENCES public.lab_status(sheet, status);
-
-
---
--- Name: raw_data raw_data_og_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.raw_data
-    ADD CONSTRAINT raw_data_og_id_fkey FOREIGN KEY (og_id) REFERENCES public.sample(og_id);
-
-
---
--- Name: raw_data raw_data_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.raw_data
-    ADD CONSTRAINT raw_data_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.sequencing_run(run_id);
 
 
 --

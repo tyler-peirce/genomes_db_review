@@ -18,9 +18,6 @@ CREATE UNIQUE INDEX draft_tiara_pkey ON public.draft_tiara USING btree (draft_id
 CREATE UNIQUE INDEX ena_related_assemblies_og_id_relationship_type_archive_acce_key ON public.ena_related_assemblies USING btree (og_id, relationship_type, archive, accession);
 CREATE UNIQUE INDEX ena_related_assemblies_pkey ON public.ena_related_assemblies USING btree (id);
 CREATE UNIQUE INDEX ena_related_one_primary_idx ON public.ena_related_assemblies USING btree (og_id, relationship_type) WHERE is_primary;
-CREATE UNIQUE INDEX ena_specimen_accessions_ena_biosample_accession_key ON public.ena_specimen_accessions USING btree (ena_biosample_accession);
-CREATE UNIQUE INDEX ena_specimen_accessions_og_numeric_key ON public.ena_specimen_accessions USING btree (og_numeric);
-CREATE UNIQUE INDEX ena_specimen_accessions_pkey ON public.ena_specimen_accessions USING btree (og_id);
 CREATE INDEX ena_submissions_annotation_id_idx ON public.ena_submissions USING btree (annotation_id);
 CREATE INDEX ena_submissions_identity_idx ON public.ena_submissions USING btree (og_id, tech, seq_date, code, annotation);
 CREATE UNIQUE INDEX ena_submissions_pkey ON public.ena_submissions USING btree (full_seqid, webin_mode);
@@ -96,8 +93,6 @@ CREATE UNIQUE INDEX pacbio_library_attempt_key ON public.pacbio_library USING bt
 CREATE INDEX pacbio_library_dna_id_idx ON public.pacbio_library USING btree (dna_id);
 CREATE UNIQUE INDEX pacbio_library_pkey ON public.pacbio_library USING btree (pacbio_library_tube_id);
 CREATE UNIQUE INDEX prep_automation_pkey ON public.prep_automation USING btree (prep_automation);
-CREATE INDEX raw_data_og_id_idx ON public.raw_data USING btree (og_id);
-CREATE UNIQUE INDEX raw_data_pkey ON public.raw_data USING btree (run_id, lane_id, filename);
 CREATE UNIQUE INDEX ref_assembly_natural_key ON public.ref_assembly USING btree (og_id, seq_date, version);
 CREATE UNIQUE INDEX ref_assembly_pkey ON public.ref_assembly USING btree (assembly_id);
 CREATE UNIQUE INDEX ref_assembly_part_natural_key ON public.ref_assembly_part USING btree (assembly_id, stage, haplotype);
