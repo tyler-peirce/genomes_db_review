@@ -1,5 +1,7 @@
 # Live Column Inventory
 
+> **Historical snapshot, 2026-07-07: the pre-`v2` schema.** Nothing regenerates it. For the current schema see `schema/current_schema.sql` (the baseline), `schema/object_inventory.tsv` and `docs/data_dictionary.md`.
+
 Generated from the live PostgreSQL database. `Indexed` means the column appears in at least one index definition; review index order and selectivity before relying on it.
 
 | Object | Type | # | Column | Data type | Nullable | Default | PK | FK target | Indexed | Database comment |

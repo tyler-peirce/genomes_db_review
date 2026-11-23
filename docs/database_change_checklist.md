@@ -81,6 +81,14 @@ a draft clone 12 days behind `origin/master`, and the writer had been added in b
 - **Rehearse writes, not only reads.** Selecting every view does not run a trigger. If the change
   touches a table that has triggers, or that a function reads, write to that table in the
   rehearsal (in a transaction, rolled back).
+- **Compare schemas without `pg_dump`'s `\restrict` lines.** Since PostgreSQL's 2025 security
+  release, every `pg_dump` carries a random `\restrict` / `\unrestrict` token, so two dumps of
+  the same schema differ. Filter them (`grep -v '^\\\(un\)\?restrict '`) before diffing (`094`).
+- **Fingerprint rows with an explicit order.** `md5(string_agg(..., ',' ORDER BY <columns>))`.
+  `ORDER BY 1` inside an aggregate orders by the constant 1, so the result follows physical row
+  order and changes when rows are deleted and reinserted (`094` rehearsal).
+- **A backfill should not bump `updated_at`** unless the revert can restore it. Otherwise the
+  revert cannot be row-identical to before (`094`).
 
 
 ## Migration Governance

@@ -2,7 +2,9 @@
 
 Status: rewritten 2026-11-04, after Phases R and RG and migrations `078`/`079`. Updated
 2026-11-13: design reasons from the migration headers added to each section, the
-[migration index](#migration-index) added, and `082`–`088` reflected. The first draft
+[migration index](#migration-index) added, and `082`–`088` reflected. Updated 2026-11-23 for
+`089`–`094`: `raw_data` dropped, `ena_specimen_accessions` a view, the archive schemas dropped,
+read sets per assembly, Hi-C runs linked. The first draft
 (2026-07-07) described the pre-`v2` schema.
 
 This is the map of the `oceanomics_genomes` database: what each table is for, what one row is,
@@ -76,7 +78,7 @@ sample ─┬─ tissue ─┬─ dna_extraction ─┬─ illumina_library ─�
 | `illumina_library`, `pacbio_library`, `ont_library`, `hic_library`, `rna_library_ilmn`, `rna_library_kinx` | 2,131 / 436 / 98 / 326 / 393 / 188 | One library prep attempt | `import_v2.py` (the 4.* sheets) | Status checked against `lab_status` (`082`) |
 | `library` | 3,552 | A library of any technology | `import_v2.py` | One key for `sequencing` to point at |
 | `sequencing` | 4,677 | One library on one run | `import_v2.py` (5.Sequencing) | No pair repeats; PacBio SMRT cells share the row, Illumina lanes are not rows (§11 Q5, 2026-11-23) |
-| `sequencing_run` | 218 | A run | Triggers on `sequencing` (`075`); `flowcell` by `push_hic_yield.py` (`094`) | FK target for `sequencing`, `rna_qc_kinnex`, `hifi_read_qc`, `hic_read_qc`. `flowcell` (unique) names a run from a read name |
+| `sequencing_run` | 218 (2026-11-23) | A run | Triggers on `sequencing` (`075`); `flowcell` by `push_hic_yield.py` (`094`) | FK target for `sequencing`, `rna_qc_kinnex`, `hifi_read_qc`, `hic_read_qc`. `flowcell` (unique) names a run from a read name |
 | `design_description` | 2 | An Illumina prep protocol | Fixed | FK from `sequencing.design_no` (`063`) |
 | `prep_automation` | 2 | Manual or automated prep | Fixed | Lookup |
 | `lab_status` | 65 | An allowed Status value on one lab sheet | By hand (`INSERT`) | FK target for the nine sheets' status columns, through their `status_sheet` column (`082`) |
@@ -241,11 +243,11 @@ ref_submission ─┬─ ref_submission_haplotype
 
 | Table | Rows | One row is | Written by |
 |---|---:|---|---|
-| `ref_assembly` | 468 | An assembly attempt, `(og_id, seq_date, version)` | ref repo and post-curation, via `scripts/lib/refdb.py` |
+| `ref_assembly` | 491 (2026-11-23) | An assembly attempt, `(og_id, seq_date, version)`, built from one read set (`read_set_id`, NOT NULL since `093`) | ref repo and post-curation, via `scripts/lib/refdb.py` |
 | `ref_assembly_part` | 2,024 | One sequence set at one stage | `refdb.py`, on the first result for it |
-| `ref_assembly_run` | 777 | A sequencing row an assembly was built from: PacBio from its read set (`093`), ONT by date, Hi-C from its BAM's flowcells (`094`) | Derived by `refresh_assembly_runs()` from triggers (`080`, `093`, `094`) |
-| `ref_assembly_hic_flowcell` | 232 | A flowcell in an assembly's Hi-C BAM read names: the evidence its Hi-C links derive from (`094`) | ref repo `05b_push_hic_runs_to_sqldb.py` via `set_ref_assembly_hic_flowcells()` |
-| `ref_assembly_hic_unlinked` | 10 | A Hi-C assembly reviewed and left without Hi-C links, and why (`094`) | By review; cleared by `set_ref_assembly_hic_flowcells()` |
+| `ref_assembly_run` | 777 (2026-11-23) | A sequencing row an assembly was built from: PacBio from its read set (`093`), ONT by date, Hi-C from its BAM's flowcells (`094`) | Derived by `refresh_assembly_runs()` from triggers (`080`, `093`, `094`) |
+| `ref_assembly_hic_flowcell` | 232 (2026-11-23) | A flowcell in an assembly's Hi-C BAM read names: the evidence its Hi-C links derive from (`094`) | ref repo `05b_push_hic_runs_to_sqldb.py` via `set_ref_assembly_hic_flowcells()` |
+| `ref_assembly_hic_unlinked` | 10 (2026-11-23) | A Hi-C assembly reviewed and left without Hi-C links, and why (`094`) | By review; cleared by `set_ref_assembly_hic_flowcells()` |
 | `ref_stage` | 4 | Stage 0-3: contigs, scaffolded, decontaminated, curated | Fixed |
 | `ref_gfastats` | 1,294 | gfastats; **the** N50 | `04a/04b_*push_gfa*` (ref repo), `04a_push_gfa_results_to_sqldb.py` (post-curation) |
 | `ref_busco` | 781 | BUSCO | `03a_push_busco_results_to_sqldb.py` |
@@ -254,9 +256,10 @@ ref_submission ─┬─ ref_submission_haplotype
 | `ref_seqkit_stats` | 300 | seqkit stats of the curated FASTA | post-curation `05a_push_stats_compiled_results_to_sql.py` |
 | `ref_chromosome_stats` | 300 | Chromosome assignment after curation | post-curation `06b_push_percentage_stats_to_sqldb.py` |
 | `ref_decontamination` | 306 | What FCS-GX and Tiara removed from one stage-2 haplotype, with the YaHS input (`083`) | `06_decontam_compile.py` + `06a_push_decontam_results_to_sqldb.py` |
-| `ref_read_set` | 249 | A HiFi read set one run of the pipeline used | `refdb.py` |
-| `ref_read_set_run` / `ref_read_set_external` | 266 / 1 | Its PacBio rows, or why it has none | `refdb.py` / by hand (`071`) |
-| `ref_genomescope` / `ref_hifi_adapter_filter` | 249 / 143 | Read-set k-mer profile / adapter filter | `01a_*`, `0a_*` push scripts |
+| `ref_read_set` | 290 (2026-11-23) | A HiFi read set one run of the pipeline used: the pool of reads one assembly run read (`093`) | `refdb.py`; a new assembly's from `ref_assembly_read_set_default()` (`093`) |
+| `ref_read_set_run` / `ref_read_set_external` | 312 / 1 (2026-11-23) | Its PacBio rows, or why it has none | `refdb.py` / by hand (`071`) |
+| `ref_genomescope` / `ref_hifi_adapter_filter` | 260 / 160 (2026-11-23) | Read-set k-mer profile / adapter filter total | `01a_*`, `0a_*` push scripts |
+| `ref_hifi_adapter_filter_run` | 302 (2026-11-23) | HiFiAdapterFilt's count for one PacBio sequencing row; a read set's total is the sum (`093`) | `0a_*` push via `refdb.write_adapter_filter` |
 | `ref_submission` | 88 | The genome submission of an OG | `ENA-ref-genomes` steps 09 and 10 |
 | `ref_submission_haplotype` | 174 | One haplotype's BioProject and accessions | `ENA-ref-genomes` steps 09 and 10 |
 | `ref_sra_upload` | 304 | One raw-read run uploaded | `ENA-ref-genomes` step 09 |
@@ -265,7 +268,9 @@ ref_submission ─┬─ ref_submission_haplotype
 `v_ref_assembly_status` and `v_ref_assembly_summary` are the status views. `ref_genomes`,
 `ref_genomes_assembly_uploads`, `ref_genomes_sra_uploads`, `raw_qc`, `hifi_reads_qc` and
 `hic_reads_qc` are the compatibility views. The `v_*_readiness` views list the rows with a
-missing link, and why.
+missing link, and why: `v_ref_assembly_run_readiness` (no run link at all),
+`v_ref_read_set_readiness` (`093`) and `v_ref_assembly_hic_readiness` (`094`).
+`v_ref_assembly_hic_rule` (`094`) is the Hi-C link rule itself.
 
 **Why it is shaped this way**
 

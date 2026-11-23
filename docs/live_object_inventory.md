@@ -1,5 +1,7 @@
 # Live Object Inventory
 
+> **Historical snapshot, 2026-07-07: the pre-`v2` schema.** Nothing regenerates it. For the current schema see `schema/current_schema.sql` (the baseline), `schema/object_inventory.tsv` and `docs/data_dictionary.md`.
+
 Generated from the live PostgreSQL database. Base table row counts are exact as of generation time; view row counts are intentionally not counted.
 
 | Object | Type | Rows | Columns | Database comment |

@@ -1,5 +1,7 @@
 # Live Relationship And Index Review
 
+> **Historical snapshot, 2026-07-07: the pre-`v2` schema.** Nothing regenerates it. For the current schema see `schema/current_schema.sql` (the baseline), `schema/object_inventory.tsv` and `docs/data_dictionary.md`.
+
 Generated from PostgreSQL catalogs. A child-side FK index is marked yes only when an index has the FK columns as its leading columns.
 
 ## Foreign Keys
