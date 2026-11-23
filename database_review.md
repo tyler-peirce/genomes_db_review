@@ -1221,8 +1221,7 @@ Split by Phase RG (`057`–`071`, merged `073`): assemblies, parts per stage and
 sets, one table per tool, submissions with per-haplotype accessions, and SRA uploads linked to
 sequencing rows.
 
-Still wrong: **`ref_assembly_run` has had no writer since `073`**, the same gap as the mito run
-links (`v_ref_assembly_run_readiness` lists the assemblies). The decontamination counts are
+Still wrong: 61 assemblies have no run link, the same set since RG.0: their `seq_date` matches no run, so `refresh_assembly_runs()` (`080`, the writer since 2026-11-09) cannot derive one (`v_ref_assembly_run_readiness`; link by hand or fix the date). The decontamination counts are
 stored since `083` (2026-11-11, `ref_decontamination`), but none of the 186 `hic` assemblies is linked to its Hi-C runs (backlog, medium).
 
 ### Read QC and raw data

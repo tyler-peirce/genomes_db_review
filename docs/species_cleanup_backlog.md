@@ -1,6 +1,6 @@
 # Species Cleanup Backlog
 
-Status: Draft cleanup plan. Do not run update statements until mappings are reviewed.
+Status: **superseded 2026-11-13, not to be run.** The owner withdrew species validation: `master_species` is the vertebrate GoaT list and is not meant to match every sample (`database_review.md` §10 Highest 8). `sample.assigned_species` is left to the colleague who maintains it (2026-11-23). Kept for the profiling queries; the counts below are from August.
 
 ## Known Issues
 

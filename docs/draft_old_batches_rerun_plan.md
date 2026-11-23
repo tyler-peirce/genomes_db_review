@@ -1,6 +1,6 @@
 # Plan: depth and genome-size re-run for drafts up to 250520
 
-Status: plan, 2026-11-11. Not started.
+Status: **done 2026-11-18.** Run 2, the re-run from reads (rr1) and the fixes are recorded below and in [`draft_backfill_record.md`](draft_backfill_record.md) ("Draft tables review and fixes"). Left by decision or for lack of input: OG91 240313 (owner), OG348 230324 (too few BUSCO regions; its FCS-GX exclude total needs `bigint`), and 42 drafts with no FCS-GX values (9 held, 33 with no source).
 
 ## Why
 

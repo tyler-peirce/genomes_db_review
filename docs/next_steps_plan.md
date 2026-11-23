@@ -163,7 +163,7 @@ What I can do: run the next-day checks, and grep every repo for a password liter
   - the mito `nextflow_run.sh`;
   - the mito `pawsey_profile.config`, which loads Singularity in every task through `module` and `beforeScript`.
 - **The harness ran** only with a test-only override: `pawseyenv/2025.08` loaded in the launcher, and `process.module = 'pawseyenv/2025.08:singularity/4.1.0-nompi'` in the tasks.
-- **Status:** not yet fixed in any repo.
+- **Status (checked 2026-11-23, remote default branches):** fixed in the draft pipeline (`master` `9bfec88`) and the mito pipeline (`inverts-dev` `6707415`, `master` `85ffa32`). Not changed in `OceanOmics-OceanGenomes-ref-genomes` (`fb128b3`: `nextflow-run.sh`, `pawsey_profile.config`, `modules/local/trigger_mitogenome/main.nf`) or post-curation (`2d700cf`: `pawsey_profile.config`), but ref results kept landing up to 2026-11-16, so its launch path works as it is.
 
 ---
 
