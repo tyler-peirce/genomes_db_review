@@ -156,3 +156,43 @@ The three test drafts' staged files were removed the same way (7 files).
    The alternative is to upload the verdict columns only and report the refits without applying them.
 2. **Staging space.** The BAMs make about 1.5 TB per batch. The launcher never deletes, so the batch's staged BAMs and assemblies must be removed between batches. Either I remove them file by file (plain `rm` of the files I staged, no recursive or forced delete), or you run the cleanup command I give you after each batch.
 3. **The 701 drafts with DepthSizer `scdepth`** are included by default (above). Say if you would rather run only the 3 drafts with no depth of any kind.
+
+### Result (run 2, finished 2026-11-13 19:09; checked on live 2026-11-16, read-only)
+
+- 701 drafts in b0–b6. 654 passed the gate; 603 went through depth (51 skipped by the launcher: 26 no GenomeScope model, 25 no model and no fastp). 602 depth `ok`, 1 `too_few_busco_regions` (OG348 230324). Genome size ran on all 602. Every launcher exited 0; all staged BAMs and assemblies were removed (scratch `old_rerun` 28G after b6).
+- Gate exclusions (47): 27 missing BAM or histogram (e.g. 221115), 19 BAMs from the OG's other draft (≤0.02% shared contigs), 1 borderline (OG63 240716, 97.8% shared).
+- Live, drafts ≤250520: verdict 604 (541 reliable, 63 not), `busco_read_depth`/host 624, `kmercov` 604, partition 612 high / 12 low.
+- `genomesize` changed for 14 drafts against `records/genome_size_before_old_rerun.csv`; each rose to near `host_haploid_size` (old fits were about half the genome). Reliable: OG453 230607, OG455 230607, OG619 230607, OG240 230324, OG780 250520. Not reliable: OG1274 250331, OG359 230324, OG182 230814, OG563 230419, OG500 230323, OG76 230814, OG74 240813, OG1282 250331, OG173 250520.
+- Still needing a re-run (98 drafts, `old_rerun/reruns_needed.tsv` on scratch): re-map (no or wrong BAM) or rerun GenomeScope/fastp from reads.
+- gfastats OG1280/OG1293: computed 2026-11-14; first upload refused on a leftover empty `.tmp`; moved to `leftover_tmp/`, upload 53213893 committed 727, 0 failed, 0 verification failures.
+
+### Archive to Acacia (2026-11-16)
+
+- Checked first, read-only (`draft_backfill/archive/verify_in_db.py`, the pipeline's parsers + `matches_stored`): 604 coverage summaries, 727 gfastats summaries, 634 depth files and the 14 winning reseeded GenomeScope summaries all PASS against live. One FAIL, held back: OG2 240716 `_kmer_depth.json` (the wrong-BAM depth reset on 2026-11-09).
+- Copied with `rclone copy --ignore-existing` into `genomes.v2/<OG>/` in the production layout (`coverage/`, `kmers/<key>.genomescope/`, `assemblies/genome/{gfastats,seqkit}/`), plus the 106 regenerated GenomeScope models beside their summaries (`kmers/<key>/`). `rclone check`: 0 differences on every set. Nothing already on Acacia was replaced: 609 `coverage/versions.yml` already present (the genome-size step's copy) were left, and the depth step's copies were added as `coverage/versions.depth_only.yml`.
+
+### Re-run from reads (started 2026-11-16)
+
+- 99 drafts: 98 from `old_rerun/reruns_needed.tsv` plus OG2 240716. Four have no assembly anywhere (OG373, OG399, OG421 230324; OG617 230607, which also has no trimmed reads on S3) and need a full re-assembly: not started, owner to decide. The other 95 run in `draft_backfill/reads_rerun/`.
+- Only the missing inputs are rebuilt, with the pipeline's own commands and containers; the archived assembly is kept. BAM: bwa-mem2 mem of the fastp reads (S3 analysed-data) to the archived `.fna`, samtools sort. GenomeScope model: `genomescope2 -k 21 -m 1000` on the archived histogram (found under `NOVA_240313_LA` names, which staging had missed), else meryl k=21 from the fastp reads. fastp report: fastp with the pipeline's flags on the raw lanes (S3 illumina-raw) pooled.
+- Nothing is placed unless it reproduces the stored values (`rr_place.py`, read-only): GenomeScope summary equal to the stored GenomeScope columns; fastp report equal (or within 0.5%, listed as NEAR) to the stored fastp columns. New BAMs pass the same 98% contig gate. Then the same DEPTH_ONLY + GENOME_SIZE_ONLY runs (`rr_finish.sh`). New BAMs are kept on scratch pending an archive decision.
+- Test: OG103 240313 model from the archived histogram: PASS, identical to live.
+- fastp flags differ by run, so the rebuilt report uses the command recorded in a fastp report from the same or the adjacent run: 221115/221123 fastp 0.23.2 and 231024/240313 fastp 0.23.4, both `--max_len 150 --length_required 100` with no `--dedup`/`--cut_tail`; 230419 onwards the current flags. With the current flags OG303 221123 failed (total_reads 325.4M against 366.1M stored); with the 0.23.2 profile it matched every stored fastp column exactly.
+- GenomeScope check allows 1 bp on the integer sizes (the stored values were rounded from a summary printed at different precision; OG82 and OG51 240313 differed by exactly 1 bp and otherwise matched).
+- Running: `rr_driver.sh` (tmux `rr_driver`, setonix-03, 12 drafts at a time) then `rr_after.sh` (tmux `rr_after`, setonix-04): resets the four 231024 reports computed before the per-run profile (OG38, OG40, OG44, OG57), retries anything not placed, then `rr_finish.sh rr1`. Log: `reads_rerun/rr_driver.log`; checks: `reads_rerun/place_report.tsv`.
+
+### Correction: the four "re-assemble" drafts (2026-11-16)
+
+None of them needs a re-assembly.
+
+- **OG373, OG399, OG421 (230324):** the inventory only counted Acacia copies of the `.fna`. Their 230324 `.fna` and trimmed reads are on S3 `analysed-data`, and `rr_stage.sh` already falls back to S3. The live sequencing table shows no newer run for any of them; 230324 NovaSeq is the latest. They were appended to `rr_list.tsv` (the old list is kept as `rr_list.before_reassemble_fix.tsv`), so `rr_after.sh` picks them up in its retry pass and they go through stage, compute and place like the rest.
+- **OG617 230607:** superseded by the 240813 draft (library `OG617U_D_IL2`). That draft is complete on Acacia and live, with depth, `genome_size_reliable = t` and a host partition. The 230607 row has `total_reads = 0` and the same `genomesize` as 240813, so it looks like a stub, not a separate assembly. Not re-run.
+- **For the owner, no change made:** OG617 also has a `seq_date = '240813-genomescope'` draft row holding only a GenomeScope result. It is a duplicate of the 240813 row.
+- Record: `reads_rerun/reassemble.resolved.tsv`.
+
+### Result of the re-run from reads, and corrections (checked 2026-11-18)
+
+- **rr1 (2026-11-16 21:34–22:57):** 87 drafts placed, gate 87 ready / 0 excluded, depth and genome size exit 0. On live, drafts ≤250520 then had no verdict for 36 of 724 (was 120) and no depth for 13 (was 100).
+- **Not placed in rr1:** 7 refused on GenomeScope differences of 1–20 bp (OG87, OG108, OG91, OG116, OG118, OG119, OG311); OG373, OG399, OG421 (no BUSCO table); OG1289 (out of memory twice). Genome size also skipped OG301, OG302 (no histogram) and OG1286 (no BUSCO short summary).
+- **Correction: the genome-size uploads created fake drafts.** Every genome-size push in this plan (b0–b6 and rr1) ran with the unpatched scratch `pipeline/bin`. 674 `draft_genome` rows with `seq_date = '<date>-genomescope'` were made, OG617's among them, and the GenomeScope percentages went to them instead of the real drafts. The "percentages at full precision" part of decision 1 had therefore not been applied.
+- All of the above was fixed or finished on 2026-11-18: see "Draft tables review and fixes (2026-11-18)" in [`draft_backfill_record.md`](draft_backfill_record.md).
